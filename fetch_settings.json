@@ -1,0 +1,81 @@
+{
+  "news_hours": 24,
+  "sources": {
+    "cls": {
+      "label": "财联社快讯",
+      "group": "news",
+      "icon": "newspaper",
+      "desc": "全市场宏观快讯电报",
+      "fetcher_type": "jasper",
+      "enabled": true
+    },
+    "caixin": {
+      "label": "财新深度",
+      "group": "news",
+      "icon": "newspaper",
+      "desc": "深度财经分析报道",
+      "fetcher_type": "jasper",
+      "enabled": true
+    },
+    "hot_stocks": {
+      "label": "热门股票新闻",
+      "group": "news",
+      "icon": "newspaper",
+      "desc": "东方财富人气榜Top20个股新闻",
+      "fetcher_type": "jasper",
+      "enabled": true
+    },
+    "watchlist": {
+      "label": "自选股新闻",
+      "group": "news",
+      "icon": "newspaper",
+      "desc": "watchlist中关注/持仓个股新闻",
+      "fetcher_type": "jasper",
+      "enabled": true
+    },
+    "cctv": {
+      "label": "CCTV新闻联播",
+      "group": "news",
+      "icon": "newspaper",
+      "desc": "当日新闻联播，宏观政策风向",
+      "fetcher_type": "jasper",
+      "enabled": true
+    },
+    "djyanbao": {
+      "label": "洞见研报",
+      "group": "report",
+      "icon": "description",
+      "desc": "券商/行业研报元数据",
+      "fetcher_type": "djyanbao",
+      "limit": 100,
+      "enabled": false
+    },
+    "fxbaogao": {
+      "label": "发现报告",
+      "group": "report",
+      "icon": "description",
+      "desc": "行业报告元数据",
+      "fetcher_type": "fxbaogao",
+      "limit": 100,
+      "enabled": false
+    },
+    "em_report": {
+      "label": "东财研报(PDF)",
+      "group": "report",
+      "icon": "description",
+      "desc": "东方财富研报，含PDF全文提取",
+      "fetcher_type": "em_report",
+      "limit": 10,
+      "enabled": true
+    },
+    "zsxq": {
+      "label": "知识星球",
+      "group": "community",
+      "icon": "forum",
+      "desc": "知识星球社群帖子",
+      "fetcher_type": "zsxq",
+      "max_pages": 5,
+      "enabled": true
+    }
+  }
+}

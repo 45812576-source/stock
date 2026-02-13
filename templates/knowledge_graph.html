@@ -1,0 +1,916 @@
+{% extends "base.html" %}
+{% block title %}知识图谱 — {% if tab == 'schema' %}Schema{% elif tab == 'visualization' %}可视化{% elif tab == 'entities' %}实体管理{% else %}推理引擎{% endif %}{% endblock %}
+
+{% block extra_styles %}
+.kg-canvas { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 40px 40px; position: relative; }
+.entity-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 9999px; font-size: 0.65rem; font-weight: 700; }
+.stat-card { background: #161d2b; border: 1px solid rgba(100,116,139,0.15); border-radius: 10px; padding: 1rem 1.25rem; }
+.tab-btn { padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab-btn.active { color: #135bec; border-bottom-color: #135bec; }
+.tab-btn:not(.active) { color: #64748b; }
+.tab-btn:not(.active):hover { color: #94a3b8; }
+.ctrl-panel { background: rgba(22,29,43,0.9); backdrop-filter: blur(12px); border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; }
+.detail-panel { background: #161d2b; border-left: 1px solid rgba(100,116,139,0.2); }
+.prop-row { display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid rgba(100,116,139,0.1); }
+#graphCanvas { width: 100%; height: 100%; }
+.schema-node { background: #161d2b; border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; padding: 1rem; transition: all 0.2s; }
+.schema-node:hover { border-color: rgba(100,116,139,0.4); }
+.schema-node.selected { border-color: #135bec; box-shadow: 0 0 0 1px #135bec; }
+.rel-line { height: 2px; flex: 1; opacity: 0.4; }
+.infer-card { background: #161d2b; border: 1px solid rgba(100,116,139,0.15); border-radius: 10px; }
+.infer-card:hover { border-color: rgba(100,116,139,0.3); }
+.toast { position: fixed; top: 1rem; right: 1rem; z-index: 9999; padding: 0.75rem 1.25rem; border-radius: 8px; font-size: 0.8rem; font-weight: 600; animation: slideIn 0.3s ease; }
+@keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+.entity-row { transition: all 0.15s; }
+.entity-row:hover { background: rgba(100,116,139,0.06); }
+.edit-sidebar { background: #161d2b; border-left: 1px solid rgba(100,116,139,0.2); }
+{% endblock %}
+
+{% block content %}
+<!-- 页面标题 -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-extrabold tracking-tight">知识图谱</h1>
+    <p class="text-sm text-slate-500 mt-1">实体关系网络 · Schema · 可视化 · 推理</p>
+  </div>
+  <div class="flex items-center gap-3">
+    <div class="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full border border-primary/20">
+      <span class="w-2 h-2 rounded-full {% if stats.total_entities > 0 %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+      <span class="text-xs font-semibold text-primary/80">
+        {{ stats.total_entities }} 实体 · {{ stats.total_relationships }} 关系
+      </span>
+    </div>
+  </div>
+</div>
+
+<!-- Tab 导航 -->
+<div class="flex items-center gap-1 border-b border-slate-800 mb-6">
+  <a href="/kg" class="tab-btn {% if tab == 'schema' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">schema</span>Schema
+  </a>
+  <a href="/kg/visualization" class="tab-btn {% if tab == 'visualization' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">hub</span>可视化
+  </a>
+  <a href="/kg/entities" class="tab-btn {% if tab == 'entities' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">list_alt</span>实体管理
+  </a>
+  <a href="/kg/inference" class="tab-btn {% if tab == 'inference' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">psychology</span>推理引擎
+  </a>
+</div>
+
+{% if tab == 'schema' %}
+<!-- ==================== Schema Designer ==================== -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+  <!-- 左侧：实体类型列表 -->
+  <div class="lg:col-span-1 space-y-3">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">实体类型</h3>
+      <span class="text-[10px] text-slate-600">{{ entity_colors|length }} 种</span>
+    </div>
+    {% for etype, ecfg in entity_colors.items() %}
+    <div class="schema-node cursor-pointer" onclick="selectSchemaType('{{ etype }}')" id="schema-{{ etype }}">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:{{ ecfg.bg }}1a">
+          <span class="material-icons-round" style="color:{{ ecfg.bg }}">{{ ecfg.icon }}</span>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-bold text-white">{{ ecfg.label }}</p>
+          <p class="text-[10px] text-slate-500 font-mono">{{ etype }}</p>
+        </div>
+        <span class="text-lg font-extrabold text-white">{{ stats.entity_by_type.get(etype, 0) }}</span>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-1">
+        {% for prop in entity_schema.get(etype, []) %}
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">{{ prop }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <!-- 中间：Schema 可视化画布 -->
+  <div class="lg:col-span-2">
+    <div class="card p-0 overflow-hidden" style="min-height: 500px;">
+      <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Schema 概览</h3>
+        <div class="flex gap-2">
+          <span class="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400">{{ entity_colors|length }} 实体类型</span>
+          <span class="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400">{{ relation_labels|length }} 关系类型</span>
+        </div>
+      </div>
+      <div class="p-6">
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          {% for etype, ecfg in entity_colors.items() %}
+          <div class="text-center">
+            <div class="w-16 h-16 mx-auto rounded-full flex items-center justify-center border-2 mb-2" style="border-color:{{ ecfg.bg }}; background:{{ ecfg.bg }}1a">
+              <span class="text-lg font-extrabold" style="color:{{ ecfg.bg }}">{{ stats.entity_by_type.get(etype, 0) }}</span>
+            </div>
+            <p class="text-[10px] text-slate-400 font-semibold">{{ ecfg.label }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">关系类型</h4>
+        <div class="space-y-2">
+          {% for rtype, rcfg in relation_labels.items() %}
+          <div class="flex items-center gap-3 p-3 rounded-lg bg-surface/30 border border-slate-800/50">
+            <div class="w-3 h-3 rounded-full" style="background:{{ rcfg.color }}"></div>
+            <span class="text-sm font-semibold text-white flex-1">{{ rcfg.label }}</span>
+            <span class="text-[10px] font-mono text-slate-500">{{ rtype }}</span>
+            <span class="text-xs font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded">{{ stats.rel_by_type.get(rtype, 0) }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 右侧：属性编辑面板 -->
+  <div class="lg:col-span-1">
+    <div class="card sticky top-4">
+      <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">属性定义</h3>
+      <div id="schemaPropPanel">
+        <div class="text-center py-8 text-slate-600">
+          <span class="material-icons-round text-3xl mb-2">touch_app</span>
+          <p class="text-xs">选择左侧实体类型查看属性</p>
+        </div>
+      </div>
+    </div>
+    <div class="card mt-4">
+      <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">快速操作</h3>
+      <div class="space-y-2">
+        <a href="/kg/entities" class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 hover:border-primary/30 transition text-sm text-slate-300 hover:text-white">
+          <span class="material-icons-round text-primary text-sm">add_circle</span>新增实体
+        </a>
+        <a href="/kg/inference" class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 hover:border-primary/30 transition text-sm text-slate-300 hover:text-white">
+          <span class="material-icons-round text-violet-400 text-sm">psychology</span>运行推理
+        </a>
+        <a href="/kg/visualization" class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 hover:border-primary/30 transition text-sm text-slate-300 hover:text-white">
+          <span class="material-icons-round text-emerald-400 text-sm">hub</span>查看图谱
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'visualization' %}
+<!-- ==================== 可视化 ==================== -->
+<div class="relative" style="height: calc(100vh - 280px); min-height: 400px;">
+  <!-- 图谱画布 -->
+  <div class="kg-canvas rounded-xl overflow-hidden border border-slate-800 h-full" id="graphContainer">
+    <div id="graphCanvas"></div>
+    {% if stats.total_entities == 0 %}
+    <div class="absolute inset-0 flex flex-col items-center justify-center z-10">
+      <span class="material-icons-round text-6xl text-slate-700 mb-4">hub</span>
+      <p class="text-lg font-bold text-slate-500 mb-2">知识图谱为空</p>
+      <p class="text-sm text-slate-600 mb-4">请先在「推理引擎」中构建图谱</p>
+      <a href="/kg/inference" class="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-sm">前往构建</a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 左侧控制面板 -->
+  {% if stats.total_entities > 0 %}
+  <div class="ctrl-panel absolute top-4 left-4 w-64 p-4 space-y-4 z-20">
+    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">图谱控制</h3>
+    <div>
+      <input type="text" id="graphSearch" placeholder="搜索实体..."
+             class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none"
+             oninput="searchEntity(this.value)">
+      <div id="searchResults" class="mt-1 max-h-32 overflow-y-auto hidden"></div>
+    </div>
+    <div>
+      <label class="text-[11px] font-bold text-slate-500 uppercase block mb-2">实体类型</label>
+      <div class="space-y-1.5">
+        {% for etype, ecfg in entity_colors.items() %}
+        <label class="flex items-center gap-2 cursor-pointer group text-sm">
+          <input type="checkbox" checked class="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-primary accent-primary"
+                 onchange="toggleEntityType('{{ etype }}', this.checked)">
+          <span class="w-2 h-2 rounded-full" style="background:{{ ecfg.bg }}"></span>
+          <span class="text-slate-300 group-hover:text-white text-xs">{{ ecfg.label }}</span>
+          <span class="ml-auto text-[10px] bg-slate-800 px-1.5 rounded text-slate-500">{{ stats.entity_by_type.get(etype, 0) }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <label class="text-[11px] font-bold text-slate-500 uppercase block mb-2">关系类型</label>
+      <div class="space-y-1.5">
+        {% for rtype, rcfg in relation_labels.items() %}
+        <label class="flex items-center gap-2 cursor-pointer group text-sm">
+          <input type="checkbox" checked class="w-3.5 h-3.5 rounded bg-slate-800 border-slate-700 text-primary accent-primary"
+                 onchange="toggleRelationType('{{ rtype }}', this.checked)">
+          <span class="text-slate-300 group-hover:text-white text-xs">{{ rcfg.label }}</span>
+          <span class="ml-auto text-[10px] bg-slate-800 px-1.5 rounded text-slate-500">{{ stats.rel_by_type.get(rtype, 0) }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div>
+      <div class="flex justify-between items-center mb-1">
+        <label class="text-[11px] font-bold text-slate-500 uppercase">展开深度</label>
+        <span class="text-[11px] font-mono text-primary" id="depthLabel">2</span>
+      </div>
+      <input type="range" min="1" max="3" value="2" id="depthSlider"
+             class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary"
+             onchange="document.getElementById('depthLabel').textContent=this.value">
+    </div>
+    <button onclick="reloadGraph()" class="w-full py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1">
+      <span class="material-icons-round text-sm">refresh</span>重新布局
+    </button>
+  </div>
+  {% endif %}
+
+  <!-- 右侧实体详情面板 -->
+  <div id="detailPanel" class="detail-panel absolute top-0 right-0 w-80 h-full overflow-y-auto p-5 space-y-5 z-20 hidden rounded-r-xl">
+    <div class="flex justify-between items-start">
+      <div id="detailIcon" class="p-3 rounded-xl"></div>
+      <button onclick="closeDetail()" class="text-slate-500 hover:text-white"><span class="material-icons-round">close</span></button>
+    </div>
+    <h2 id="detailName" class="text-xl font-extrabold text-white"></h2>
+    <p id="detailType" class="text-sm font-mono text-slate-500"></p>
+    <div class="grid grid-cols-2 gap-3">
+      <div class="bg-surface/50 p-3 rounded-lg border border-slate-800">
+        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">关系数</p>
+        <p class="text-lg font-extrabold text-white" id="detailDegree">0</p>
+      </div>
+      <div class="bg-surface/50 p-3 rounded-lg border border-slate-800">
+        <p class="text-[10px] font-bold text-slate-500 uppercase mb-1">ID</p>
+        <p class="text-lg font-extrabold text-white" id="detailId">-</p>
+      </div>
+    </div>
+    <div id="detailProps"></div>
+    <div id="detailLogic"></div>
+    <div id="detailRelations"></div>
+    <div id="detailNews"></div>
+  </div>
+
+  <!-- 底部工具栏 -->
+  <div class="absolute bottom-4 left-4 flex gap-2 z-20">
+    <button onclick="zoomIn()" class="w-9 h-9 bg-surface-card border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white">
+      <span class="material-icons-round text-sm">add</span>
+    </button>
+    <button onclick="zoomOut()" class="w-9 h-9 bg-surface-card border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white">
+      <span class="material-icons-round text-sm">remove</span>
+    </button>
+    <button onclick="fitGraph()" class="w-9 h-9 bg-surface-card border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white">
+      <span class="material-icons-round text-sm">fullscreen</span>
+    </button>
+  </div>
+</div>
+
+{% elif tab == 'entities' %}
+<!-- ==================== 实体管理 ==================== -->
+<div class="flex gap-6" style="min-height: calc(100vh - 280px);">
+  <!-- 主内容区 -->
+  <div class="flex-1 min-w-0">
+    <!-- 工具栏 -->
+    <div class="card flex flex-wrap gap-4 items-end mb-4">
+      <div>
+        <label class="text-xs text-slate-500 font-semibold block mb-1">实体类型</label>
+        <select id="filterType" onchange="applyEntityFilter()"
+                class="bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+          <option value="">全部</option>
+          {% for etype, ecfg in entity_colors.items() %}
+          <option value="{{ etype }}" {% if filter_type == etype %}selected{% endif %}>{{ ecfg.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex-1 min-w-[200px]">
+        <label class="text-xs text-slate-500 font-semibold block mb-1">搜索</label>
+        <div class="flex gap-2">
+          <input type="text" id="entityQ" value="{{ filter_q }}" placeholder="搜索实体名称..."
+                 class="flex-1 bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+          <button onclick="applyEntityFilter()" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold">
+            <span class="material-icons-round text-sm">search</span>
+          </button>
+        </div>
+      </div>
+      <button onclick="openAddEntity()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-bold flex items-center gap-1">
+        <span class="material-icons-round text-sm">add</span>新增
+      </button>
+    </div>
+
+    <!-- 实体表格 -->
+    <div class="card p-0 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-slate-800 text-xs text-slate-500 uppercase">
+            <th class="text-left px-4 py-3 font-bold">实体</th>
+            <th class="text-left px-4 py-3 font-bold">类型</th>
+            <th class="text-left px-4 py-3 font-bold hidden md:table-cell">描述</th>
+            <th class="text-left px-4 py-3 font-bold hidden lg:table-cell">更新时间</th>
+            <th class="text-right px-4 py-3 font-bold">操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entities %}
+          <tr class="entity-row border-b border-slate-800/50 cursor-pointer" onclick="openEditEntity({{ e.id }})">
+            <td class="px-4 py-3">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:{{ entity_colors.get(e.entity_type, {}).get('bg', '#64748b') }}"></span>
+                <span class="font-bold text-white">{{ e.entity_name }}</span>
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <span class="text-xs px-2 py-0.5 rounded-full" style="background:{{ entity_colors.get(e.entity_type, {}).get('bg', '#64748b') }}1a; color:{{ entity_colors.get(e.entity_type, {}).get('bg', '#64748b') }}">
+                {{ entity_colors.get(e.entity_type, {}).get('label', e.entity_type) }}
+              </span>
+            </td>
+            <td class="px-4 py-3 hidden md:table-cell text-slate-500 text-xs truncate max-w-[200px]">{{ (e.description or '-')[:60] }}</td>
+            <td class="px-4 py-3 hidden lg:table-cell text-slate-600 text-xs font-mono">{{ (e.updated_at or e.created_at or '')[:10] }}</td>
+            <td class="px-4 py-3 text-right">
+              <button onclick="event.stopPropagation(); viewInGraph({{ e.id }})" class="text-slate-500 hover:text-primary" title="在图谱中查看">
+                <span class="material-icons-round text-sm">hub</span>
+              </button>
+              <button onclick="event.stopPropagation(); confirmDeleteEntity({{ e.id }}, '{{ e.entity_name }}')" class="text-slate-500 hover:text-red-400 ml-2" title="删除">
+                <span class="material-icons-round text-sm">delete</span>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not entities %}
+          <tr><td colspan="5" class="text-center py-12 text-slate-600">
+            <span class="material-icons-round text-4xl mb-2 block">search_off</span>暂无实体数据
+          </td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total > per_page %}
+    <div class="flex justify-center gap-2 mt-4">
+      {% if page > 1 %}
+      <a href="/kg/entities?entity_type={{ filter_type }}&q={{ filter_q }}&page={{ page - 1 }}"
+         class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold">上一页</a>
+      {% endif %}
+      <span class="px-4 py-2 text-sm text-slate-500">第 {{ page }} 页 / 共 {{ ((total - 1) // per_page) + 1 }} 页</span>
+      {% if page * per_page < total %}
+      <a href="/kg/entities?entity_type={{ filter_type }}&q={{ filter_q }}&page={{ page + 1 }}"
+         class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold">下一页</a>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 右侧编辑面板 -->
+  <div id="editSidebar" class="edit-sidebar w-80 rounded-xl p-5 space-y-4 hidden flex-shrink-0 overflow-y-auto" style="max-height: calc(100vh - 280px);">
+    <div class="flex justify-between items-center">
+      <h3 class="text-sm font-bold text-white" id="editTitle">编辑实体</h3>
+      <button onclick="closeEditSidebar()" class="text-slate-500 hover:text-white"><span class="material-icons-round text-sm">close</span></button>
+    </div>
+    <input type="hidden" id="editEntityId" value="">
+    <div>
+      <label class="text-xs text-slate-500 font-semibold block mb-1">实体类型</label>
+      <select id="editEntityType" class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+        {% for etype, ecfg in entity_colors.items() %}
+        <option value="{{ etype }}">{{ ecfg.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="text-xs text-slate-500 font-semibold block mb-1">实体名称</label>
+      <input type="text" id="editEntityName" class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none" placeholder="实体名称">
+    </div>
+    <div>
+      <label class="text-xs text-slate-500 font-semibold block mb-1">描述</label>
+      <textarea id="editEntityDesc" rows="3" class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none resize-none" placeholder="实体描述"></textarea>
+    </div>
+    <div>
+      <label class="text-xs text-slate-500 font-semibold block mb-1">投资逻辑</label>
+      <textarea id="editEntityLogic" rows="3" class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none resize-none" placeholder="投资逻辑（可选）"></textarea>
+    </div>
+    <div id="editEntityRelations"></div>
+    <button onclick="saveEntity()" class="w-full py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold">保存</button>
+  </div>
+</div>
+
+{% elif tab == 'inference' %}
+<!-- ==================== 推理引擎 ==================== -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+  <!-- 左侧：推理规则 & 构建 -->
+  <div class="lg:col-span-1 space-y-4">
+    <!-- 构建图谱 -->
+    <div class="card">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+        <span class="material-icons-round text-primary text-sm">build</span>构建图谱
+      </h3>
+      <p class="text-[10px] text-slate-500 mb-3">从清洗数据中提取实体和关系</p>
+      <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer mb-3">
+        <input type="checkbox" id="useClaude" class="accent-primary">
+        使用 Claude AI 深度提取
+      </label>
+      <button onclick="updateKG()" id="updateBtn"
+              class="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-xs">
+        <span class="material-icons-round text-sm">hub</span>开始构建
+      </button>
+      <div id="updateStatus" class="mt-2 text-[10px] text-slate-500 hidden"></div>
+    </div>
+
+    <!-- 推理规则 -->
+    <div class="card">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+        <span class="material-icons-round text-violet-400 text-sm">psychology</span>推理规则
+      </h3>
+      <div class="space-y-2">
+        <label class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
+          <input type="checkbox" name="inferRule" value="chain" checked class="accent-violet-500">
+          <div>
+            <p class="text-xs font-semibold text-white">链式推理</p>
+            <p class="text-[10px] text-slate-500">A→B, B→C ⇒ A→C</p>
+          </div>
+        </label>
+        <label class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
+          <input type="checkbox" name="inferRule" value="similarity" checked class="accent-violet-500">
+          <div>
+            <p class="text-xs font-semibold text-white">相似性推理</p>
+            <p class="text-[10px] text-slate-500">同行业公司关系发现</p>
+          </div>
+        </label>
+      </div>
+      <button onclick="runInference()" id="inferBtn"
+              class="w-full mt-3 flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold text-xs">
+        <span class="material-icons-round text-sm">auto_awesome</span>运行推理
+      </button>
+      <div id="inferStatus" class="mt-2 text-[10px] text-slate-500 hidden"></div>
+    </div>
+
+    <!-- 统计概览 -->
+    <div class="card">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+        <span class="material-icons-round text-emerald-400 text-sm">analytics</span>图谱概览
+      </h3>
+      <div class="space-y-2">
+        {% for etype, ecfg in entity_colors.items() %}
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full" style="background:{{ ecfg.bg }}"></span>
+          <span class="text-xs text-slate-400 flex-1">{{ ecfg.label }}</span>
+          <span class="text-xs font-bold text-white">{{ stats.entity_by_type.get(etype, 0) }}</span>
+        </div>
+        {% endfor %}
+        <div class="border-t border-slate-800 pt-2 mt-2">
+          {% for rtype, rcfg in relation_labels.items() %}
+          <div class="flex items-center gap-2 py-0.5">
+            <span class="w-2 h-2 rounded-full" style="background:{{ rcfg.color }}"></span>
+            <span class="text-[10px] text-slate-500 flex-1">{{ rcfg.label }}</span>
+            <span class="text-[10px] font-bold text-slate-400">{{ stats.rel_by_type.get(rtype, 0) }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右侧：推理结果 & 日志 -->
+  <div class="lg:col-span-3 space-y-4">
+    <!-- 推理结果 -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="font-bold text-white flex items-center gap-2 text-sm">
+          <span class="material-icons-round text-violet-400 text-sm">auto_awesome</span>发现的关系
+        </h3>
+        <span class="text-[10px] text-slate-500" id="inferCount">等待推理...</span>
+      </div>
+      <div id="inferResults" class="space-y-2 max-h-[400px] overflow-y-auto">
+        <div class="text-center py-8 text-slate-600">
+          <span class="material-icons-round text-4xl mb-2">psychology</span>
+          <p class="text-xs">点击「运行推理」发现隐含关系</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 变更日志 -->
+    <div class="card p-0 overflow-hidden">
+      <div class="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
+        <span class="material-icons-round text-primary text-sm">history</span>
+        <h3 class="font-bold text-xs uppercase tracking-wider">变更日志</h3>
+      </div>
+      <div class="max-h-[300px] overflow-y-auto">
+        {% for log in update_logs %}
+        <div class="flex gap-4 px-5 py-2.5 border-b border-slate-800/50 text-xs">
+          <span class="text-slate-600 font-mono w-28 shrink-0">{{ (log.updated_at or '')[:16] }}</span>
+          <span class="{% if log.action == 'create' %}text-emerald-400{% elif log.action == 'delete' %}text-red-400{% else %}text-amber-400{% endif %} font-bold w-12">{{ log.action }}</span>
+          <span class="text-slate-400 flex-1 truncate">
+            {% if log.entity_id %}实体 #{{ log.entity_id }}{% endif %}
+            {% if log.relationship_id %}关系 #{{ log.relationship_id }}{% endif %}
+            {{ log.new_value_json or log.old_value_json or '' }}
+          </span>
+          <span class="text-slate-600">{{ log.source or '' }}</span>
+        </div>
+        {% endfor %}
+        {% if not update_logs %}
+        <div class="px-5 py-8 text-center text-slate-600 text-sm">暂无变更记录</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<!-- Toast 工具 -->
+<script>
+function showToast(msg, type='success') {
+  const t = document.createElement('div');
+  t.className = 'toast ' + (type === 'success' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white');
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+</script>
+
+{% if tab == 'schema' %}
+<script>
+const entitySchema = {{ entity_schema | tojson }};
+const entityColors = {{ entity_colors | tojson }};
+
+function selectSchemaType(etype) {
+  document.querySelectorAll('.schema-node').forEach(n => n.classList.remove('selected'));
+  const node = document.getElementById('schema-' + etype);
+  if (node) node.classList.add('selected');
+
+  const ecfg = entityColors[etype] || {};
+  const props = entitySchema[etype] || [];
+  let html = '<div class="flex items-center gap-2 mb-4">' +
+    '<div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:' + ecfg.bg + '1a">' +
+    '<span class="material-icons-round text-sm" style="color:' + ecfg.bg + '">' + ecfg.icon + '</span></div>' +
+    '<div><p class="text-sm font-bold text-white">' + ecfg.label + '</p>' +
+    '<p class="text-[10px] text-slate-500 font-mono">' + etype + '</p></div></div>';
+
+  html += '<div class="space-y-2">';
+  const commonProps = ['entity_name', 'description', 'properties_json', 'investment_logic', 'created_at', 'updated_at'];
+  for (const p of commonProps) {
+    html += '<div class="flex items-center justify-between py-1.5 border-b border-slate-800/50">' +
+      '<span class="text-xs text-slate-400">' + p + '</span>' +
+      '<span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-500">通用</span></div>';
+  }
+  for (const p of props) {
+    html += '<div class="flex items-center justify-between py-1.5 border-b border-slate-800/50">' +
+      '<span class="text-xs text-white font-semibold">' + p + '</span>' +
+      '<span class="text-[10px] px-1.5 py-0.5 rounded text-white" style="background:' + ecfg.bg + '40">专属</span></div>';
+  }
+  html += '</div>';
+  document.getElementById('schemaPropPanel').innerHTML = html;
+}
+</script>
+{% endif %}
+
+{% if tab == 'visualization' and stats.total_entities > 0 %}
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+let network = null, allNodes = [], allEdges = [];
+let hiddenRelTypes = new Set(), hiddenEntityTypes = new Set();
+
+async function loadGraph(centerId = 0) {
+  const depth = document.getElementById('depthSlider')?.value || 2;
+  const resp = await fetch('/kg/api/graph-data?center_id=' + centerId + '&depth=' + depth);
+  const data = await resp.json();
+  allNodes = data.nodes; allEdges = data.edges;
+  renderGraph();
+}
+
+function renderGraph() {
+  const rlabels = {{ relation_labels | tojson }};
+  const filteredEdges = allEdges.filter(e => {
+    for (const rtype of hiddenRelTypes) { if (rlabels[rtype] && rlabels[rtype].label === e.label) return false; }
+    return true;
+  });
+  const connectedIds = new Set();
+  filteredEdges.forEach(e => { connectedIds.add(e.from); connectedIds.add(e.to); });
+  const filteredNodes = allNodes.filter(n => !hiddenEntityTypes.has(n.group) && (allNodes.length <= 50 || connectedIds.has(n.id)));
+
+  const container = document.getElementById('graphCanvas');
+  const visData = {
+    nodes: new vis.DataSet(filteredNodes.length > 0 ? filteredNodes : allNodes.filter(n => !hiddenEntityTypes.has(n.group))),
+    edges: new vis.DataSet(filteredEdges),
+  };
+  const options = {
+    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -50, springLength: 120 } },
+    interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
+    nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 8 } },
+    edges: { smooth: { type: 'continuous' } },
+  };
+  if (network) network.destroy();
+  network = new vis.Network(container, visData, options);
+  network.on('click', function(params) { if (params.nodes.length > 0) showEntityDetail(params.nodes[0]); });
+}
+
+function reloadGraph() { const p = new URLSearchParams(location.search); loadGraph(parseInt(p.get('center')) || 0); }
+
+async function showEntityDetail(entityId) {
+  const resp = await fetch('/kg/api/entity/' + entityId);
+  const data = await resp.json();
+  if (data.error) return;
+  const panel = document.getElementById('detailPanel');
+  panel.classList.remove('hidden');
+  const e = data.entity;
+  const colors = {{ entity_colors | tojson }};
+  const ecfg = colors[e.entity_type] || { bg: '#64748b', label: e.entity_type };
+  document.getElementById('detailName').textContent = e.entity_name;
+  document.getElementById('detailType').textContent = ecfg.label;
+  document.getElementById('detailDegree').textContent = data.degree;
+  document.getElementById('detailId').textContent = e.id;
+  document.getElementById('detailIcon').style.background = ecfg.bg + '1a';
+  document.getElementById('detailIcon').innerHTML = '<span class="material-icons-round" style="color:' + ecfg.bg + '">hub</span>';
+
+  let propsHtml = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">属性</h3>';
+  if (e.description) propsHtml += '<p class="text-xs text-slate-400 mb-2">' + e.description + '</p>';
+  for (const [k, v] of Object.entries(data.properties || {})) {
+    propsHtml += '<div class="prop-row"><span class="text-xs text-slate-500">' + k + '</span><span class="text-xs text-slate-300">' + v + '</span></div>';
+  }
+  document.getElementById('detailProps').innerHTML = propsHtml;
+
+  let logicHtml = '';
+  if (e.investment_logic) {
+    logicHtml = '<div class="mt-4 p-3 bg-violet-500/10 border border-violet-500/20 rounded-lg">' +
+      '<h3 class="text-xs font-bold text-violet-400 uppercase tracking-widest mb-2 flex items-center gap-1"><span class="material-icons-round text-sm">lightbulb</span>投资逻辑</h3>' +
+      '<p class="text-xs text-slate-300 leading-relaxed whitespace-pre-line">' + e.investment_logic + '</p></div>';
+  }
+  document.getElementById('detailLogic').innerHTML = logicHtml;
+
+  const rlabels = {{ relation_labels | tojson }};
+  let relsHtml = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">关系</h3>';
+  for (const r of data.outgoing) {
+    relsHtml += '<div class="flex items-center gap-2 py-1 text-xs"><span class="text-emerald-400">→</span><span class="text-slate-500">' + ((rlabels[r.relation_type]||{}).label || r.relation_type) + '</span><span class="text-white font-semibold">' + (r.target_name || '#' + r.target_entity_id) + '</span></div>';
+  }
+  for (const r of data.incoming) {
+    relsHtml += '<div class="flex items-center gap-2 py-1 text-xs"><span class="text-blue-400">←</span><span class="text-slate-500">' + ((rlabels[r.relation_type]||{}).label || r.relation_type) + '</span><span class="text-white font-semibold">' + (r.source_name || '#' + r.source_entity_id) + '</span></div>';
+  }
+  document.getElementById('detailRelations').innerHTML = relsHtml;
+
+  let newsHtml = '';
+  if (data.related_news && data.related_news.length > 0) {
+    newsHtml = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">关联新闻</h3>';
+    for (const n of data.related_news) {
+      newsHtml += '<div class="p-2 bg-surface/50 rounded-lg border border-slate-800 mb-2"><p class="text-[10px] text-slate-600">' + (n.cleaned_at || '').substring(0, 10) + '</p><p class="text-xs text-slate-300">' + (n.summary || '').substring(0, 100) + '</p></div>';
+    }
+  }
+  document.getElementById('detailNews').innerHTML = newsHtml;
+}
+
+function closeDetail() { document.getElementById('detailPanel').classList.add('hidden'); }
+function toggleRelationType(rtype, checked) { if (checked) hiddenRelTypes.delete(rtype); else hiddenRelTypes.add(rtype); renderGraph(); }
+function toggleEntityType(etype, checked) { if (checked) hiddenEntityTypes.delete(etype); else hiddenEntityTypes.add(etype); renderGraph(); }
+function zoomIn() { if (network) { const s = network.getScale(); network.moveTo({ scale: s * 1.3 }); } }
+function zoomOut() { if (network) { const s = network.getScale(); network.moveTo({ scale: s / 1.3 }); } }
+function fitGraph() { if (network) network.fit(); }
+
+let searchTimer = null;
+async function searchEntity(q) {
+  clearTimeout(searchTimer);
+  const box = document.getElementById('searchResults');
+  if (!q || q.length < 1) { box.classList.add('hidden'); return; }
+  searchTimer = setTimeout(async () => {
+    const resp = await fetch('/kg/api/search?q=' + encodeURIComponent(q));
+    const results = await resp.json();
+    if (results.length === 0) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    box.innerHTML = results.map(r => '<div class="px-3 py-1.5 text-xs text-slate-300 hover:bg-primary/10 cursor-pointer rounded" onclick="focusNode(' + r.id + ')">' + r.entity_name + '</div>').join('');
+  }, 300);
+}
+
+function focusNode(nodeId) {
+  document.getElementById('searchResults').classList.add('hidden');
+  if (network) { network.focus(nodeId, { scale: 1.5, animation: true }); network.selectNodes([nodeId]); showEntityDetail(nodeId); }
+}
+
+const params = new URLSearchParams(location.search);
+loadGraph(parseInt(params.get('center')) || 0);
+</script>
+{% endif %}
+
+{% if tab == 'entities' %}
+<script>
+function applyEntityFilter() {
+  const type = document.getElementById('filterType')?.value || '';
+  const q = document.getElementById('entityQ')?.value || '';
+  const p = new URLSearchParams();
+  if (type) p.set('entity_type', type);
+  if (q) p.set('q', q);
+  location.href = '/kg/entities?' + p.toString();
+}
+document.getElementById('entityQ')?.addEventListener('keydown', e => { if (e.key === 'Enter') applyEntityFilter(); });
+
+function viewInGraph(id) { location.href = '/kg/visualization?center=' + id; }
+
+function openAddEntity() {
+  document.getElementById('editEntityId').value = '';
+  document.getElementById('editEntityType').value = 'company';
+  document.getElementById('editEntityType').disabled = false;
+  document.getElementById('editEntityName').value = '';
+  document.getElementById('editEntityName').disabled = false;
+  document.getElementById('editEntityDesc').value = '';
+  document.getElementById('editEntityLogic').value = '';
+  document.getElementById('editEntityRelations').innerHTML = '';
+  document.getElementById('editTitle').textContent = '新增实体';
+  document.getElementById('editSidebar').classList.remove('hidden');
+}
+
+async function openEditEntity(id) {
+  const resp = await fetch('/kg/api/entity/' + id);
+  const data = await resp.json();
+  if (data.error) return;
+  const e = data.entity;
+  document.getElementById('editEntityId').value = e.id;
+  document.getElementById('editEntityType').value = e.entity_type;
+  document.getElementById('editEntityType').disabled = true;
+  document.getElementById('editEntityName').value = e.entity_name;
+  document.getElementById('editEntityName').disabled = true;
+  document.getElementById('editEntityDesc').value = e.description || '';
+  document.getElementById('editEntityLogic').value = e.investment_logic || '';
+  document.getElementById('editTitle').textContent = '编辑: ' + e.entity_name;
+
+  const rlabels = {{ relation_labels | tojson }};
+  let rhtml = '<h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">关系 (' + data.degree + ')</h4>';
+  for (const r of data.outgoing) {
+    rhtml += '<div class="flex items-center gap-1 py-1 text-xs"><span class="text-emerald-400">→</span><span class="text-slate-500">' + ((rlabels[r.relation_type]||{}).label||r.relation_type) + '</span><span class="text-white">' + (r.target_name||'') + '</span></div>';
+  }
+  for (const r of data.incoming) {
+    rhtml += '<div class="flex items-center gap-1 py-1 text-xs"><span class="text-blue-400">←</span><span class="text-slate-500">' + ((rlabels[r.relation_type]||{}).label||r.relation_type) + '</span><span class="text-white">' + (r.source_name||'') + '</span></div>';
+  }
+  document.getElementById('editEntityRelations').innerHTML = rhtml;
+  document.getElementById('editSidebar').classList.remove('hidden');
+}
+
+function closeEditSidebar() { document.getElementById('editSidebar').classList.add('hidden'); }
+
+async function saveEntity() {
+  const id = document.getElementById('editEntityId').value;
+  const body = {
+    entity_type: document.getElementById('editEntityType').value,
+    entity_name: document.getElementById('editEntityName').value,
+    description: document.getElementById('editEntityDesc').value || null,
+    investment_logic: document.getElementById('editEntityLogic').value || null,
+  };
+  if (!body.entity_name) { showToast('请输入实体名称', 'error'); return; }
+  try {
+    let resp;
+    if (id) {
+      resp = await fetch('/kg/api/entity/' + id, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    } else {
+      resp = await fetch('/kg/api/entity', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    }
+    const data = await resp.json();
+    if (data.ok || data.id) { showToast(id ? '更新成功' : '创建成功'); setTimeout(() => location.reload(), 800); }
+    else { showToast('操作失败', 'error'); }
+  } catch(e) { showToast('请求失败: ' + e.message, 'error'); }
+}
+
+async function confirmDeleteEntity(id, name) {
+  if (!confirm('确定删除实体「' + name + '」及其所有关系？')) return;
+  try {
+    const resp = await fetch('/kg/api/entity/' + id, { method: 'DELETE' });
+    const data = await resp.json();
+    if (data.ok) { showToast('已删除'); setTimeout(() => location.reload(), 800); }
+    else { showToast('删除失败', 'error'); }
+  } catch(e) { showToast('请求失败', 'error'); }
+}
+</script>
+{% endif %}
+
+{% if tab == 'inference' %}
+<script>
+async function updateKG() {
+  const btn = document.getElementById('updateBtn');
+  const status = document.getElementById('updateStatus');
+  const useClaude = document.getElementById('useClaude').checked;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round animate-spin text-sm">refresh</span> 构建中...';
+  status.classList.remove('hidden');
+  status.textContent = '正在提取实体和关系...';
+  try {
+    const resp = await fetch('/kg/api/update-kg?use_claude=' + useClaude, { method: 'POST' });
+    const data = await resp.json();
+    const taskId = data.task_id;
+    const poll = setInterval(async () => {
+      const r = await fetch('/kg/api/task-status/' + taskId);
+      const t = await r.json();
+      status.textContent = t.progress || '处理中...';
+      if (t.status === 'done') {
+        clearInterval(poll);
+        status.textContent = '构建完成！';
+        status.className = 'mt-2 text-[10px] text-emerald-400';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
+        showToast('图谱构建完成');
+        setTimeout(() => location.reload(), 2000);
+      } else if (t.status === 'failed') {
+        clearInterval(poll);
+        status.textContent = '构建失败: ' + (t.result?.error || '未知错误');
+        status.className = 'mt-2 text-[10px] text-red-400';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
+      }
+    }, 2000);
+  } catch (e) {
+    status.textContent = '请求失败: ' + e.message;
+    status.className = 'mt-2 text-[10px] text-red-400';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
+  }
+}
+
+async function runInference() {
+  const btn = document.getElementById('inferBtn');
+  const status = document.getElementById('inferStatus');
+  const checks = document.querySelectorAll('input[name="inferRule"]:checked');
+  const rules = Array.from(checks).map(c => c.value);
+  const ruleType = rules.length === 0 ? 'all' : (rules.length === 2 ? 'all' : rules[0]);
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round animate-spin text-sm">refresh</span> 推理中...';
+  status.classList.remove('hidden');
+  status.textContent = '正在分析关系模式...';
+
+  try {
+    const resp = await fetch('/kg/api/inference', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ rule_type: ruleType })
+    });
+    const data = await resp.json();
+    const taskId = data.task_id;
+
+    const poll = setInterval(async () => {
+      const r = await fetch('/kg/api/task-status/' + taskId);
+      const t = await r.json();
+      status.textContent = t.progress || '推理中...';
+      if (t.status === 'done') {
+        clearInterval(poll);
+        const discovered = t.result?.discovered || [];
+        document.getElementById('inferCount').textContent = '发现 ' + discovered.length + ' 条潜在关系';
+        renderInferResults(discovered);
+        status.classList.add('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">auto_awesome</span>运行推理';
+      } else if (t.status === 'failed') {
+        clearInterval(poll);
+        status.textContent = '推理失败: ' + (t.result?.error || '未知错误');
+        status.className = 'mt-2 text-[10px] text-red-400';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">auto_awesome</span>运行推理';
+      }
+    }, 1500);
+  } catch(e) {
+    status.textContent = '请求失败: ' + e.message;
+    status.className = 'mt-2 text-[10px] text-red-400';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-sm">auto_awesome</span>运行推理';
+  }
+}
+
+function renderInferResults(discovered) {
+  const box = document.getElementById('inferResults');
+  if (discovered.length === 0) {
+    box.innerHTML = '<div class="text-center py-8 text-slate-600"><span class="material-icons-round text-3xl mb-2">check_circle</span><p class="text-xs">未发现新的隐含关系</p></div>';
+    return;
+  }
+  const colors = {{ entity_colors | tojson }};
+  box.innerHTML = discovered.map((d, i) => {
+    const sc = colors[d.source_type] || {bg:'#64748b'};
+    const tc = colors[d.target_type] || {bg:'#64748b'};
+    return '<div class="infer-card p-4" id="infer-' + i + '">' +
+      '<div class="flex items-center gap-2 mb-2">' +
+        '<span class="text-[10px] px-2 py-0.5 rounded-full font-bold" style="background:' + (d.type==='chain'?'#f59e0b':'#8b5cf6') + '20; color:' + (d.type==='chain'?'#f59e0b':'#8b5cf6') + '">' + (d.type==='chain'?'链式':'相似') + '</span>' +
+        '<span class="text-[10px] text-slate-500">置信度 ' + (d.confidence * 100).toFixed(0) + '%</span>' +
+      '</div>' +
+      '<div class="flex items-center gap-2 mb-2">' +
+        '<span class="w-2 h-2 rounded-full" style="background:' + sc.bg + '"></span>' +
+        '<span class="text-sm font-bold text-white">' + d.source_name + '</span>' +
+        '<span class="material-icons-round text-slate-600 text-sm">arrow_forward</span>' +
+        '<span class="w-2 h-2 rounded-full" style="background:' + tc.bg + '"></span>' +
+        '<span class="text-sm font-bold text-white">' + d.target_name + '</span>' +
+      '</div>' +
+      '<p class="text-[10px] text-slate-500 mb-3">' + d.logic + '</p>' +
+      '<div class="flex gap-2">' +
+        '<button onclick="acceptInference(' + i + ',' + JSON.stringify(d).replace(/"/g, '&quot;') + ')" class="px-3 py-1.5 bg-emerald-600/20 text-emerald-400 rounded-lg text-[10px] font-bold hover:bg-emerald-600/30">采纳</button>' +
+        '<button onclick="dismissInference(' + i + ')" class="px-3 py-1.5 bg-slate-800 text-slate-400 rounded-lg text-[10px] font-bold hover:bg-slate-700">忽略</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function acceptInference(idx, d) {
+  try {
+    const resp = await fetch('/kg/api/accept-inference', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        source_id: d.source_id, target_id: d.target_id,
+        relation_type: 'related', confidence: d.confidence, logic: d.logic
+      })
+    });
+    const data = await resp.json();
+    if (data.ok || data.id) {
+      const card = document.getElementById('infer-' + idx);
+      if (card) { card.style.opacity = '0.3'; card.style.pointerEvents = 'none'; }
+      showToast('已采纳');
+    }
+  } catch(e) { showToast('操作失败', 'error'); }
+}
+
+function dismissInference(idx) {
+  const card = document.getElementById('infer-' + idx);
+  if (card) card.remove();
+}
+</script>
+{% endif %}
+{% endblock %}

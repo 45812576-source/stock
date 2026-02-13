@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}追踪研究 — {{ group.group_name }}{% endblock %}
+
+{% block extra_styles %}
+.source-row { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-radius: 8px; }
+.source-row:hover { background: rgba(255,255,255,0.02); }
+.upload-zone { border: 2px dashed rgba(100,116,139,0.3); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+.upload-zone:hover { border-color: #135bec; }
+{% endblock %}
+
+{% block content %}
+<!-- 顶部导航 -->
+<div class="flex items-center gap-3 mb-6">
+  <a href="/hotspot/research/{{ group.id }}" class="text-slate-400 hover:text-primary transition">
+    <span class="material-icons-round">arrow_back</span>
+  </a>
+  <div>
+    <h1 class="text-xl font-bold text-white">{{ group.group_name }}</h1>
+    <div class="flex items-center gap-2 mt-1">
+      <span class="text-sm text-slate-500">追踪研究配置</span>
+      {% for t in group.tags %}
+      <span class="px-2 py-0.5 rounded bg-slate-700/50 text-[10px] font-bold">#{{ t }}</span>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<form action="/hotspot/research/{{ group.id }}/run-followup" method="post" enctype="multipart/form-data">
+<div class="grid grid-cols-3 gap-6">
+
+  <!-- 左列 -->
+  <div class="col-span-2 space-y-6">
+
+    <!-- 上次研究基准 -->
+    {% if research %}
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary text-base">history</span>
+        <span class="text-sm font-semibold text-slate-200">上次研究基准</span>
+        <span class="text-xs text-slate-500 ml-auto">{{ research.research_date or '' }}</span>
+      </div>
+      <div class="flex items-center gap-4 text-sm text-slate-400">
+        {% if research.macro_report %}
+        <span class="flex items-center gap-1"><span class="material-icons-round text-xs text-emerald-400">check_circle</span>宏观分析</span>
+        {% endif %}
+        {% if research.industry_report %}
+        <span class="flex items-center gap-1"><span class="material-icons-round text-xs text-emerald-400">check_circle</span>行业分析</span>
+        {% endif %}
+        {% if research.top10_stocks %}
+        <span class="flex items-center gap-1"><span class="material-icons-round text-xs text-emerald-400">check_circle</span>个股推荐</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- 数据源选择 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-icons-round text-primary">database</span>
+        <span class="font-semibold text-white">数据源选择</span>
+      </div>
+      <p class="text-xs text-slate-500 mb-4">选择本次追踪研究需要纳入的数据维度</p>
+
+      {% set dims = [
+        ('news', '关联新闻', 'newspaper', '最新新闻资讯、舆情动态'),
+        ('capital', '资金流向', 'account_balance', '行业/板块资金净流入数据'),
+        ('macro', '宏观政策', 'public', '宏观经济指标、政策动向'),
+        ('industry', '行业分析', 'factory', '行业竞争格局、产业链变化'),
+        ('knowledge', '知识图谱', 'hub', '实体关系、事件关联'),
+      ] %}
+      <div class="space-y-1">
+        {% for key, label, icon, desc in dims %}
+        <label class="source-row cursor-pointer">
+          <div class="flex items-center gap-3">
+            <span class="material-icons-round text-slate-400 text-base">{{ icon }}</span>
+            <div>
+              <span class="text-sm text-slate-200">{{ label }}</span>
+              <p class="text-xs text-slate-500">{{ desc }}</p>
+            </div>
+          </div>
+          <input type="checkbox" name="dimensions" value="{{ key }}" checked
+                 class="w-4 h-4 rounded border-slate-600 bg-surface-card text-primary focus:ring-primary focus:ring-offset-0">
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 补充材料 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-icons-round text-primary">upload_file</span>
+        <span class="font-semibold text-white">补充材料</span>
+      </div>
+      <div class="upload-zone" id="upload-zone">
+        <span class="material-icons-round text-3xl text-slate-600 mb-2">cloud_upload</span>
+        <p class="text-sm text-slate-400">拖拽文件到此处，或点击上传</p>
+        <p class="text-xs text-slate-600 mt-1">支持 PDF、TXT、CSV 格式</p>
+        <input type="file" name="files" multiple accept=".pdf,.txt,.csv" class="hidden" id="file-input">
+      </div>
+      <div id="file-list" class="mt-3 space-y-1"></div>
+    </div>
+
+    <!-- 研究指令 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-icons-round text-primary">psychology</span>
+        <span class="font-semibold text-white">研究指令</span>
+      </div>
+      <div class="mb-4">
+        <label class="text-xs text-slate-500 mb-1 block">研究背景 / 关注重点</label>
+        <textarea name="context" rows="3" placeholder="例如：重点关注该热点板块近期的政策催化和资金流入趋势..."
+                  class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-primary focus:outline-none resize-none"></textarea>
+      </div>
+      <div>
+        <label class="text-xs text-slate-500 mb-1 block">约束条件 / 特殊要求</label>
+        <textarea name="constraints" rows="2" placeholder="例如：对比上次研究结论，重点分析变化点..."
+                  class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-primary focus:outline-none resize-none"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <!-- 右列 -->
+  <div class="space-y-4">
+    <div class="card">
+      <button type="submit"
+              class="w-full py-3 rounded-xl bg-primary text-white font-semibold text-sm hover:bg-primary/90 transition mb-3">
+        <span class="material-icons-round text-base align-middle mr-1">science</span>
+        开始追踪研究
+      </button>
+      <p class="text-xs text-slate-500 text-center">将基于上次研究结果，结合最新数据进行增量分析</p>
+    </div>
+
+    <div class="card">
+      <div class="text-xs text-slate-500 mb-2">研究说明</div>
+      <ul class="text-xs text-slate-400 space-y-2">
+        <li class="flex items-start gap-2">
+          <span class="material-icons-round text-xs text-primary mt-0.5">check_circle</span>
+          基于上次研究基准进行增量分析
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="material-icons-round text-xs text-primary mt-0.5">check_circle</span>
+          自动对比前后变化，突出关键差异
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="material-icons-round text-xs text-primary mt-0.5">check_circle</span>
+          支持自定义数据维度和研究指令
+        </li>
+      </ul>
+    </div>
+
+    <!-- 标签组信息 -->
+    <div class="card">
+      <div class="text-xs text-slate-500 mb-2">标签组信息</div>
+      <div class="flex flex-wrap gap-1 mb-3">
+        {% for t in group.tags %}
+        <span class="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px] font-bold">#{{ t }}</span>
+        {% endfor %}
+      </div>
+      {% if group.group_logic %}
+      <p class="text-xs text-slate-400 leading-relaxed">{{ group.group_logic[:150] }}{{ '...' if group.group_logic|length > 150 else '' }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const zone = document.getElementById('upload-zone');
+const input = document.getElementById('file-input');
+const list = document.getElementById('file-list');
+zone.addEventListener('click', () => input.click());
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#135bec'; });
+zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+zone.addEventListener('drop', e => {
+  e.preventDefault(); zone.style.borderColor = '';
+  input.files = e.dataTransfer.files; showFiles(e.dataTransfer.files);
+});
+input.addEventListener('change', () => showFiles(input.files));
+function showFiles(files) {
+  list.innerHTML = '';
+  for (const f of files) {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 text-xs text-slate-400 px-2 py-1';
+    div.innerHTML = `<span class="material-icons-round text-base text-slate-500">description</span>${f.name} <span class="text-slate-600">(${(f.size/1024).toFixed(1)}KB)</span>`;
+    list.appendChild(div);
+  }
+}
+</script>
+{% endblock %}

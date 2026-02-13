@@ -1,0 +1,321 @@
+{% extends "base.html" %}
+{% block title %}追踪研究 — {{ stock.stock_code }} {{ stock.stock_name or '' }}{% endblock %}
+
+{% block extra_styles %}
+.source-card { border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; padding: 1rem; transition: border-color 0.2s; }
+.source-card:hover { border-color: rgba(19,91,236,0.4); }
+.source-card.checked { border-color: #135bec; background: rgba(19,91,236,0.05); }
+.upload-zone { border: 2px dashed rgba(100,116,139,0.3); border-radius: 12px; padding: 2rem; text-align: center; cursor: pointer; transition: border-color 0.2s; }
+.upload-zone:hover { border-color: #135bec; }
+.tag-pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; background: rgba(19,91,236,0.1); color: #60a5fa; border: 1px solid rgba(19,91,236,0.2); }
+.count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 28px; height: 22px; border-radius: 11px; font-size: 0.7rem; font-weight: 700; }
+{% endblock %}
+
+{% block content %}
+<!-- 顶部导航 -->
+<div class="flex items-center gap-3 mb-6">
+  <a href="/stock/{{ stock_code }}" class="text-slate-400 hover:text-primary transition">
+    <span class="material-icons-round">arrow_back</span>
+  </a>
+  <div>
+    <h1 class="text-xl font-bold text-white">{{ stock.stock_code }} {{ stock.stock_name or '' }}</h1>
+    <span class="text-sm text-slate-500">追踪研究 · 按标签检索半年数据</span>
+  </div>
+</div>
+
+<form id="followupForm" action="/stock/{{ stock_code }}/run-followup" method="post" enctype="multipart/form-data">
+<div class="grid grid-cols-3 gap-6">
+
+  <!-- 左列 -->
+  <div class="col-span-2 space-y-6">
+
+    <!-- 搜索标签 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary">sell</span>
+        <span class="font-semibold text-white">搜索标签</span>
+        <span class="text-xs text-slate-500 ml-2">以下标签将用于在各信息源中检索关联数据</span>
+      </div>
+      {% if tags %}
+      <div class="flex flex-wrap gap-2">
+        {% for t in tags %}
+        <span class="tag-pill">{{ t }}</span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-500">暂无关联标签，将仅按股票代码搜索</p>
+      {% endif %}
+    </div>
+
+    <!-- 信息源选择 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-icons-round text-primary">source</span>
+        <span class="font-semibold text-white">信息源</span>
+        <span class="text-xs text-slate-500 ml-2">选择要检索的数据源，数字为按标签命中的条目数</span>
+      </div>
+      <div class="grid grid-cols-1 gap-3">
+        {% for src in sources %}
+        <label class="source-card flex items-start gap-3 cursor-pointer {% if src.count > 0 %}checked{% endif %}" id="card-{{ src.key }}">
+          <input type="checkbox" name="sources" value="{{ src.key }}"
+                 {% if src.count > 0 %}checked{% endif %}
+                 class="mt-1 accent-[#135bec]"
+                 onchange="this.closest('.source-card').classList.toggle('checked', this.checked)">
+          <span class="material-icons-round text-2xl {% if src.count > 0 %}text-primary{% else %}text-slate-600{% endif %}">{{ src.icon }}</span>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-semibold text-white">{{ src.name }}</span>
+              <span class="count-badge {% if src.count > 0 %}bg-primary/20 text-blue-400{% else %}bg-slate-700 text-slate-500{% endif %}">{{ src.count }}</span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5">{{ src.desc }}</p>
+            {% if src["preview_items"] %}
+            <div class="mt-2 space-y-1">
+              {% for item in src["preview_items"][:3] %}
+              <p class="text-xs text-slate-400 truncate">· {{ item }}</p>
+              {% endfor %}
+              {% if src["preview_items"]|length > 3 %}
+              <p class="text-xs text-slate-600">还有 {{ src["preview_items"]|length - 3 }} 条...</p>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 补充材料上传 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary">upload_file</span>
+        <span class="font-semibold text-white">补充材料</span>
+        <span class="text-xs text-slate-500 ml-2">可选</span>
+      </div>
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+        <span class="material-icons-round text-3xl text-slate-600 mb-2">cloud_upload</span>
+        <p class="text-sm text-slate-400">点击或拖拽上传研报、公告等补充材料</p>
+        <p class="text-xs text-slate-600 mt-1">支持 PDF / TXT / DOCX，最大 10MB</p>
+        <input type="file" id="fileInput" name="files" multiple accept=".pdf,.txt,.docx" class="hidden"
+               onchange="showFiles(this.files)">
+      </div>
+      <div id="fileList" class="mt-2 space-y-1 hidden"></div>
+    </div>
+
+    <!-- 研究指令 -->
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary">edit_note</span>
+        <span class="font-semibold text-white">研究指令</span>
+        <span class="text-xs text-slate-500 ml-2">可选，补充说明关注重点</span>
+      </div>
+      <textarea name="instructions" rows="4" placeholder="例如：重点关注近期的政策变化对该股的影响，以及机构持仓变动情况..."
+                class="w-full bg-[#101622] border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-300 placeholder-slate-600 focus:border-primary focus:outline-none resize-none"></textarea>
+    </div>
+
+  </div>
+
+  <!-- 右列 -->
+  <div class="space-y-6">
+
+    <!-- 提交按钮 -->
+    <button type="submit" id="followupBtn"
+            class="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl transition">
+      <span class="material-icons-round">play_arrow</span>
+      开始追踪研究
+    </button>
+    <div id="followupMsg" class="hidden text-center text-sm py-2 rounded-lg"></div>
+
+    <!-- 数据概览 -->
+    <div class="card">
+      <h3 class="text-sm font-semibold text-white mb-3">数据概览</h3>
+      <div class="space-y-2">
+        <div class="flex justify-between text-sm">
+          <span class="text-slate-500">搜索标签</span>
+          <span class="text-white font-semibold">{{ tags|length }} 个</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-slate-500">信息源</span>
+          <span class="text-white font-semibold">{{ sources|length }} 个</span>
+        </div>
+        {% set total_hits = sources|sum(attribute='count') %}
+        <div class="flex justify-between text-sm">
+          <span class="text-slate-500">命中条目</span>
+          <span class="text-blue-400 font-semibold">{{ total_hits }} 条</span>
+        </div>
+        <div class="flex justify-between text-sm">
+          <span class="text-slate-500">检索范围</span>
+          <span class="text-white font-semibold">近 6 个月</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 研究流程 -->
+    <div class="card">
+      <h3 class="text-sm font-semibold text-white mb-3">研究流程</h3>
+      <div class="space-y-3">
+        {% set steps = [
+          ("sell", "标签聚合", "从自选、新闻、知识图谱提取标签"),
+          ("search", "数据检索", "按标签在各信息源中搜索半年数据"),
+          ("psychology", "AI 分析", "综合所有数据生成深度研究报告"),
+          ("description", "报告生成", "输出六维评分和投资建议"),
+        ] %}
+        {% for icon, title, desc in steps %}
+        <div class="flex items-start gap-3">
+          <div class="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span class="material-icons-round text-primary text-sm">{{ icon }}</span>
+          </div>
+          <div>
+            <p class="text-sm text-white font-medium">{{ title }}</p>
+            <p class="text-xs text-slate-500">{{ desc }}</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if research %}
+    <div class="card border border-slate-700">
+      <h3 class="text-sm font-semibold text-white mb-2">上次研究</h3>
+      <p class="text-xs text-slate-500">{{ research.research_date }}</p>
+      <p class="text-sm text-slate-400 mt-1">评分 {{ research.overall_score }}/100</p>
+      <a href="/stock/{{ stock_code }}/report/{{ research.id }}" class="text-xs text-primary hover:underline mt-2 inline-block">查看报告 →</a>
+    </div>
+    {% endif %}
+
+  </div>
+
+</div>
+</form>
+
+<!-- 进度弹窗 -->
+<div id="progressModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-surface-card border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-white font-bold flex items-center gap-2">
+        <span class="material-icons-round text-primary animate-spin" id="modalSpinner">refresh</span>
+        <span id="modalTitle">研究进行中</span>
+      </h3>
+      <button onclick="closeModal()" class="text-slate-500 hover:text-white transition">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <div class="mb-3">
+      <div class="flex justify-between text-xs text-slate-400 mb-1">
+        <span id="modalMsg">准备中...</span>
+        <span id="modalPct">0%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-2">
+        <div id="modalBar" class="bg-primary h-2 rounded-full transition-all duration-500" style="width:0%"></div>
+      </div>
+    </div>
+    <p class="text-xs text-slate-600">关闭弹窗后任务继续在后台运行，可在页面左下角查看进度</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let _pollTimer = null;
+let _currentTaskId = null;
+
+function openModal() {
+  const m = document.getElementById('progressModal');
+  m.classList.remove('hidden');
+  m.classList.add('flex');
+}
+function closeModal() {
+  const m = document.getElementById('progressModal');
+  m.classList.add('hidden');
+  m.classList.remove('flex');
+}
+function updateModalUI(task) {
+  document.getElementById('modalMsg').textContent = task.message || '';
+  document.getElementById('modalPct').textContent = task.progress + '%';
+  document.getElementById('modalBar').style.width = task.progress + '%';
+  const spinner = document.getElementById('modalSpinner');
+  if (task.status === 'done') {
+    document.getElementById('modalTitle').textContent = '研究完成';
+    spinner.textContent = 'check_circle';
+    spinner.classList.remove('animate-spin');
+    spinner.classList.add('text-emerald-400');
+    document.getElementById('modalBar').classList.replace('bg-primary', 'bg-emerald-500');
+  } else if (task.status === 'error') {
+    document.getElementById('modalTitle').textContent = '研究失败';
+    spinner.textContent = 'error';
+    spinner.classList.remove('animate-spin');
+    spinner.classList.add('text-red-400');
+    document.getElementById('modalBar').classList.replace('bg-primary', 'bg-red-500');
+  }
+}
+
+function pollTask() {
+  if (!_currentTaskId) return;
+  fetch('/stock/api/research-tasks').then(r => r.json()).then(tasks => {
+    const t = tasks.find(x => x.id === _currentTaskId);
+    if (!t) return;
+    updateModalUI(t);
+    if (t.status === 'done' || t.status === 'error') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+    }
+  }).catch(function(){});
+}
+
+// 拦截表单提交
+document.getElementById('followupForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = document.getElementById('followupBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 提交中...';
+  try {
+    const formData = new FormData(this);
+    const resp = await fetch(this.action, { method: 'POST', body: formData });
+    const data = await resp.json();
+    if (data.ok && data.task_id) {
+      _currentTaskId = data.task_id;
+      // 重置弹窗状态
+      document.getElementById('modalTitle').textContent = '研究进行中';
+      const spinner = document.getElementById('modalSpinner');
+      spinner.textContent = 'refresh';
+      spinner.className = 'material-icons-round text-primary animate-spin';
+      document.getElementById('modalBar').className = 'bg-primary h-2 rounded-full transition-all duration-500';
+      document.getElementById('modalBar').style.width = '0%';
+      document.getElementById('modalMsg').textContent = '准备中...';
+      document.getElementById('modalPct').textContent = '0%';
+      openModal();
+      if (_pollTimer) clearInterval(_pollTimer);
+      _pollTimer = setInterval(pollTask, 2000);
+      pollTask();
+    } else {
+      alert(data.message || '启动失败');
+    }
+  } catch(err) {
+    alert('请求失败: ' + err.message);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-icons-round">play_arrow</span> 开始追踪研究';
+});
+
+function showFiles(files) {
+  const list = document.getElementById('fileList');
+  list.innerHTML = '';
+  list.classList.remove('hidden');
+  for (const f of files) {
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 text-xs text-slate-400';
+    div.innerHTML = '<span class="material-icons-round text-sm text-primary">description</span>' + f.name + ' <span class="text-slate-600">(' + (f.size / 1024).toFixed(1) + ' KB)</span>';
+    list.appendChild(div);
+  }
+}
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = '#135bec'; });
+zone.addEventListener('dragleave', () => { zone.style.borderColor = ''; });
+zone.addEventListener('drop', e => {
+  e.preventDefault();
+  zone.style.borderColor = '';
+  document.getElementById('fileInput').files = e.dataTransfer.files;
+  showFiles(e.dataTransfer.files);
+});
+</script>
+{% endblock %}

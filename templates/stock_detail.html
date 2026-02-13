@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}个股研究 — {{ stock.stock_name if stock else '选择股票' }}{% endblock %}
+
+{% block extra_styles %}
+.stock-sidebar { width: 260px; min-width: 260px; }
+.stock-sidebar a.active { background: rgba(19,91,236,0.15); color: #135bec; border-right: 2px solid #135bec; }
+.stock-sidebar a:hover:not(.active) { background: rgba(255,255,255,0.03); }
+.kline-chart { height: 360px; border-radius: 12px; overflow: hidden; }
+.score-ring { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+.tag-chip:hover { border-color: #135bec; color: #60a5fa; }
+.research-cta { background: linear-gradient(135deg, #135bec 0%, #3b82f6 100%); }
+.research-cta:hover { filter: brightness(1.1); }
+.history-row:hover { background: rgba(255,255,255,0.03); }
+{% endblock %}
+
+{% block content %}
+<div class="flex gap-6 min-h-[calc(100vh-4rem)]">
+
+  <!-- 左侧股票列表 -->
+  <aside class="stock-sidebar flex-shrink-0 border-r border-slate-800 pr-4 overflow-y-auto">
+    <form action="/stock/add" method="post" class="mb-4">
+      <div class="flex gap-2">
+        <input type="text" name="stock_code" placeholder="输入代码..."
+               class="flex-1 bg-surface-card border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-primary focus:outline-none">
+        <button type="submit" class="bg-primary/20 text-primary px-3 py-2 rounded-lg text-sm hover:bg-primary/30 transition">
+          <span class="material-icons-round text-base">add</span>
+        </button>
+      </div>
+    </form>
+
+    {% if sidebar.holding %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2 px-2">已持仓</div>
+      {% for s in sidebar.holding %}
+      <a href="/stock/{{ s.stock_code }}"
+         class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition {{ 'active' if stock and stock.stock_code == s.stock_code else '' }}">
+        <div>
+          <div class="font-medium text-slate-200">{{ s.stock_code }}</div>
+          <div class="text-xs text-slate-500">{{ s.stock_name or '' }}</div>
+        </div>
+        <span class="material-icons-round text-amber-400 text-base">toll</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if sidebar.interested %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2 px-2">感兴趣</div>
+      {% for s in sidebar.interested %}
+      <a href="/stock/{{ s.stock_code }}"
+         class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition {{ 'active' if stock and stock.stock_code == s.stock_code else '' }}">
+        <div>
+          <div class="font-medium text-slate-200">{{ s.stock_code }}</div>
+          <div class="text-xs text-slate-500">{{ s.stock_name or '' }}</div>
+        </div>
+        <span class="material-icons-round text-slate-600 text-base">bookmark_border</span>
+      </a>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if not sidebar.holding and not sidebar.interested %}
+    <div class="text-center text-slate-500 text-sm py-8">
+      <span class="material-icons-round text-3xl mb-2 block">playlist_add</span>
+      暂无跟踪股票<br>在上方输入代码添加
+    </div>
+    {% endif %}
+  </aside>
+
+  <!-- 主内容区 -->
+  <div class="flex-1 min-w-0">
+    {% if stock %}
+    <!-- 股票头部 -->
+    <div class="flex items-start justify-between mb-6">
+      <div>
+        <div class="flex items-center gap-3 mb-1">
+          <h1 class="text-2xl font-bold text-white">{{ stock.stock_code }}</h1>
+          <span class="text-lg text-slate-400">{{ stock.stock_name or '' }}</span>
+          {% if stock.industry %}
+          <span class="tag-chip">{{ stock.industry }}</span>
+          {% endif %}
+        </div>
+        {% if price %}
+        <div class="flex items-center gap-4 mt-2">
+          <span class="text-3xl font-bold {{ 'text-emerald-400' if (price.change_pct or 0) >= 0 else 'text-red-400' }}">
+            {{ '%.2f' | format(price.close) }}
+          </span>
+          <span class="text-lg {{ 'text-emerald-400' if (price.change_pct or 0) >= 0 else 'text-red-400' }}">
+            {{ '%+.2f' | format(price.change_pct or 0) }}%
+          </span>
+          <span class="text-sm text-slate-500">{{ price.trade_date }}</span>
+        </div>
+        {% endif %}
+      </div>
+      <div class="flex gap-2">
+        <form action="/stock/{{ stock.stock_code }}/remove" method="post">
+          <button type="submit" class="px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition">
+            <span class="material-icons-round text-base align-middle">delete_outline</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- K线图 -->
+    <div class="card mb-6">
+      <div id="kline-chart" class="kline-chart"></div>
+    </div>
+
+    <!-- 知识标签 -->
+    {% if tags %}
+    <div class="flex flex-wrap gap-2 mb-6">
+      {% for t in tags %}
+      <span class="tag-chip">
+        <span class="material-icons-round text-xs">{{ 'sell' if t.type == 'tag' else 'hub' }}</span>
+        {{ t.name }}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 深度研究区域 -->
+    {% if research %}
+    <div class="card card-hover mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <span class="material-icons-round text-primary text-xl">science</span>
+          <span class="font-semibold text-white">最新深度研究报告</span>
+          <span class="badge bg-primary/20 text-primary">{{ research.recommendation }}</span>
+        </div>
+        <span class="text-xs text-slate-500">{{ research.date }}</span>
+      </div>
+      <div class="grid grid-cols-7 gap-3 mb-4">
+        {% set dims = [('financial', '财务'), ('valuation', '估值'), ('technical', '技术'), ('sentiment', '情绪'), ('catalyst', '催化'), ('risk', '风险'), ('overall', '综合')] %}
+        {% for key, label in dims %}
+        {% set val = research.scores.get(key, 0) %}
+        <div class="text-center">
+          <div class="score-ring mx-auto mb-1 {{ 'bg-emerald-500/20 text-emerald-400' if val >= 70 else 'bg-amber-500/20 text-amber-400' if val >= 50 else 'bg-red-500/20 text-red-400' }}">
+            {{ val }}
+          </div>
+          <div class="text-xs text-slate-500">{{ label }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% if research.report and research.report.executive_summary %}
+      <p class="text-sm text-slate-300 mb-4 leading-relaxed">{{ research.report.executive_summary }}</p>
+      {% endif %}
+      <div class="flex gap-3">
+        <a href="/stock/{{ stock.stock_code }}/report/{{ research.id }}"
+           class="flex-1 text-center py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+          <span class="material-icons-round text-base align-middle mr-1">description</span>查看完整报告
+        </a>
+        <a href="/stock/{{ stock.stock_code }}/followup"
+           class="flex-1 text-center py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-primary hover:text-primary transition">
+          <span class="material-icons-round text-base align-middle mr-1">update</span>追踪研究
+        </a>
+        <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post" class="flex-1">
+          <button type="submit" class="w-full py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-amber-500 hover:text-amber-400 transition">
+            <span class="material-icons-round text-base align-middle mr-1">refresh</span>重新研究
+          </button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <div class="card text-center py-12 mb-6">
+      <span class="material-icons-round text-5xl text-slate-600 mb-4">biotech</span>
+      <h3 class="text-lg font-semibold text-slate-300 mb-2">尚未生成深度研究报告</h3>
+      <p class="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+        深度研究将从财务、估值、技术、情绪、催化剂、风险六个维度对该股票进行全面分析，生成投资建议。
+      </p>
+      <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post">
+        <button type="submit" class="research-cta px-8 py-3 rounded-xl text-white font-semibold text-sm transition">
+          <span class="material-icons-round text-base align-middle mr-1">science</span>执行深度研究
+        </button>
+      </form>
+    </div>
+    {% endif %}
+
+    <!-- 研究历史 -->
+    {% if history %}
+    <div class="card mb-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="material-icons-round text-slate-400">history</span>
+        <span class="font-semibold text-slate-200">研究历史</span>
+      </div>
+      <div class="space-y-1">
+        {% for h in history %}
+        <a href="/stock/{{ stock.stock_code }}/report/{{ h.id }}"
+           class="history-row flex items-center justify-between px-3 py-2.5 rounded-lg transition block">
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">{{ h.research_date }}</span>
+            <span class="badge {{ 'bg-emerald-500/20 text-emerald-400' if (h.overall_score or 0) >= 70 else 'bg-amber-500/20 text-amber-400' if (h.overall_score or 0) >= 50 else 'bg-red-500/20 text-red-400' }}">
+              {{ h.overall_score or 0 }}分
+            </span>
+            <span class="text-sm text-slate-300">{{ h.recommendation or '—' }}</span>
+          </div>
+          <span class="material-icons-round text-slate-600 text-base">chevron_right</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- 未选择股票 -->
+    <div class="flex items-center justify-center h-full">
+      <div class="text-center">
+        <span class="material-icons-round text-6xl text-slate-700 mb-4">query_stats</span>
+        <h2 class="text-xl font-semibold text-slate-400 mb-2">选择一只股票开始研究</h2>
+        <p class="text-sm text-slate-500">从左侧列表选择，或输入代码添加新股票</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- 右侧信息栏 -->
+  {% if stock %}
+  <aside class="w-72 flex-shrink-0 space-y-4">
+    {% if capital %}
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary text-base">account_balance</span>
+        <span class="text-sm font-semibold text-slate-200">资金流向</span>
+      </div>
+      {% for c in capital %}
+      <div class="flex items-center justify-between py-1.5 text-xs">
+        <span class="text-slate-500">{{ c.trade_date[-5:] }}</span>
+        <span class="{{ 'text-emerald-400' if (c.main_net_inflow or 0) > 0 else 'text-red-400' }}">
+          {{ '%+.1f' | format((c.main_net_inflow or 0) / 10000) }}万
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if news %}
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary text-base">newspaper</span>
+        <span class="text-sm font-semibold text-slate-200">关联新闻</span>
+      </div>
+      <div class="space-y-3">
+        {% for n in news[:6] %}
+        <div class="pb-2 {{ 'border-b border-slate-800' if not loop.last else '' }}">
+          <div class="flex items-start gap-2">
+            <span class="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-emerald-400' if n.sentiment == 'positive' else 'bg-red-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
+            <div>
+              <p class="text-xs text-slate-300 leading-relaxed">{{ n.summary[:80] }}</p>
+              <span class="text-xs text-slate-600">{{ n.cleaned_at[:10] if n.cleaned_at else '' }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+  {% endif %}
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if kline %}
+const kdata = {{ kline_json | safe }};
+if (kdata.length > 0) {
+  const dates = kdata.map(d => d.trade_date);
+  const closes = kdata.map(d => d.close);
+  const volumes = kdata.map(d => d.volume);
+  Plotly.newPlot('kline-chart', [
+    { x: dates, y: closes, type: 'scatter', mode: 'lines', line: { color: '#135bec', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(19,91,236,0.08)', name: '收盘价' },
+    { x: dates, y: volumes, type: 'bar', marker: { color: 'rgba(100,116,139,0.3)' }, name: '成交量', yaxis: 'y2' }
+  ], {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    margin: { l: 50, r: 20, t: 20, b: 40 },
+    font: { color: '#94a3b8', family: 'Manrope' },
+    xaxis: { gridcolor: 'rgba(100,116,139,0.1)', showgrid: false },
+    yaxis: { gridcolor: 'rgba(100,116,139,0.1)', side: 'right' },
+    yaxis2: { overlaying: 'y', side: 'left', showgrid: false, showticklabels: false, range: [0, Math.max(...volumes) * 4] },
+    showlegend: false, hovermode: 'x unified',
+  }, { responsive: true, displayModeBar: false });
+}
+{% endif %}
+
+function startResearch(form) {
+  const btn = form.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1 animate-spin">refresh</span>启动中...';
+  fetch(form.action, { method: 'POST' }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">check</span>已启动，查看左下角进度';
+      btn.classList.add('text-emerald-400', 'border-emerald-700');
+    } else {
+      btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">error</span>启动失败';
+      btn.disabled = false;
+    }
+  }).catch(function() {
+    btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">error</span>请求失败';
+    btn.disabled = false;
+  });
+  return false;
+}
+</script>
+{% endblock %}

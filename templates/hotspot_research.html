@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}{{ group.group_name }} — 热点研究{% endblock %}
+
+{% block content %}
+<!-- Back nav -->
+<a href="/hotspot" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary mb-6 transition-colors">
+  <span class="material-icons-round text-sm">arrow_back</span> 返回热点概览
+</a>
+
+<!-- Research Layer Panel -->
+<section class="bg-surface-card rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative">
+  <!-- Panel Header -->
+  <div class="border-b border-slate-700 flex flex-wrap lg:flex-nowrap items-center">
+    <div class="p-6 lg:border-r border-slate-700 lg:w-1/3">
+      <div class="flex items-center gap-3 mb-2">
+        <div class="p-2 bg-primary/20 text-primary rounded-lg">
+          <span class="material-icons-round">biotech</span>
+        </div>
+        <h2 class="text-xl font-bold">{{ group.group_name }}</h2>
+      </div>
+      <div class="flex flex-wrap gap-1 mt-2">
+        {% for t in group.tags %}
+        <span class="px-2 py-0.5 rounded bg-slate-700/50 text-[10px] font-bold">#{{ t }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    <!-- Tabs -->
+    <nav class="flex-1 flex items-end px-6 space-x-8 overflow-x-auto h-full pt-6">
+      {% set tabs = [
+        ('logic', '成组逻辑'),
+        ('news', '关联新闻'),
+        ('heat', '板块热度'),
+        ('macro', '宏观分析'),
+        ('industry', '行业分析'),
+        ('stocks', '推荐个股'),
+      ] %}
+      {% for key, label in tabs %}
+      <a href="/hotspot/research/{{ group.id }}?tab={{ key }}"
+         class="pb-4 px-1 text-sm font-bold whitespace-nowrap {{ 'tab-active' if active_tab == key else 'tab-inactive' }}">
+        {{ label }}
+      </a>
+      {% endfor %}
+    </nav>
+    <!-- 操作按钮 -->
+    <div class="flex items-center gap-2 px-6 py-4">
+      {% if research %}
+      <a href="/hotspot/research/{{ group.id }}/followup"
+         class="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-slate-700 text-sm text-slate-300 hover:border-primary hover:text-primary transition">
+        <span class="material-icons-round text-sm">update</span>追踪研究
+      </a>
+      <form method="post" action="/hotspot/research/{{ group.id }}/run">
+        <button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+          <span class="material-icons-round text-sm">refresh</span>重新研究
+        </button>
+      </form>
+      {% else %}
+      <form method="post" action="/hotspot/research/{{ group.id }}/run">
+        <button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition">
+          <span class="material-icons-round text-sm">biotech</span>执行研究
+        </button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Panel Content -->
+  <div class="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div class="lg:col-span-2 space-y-8">
+
+      {% if not research %}
+      <!-- No research yet -->
+      <div class="text-center py-16">
+        <span class="material-icons-round text-5xl text-slate-700 mb-4">science</span>
+        <p class="text-slate-500 mb-6">尚未执行深度研究</p>
+        <form method="post" action="/hotspot/research/{{ group.id }}/run">
+          <button type="submit" class="bg-primary hover:bg-primary/90 text-white rounded-lg px-6 py-3 text-sm font-bold flex items-center gap-2 mx-auto transition-all">
+            <span class="material-icons-round text-sm">biotech</span> 执行深度研究
+          </button>
+        </form>
+      </div>
+
+      {% elif active_tab == 'logic' %}
+      <!-- Logic Analysis -->
+      <div>
+        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">投资逻辑</h3>
+        <div class="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 relative overflow-hidden">
+          <span class="material-icons-round absolute -right-4 -bottom-4 text-8xl text-slate-700/10">format_quote</span>
+          {% if group.group_logic %}
+          <p class="text-lg leading-relaxed font-medium">{{ group.group_logic }}</p>
+          {% else %}
+          <p class="text-slate-500">暂无成组逻辑分析</p>
+          {% endif %}
+        </div>
+      </div>
+      {% if research.macro_report %}
+      <div class="grid grid-cols-2 gap-6">
+        <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+          <h4 class="font-bold text-sm mb-3">核心逻辑</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">{{ research.macro_report[:200] }}</p>
+        </div>
+        <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+          <h4 class="font-bold text-sm mb-3">风险因素</h4>
+          <p class="text-sm text-slate-400 leading-relaxed">{{ research.industry_report[:200] if research.industry_report else '暂无' }}</p>
+        </div>
+      </div>
+      {% endif %}
+
+      {% elif active_tab == 'news' %}
+      <!-- News Summary -->
+      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">关联新闻 ({{ research.news|length }}条)</h3>
+      {% if research.news %}
+      <div class="space-y-3">
+        {% for n in research.news[:15] %}
+        <div class="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-700/20 transition-colors">
+          <span class="material-icons-round text-sm mt-0.5 {{ 'text-emerald-500' if n.sentiment == 'positive' else 'text-rose-500' if n.sentiment == 'negative' else 'text-slate-500' }}">
+            {{ 'trending_up' if n.sentiment == 'positive' else 'trending_down' if n.sentiment == 'negative' else 'horizontal_rule' }}
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm">{{ n.summary or '' }}</p>
+            <div class="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
+              <span>{{ '⭐' * (n.importance or 0) }}</span>
+              <span>{{ n.event_type or '' }}</span>
+              <span>关联{{ n.match_tags or n.get('match_count', 1) }}标签</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-600 text-center py-8">暂无关联新闻</p>
+      {% endif %}
+
+      {% elif active_tab == 'heat' %}
+      <!-- Heat Analysis -->
+      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">板块热度</h3>
+      {% if research.sector_heat %}
+      <div id="heat-chart" style="height: 300px;"></div>
+      <div class="grid grid-cols-2 gap-4 mt-4">
+        {% for sh in research.sector_heat %}
+        <div class="p-3 bg-slate-800/20 rounded-lg border border-slate-700/50">
+          <div class="flex justify-between items-center">
+            <span class="text-sm font-bold">{{ sh.tag }}</span>
+            {% set total = sh.total_inflow or 0 %}
+            <span class="text-xs font-bold {{ 'text-emerald-500' if total > 0 else 'text-rose-500' }}">
+              {{ '%.2f'|format(total / 10000) }}万
+            </span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-600 text-center py-8">暂无板块热度数据</p>
+      {% endif %}
+
+      {% elif active_tab == 'macro' %}
+      <!-- Macro Analysis -->
+      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">宏观分析</h3>
+      {% if research.macro_report %}
+      <div class="prose prose-invert prose-sm max-w-none bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300">
+        {{ research.macro_report }}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
+      {% endif %}
+
+      {% elif active_tab == 'industry' %}
+      <!-- Industry Analysis -->
+      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">行业分析</h3>
+      {% if research.industry_report %}
+      <div class="prose prose-invert prose-sm max-w-none bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300">
+        {{ research.industry_report }}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
+      {% endif %}
+
+      {% elif active_tab == 'stocks' %}
+      <!-- Recommended Stocks -->
+      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">推荐个股 Top 10</h3>
+      {% if research.top10_stocks %}
+      <div id="stocks-chart" style="height: 250px;" class="mb-6"></div>
+      {% endif %}
+
+      {% endif %}
+    </div>
+
+    <!-- Right Sidebar: High Conviction Picks -->
+    <div class="bg-slate-800/20 rounded-xl p-6 border border-slate-700/50">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest">推荐个股</h3>
+      </div>
+      {% if research and research.top10_stocks %}
+      <div class="space-y-4">
+        {% set stock_colors = ['#3b82f6', '#818cf8', '#10b981', '#f97316', '#a855f7'] %}
+        {% for s in research.top10_stocks[:5] %}
+        <div class="flex items-center justify-between p-3 bg-slate-800/40 rounded-lg shadow-sm border border-slate-700/50">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded flex items-center justify-center font-bold text-xs"
+                 style="background: {{ stock_colors[loop.index0 % 5] }}15; color: {{ stock_colors[loop.index0 % 5] }}">
+              {{ s.stock_code[-4:] }}
+            </div>
+            <div>
+              <p class="font-bold text-sm">{{ s.stock_name }}</p>
+              <p class="text-[10px] text-slate-500">关联{{ s.match_tags or 0 }}标签</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <p class="text-sm font-bold {{ 'text-emerald-500' if (s.total_inflow or 0) > 0 else 'text-rose-500' }}">
+              {{ '%.1f'|format((s.total_inflow or 0) / 10000) }}万
+            </p>
+            <p class="text-[10px] text-slate-500">{{ '%.1f'|format(s.inflow_ratio or 0) }}%</p>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-sm text-slate-600 text-center py-8">执行深度研究后显示</p>
+      {% endif %}
+
+      {% if research %}
+      <div class="mt-6 pt-4 border-t border-slate-700/50 text-[10px] text-slate-600">
+        研究日期: {{ research.research_date or '--' }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if research and research.sector_heat and active_tab == 'heat' %}
+  var heatData = {{ research.sector_heat | tojson }};
+  var heatTraces = [];
+  var hColors = ['#135bec', '#f97316', '#818cf8', '#10b981', '#ef4444'];
+  heatData.forEach(function(sh, idx) {
+    var flows = sh.daily_flows || sh.flows || [];
+    if (flows.length > 0) {
+      heatTraces.push({
+        x: flows.map(f => f.date || f.trade_date),
+        y: flows.map(f => (f.inflow || f.net_inflow || 0) / 10000),
+        name: sh.tag,
+        type: 'scatter',
+        mode: 'lines',
+        line: { color: hColors[idx % 5], width: 2 },
+      });
+    }
+  });
+  if (heatTraces.length > 0) {
+    Plotly.newPlot('heat-chart', heatTraces, {
+      margin: { t: 10, b: 30, l: 50, r: 10 },
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#94a3b8', size: 10 },
+      xaxis: { gridcolor: 'rgba(100,116,139,0.15)' },
+      yaxis: { gridcolor: 'rgba(100,116,139,0.15)', title: { text: '万元', font: { size: 10 } } },
+    }, { displayModeBar: false, responsive: true });
+  }
+{% endif %}
+
+{% if research and research.top10_stocks and active_tab == 'stocks' %}
+  var stocks = {{ research.top10_stocks | tojson }};
+  var names = stocks.map(s => s.stock_name);
+  var inflows = stocks.map(s => (s.total_inflow || 0) / 10000);
+  var barColors = inflows.map(v => v >= 0 ? '#10b981' : '#ef4444');
+  Plotly.newPlot('stocks-chart', [{
+    x: names, y: inflows, type: 'bar',
+    marker: { color: barColors, cornerradius: 4 },
+  }], {
+    margin: { t: 10, b: 60, l: 50, r: 10 },
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+    font: { color: '#94a3b8', size: 10 },
+    xaxis: { gridcolor: 'rgba(100,116,139,0.15)', tickangle: -30 },
+    yaxis: { gridcolor: 'rgba(100,116,139,0.15)', title: { text: '万元', font: { size: 10 } } },
+  }, { displayModeBar: false, responsive: true });
+{% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}深度研究 — {{ stock.stock_code }} {{ stock.stock_name or '' }}{% endblock %}
+
+{% block extra_styles %}
+.radar-chart { height: 320px; }
+.score-card { text-align: center; padding: 1rem; border-radius: 12px; background: rgba(100,116,139,0.08); }
+.score-val { font-size: 1.5rem; font-weight: 800; }
+.section-card { border-left: 3px solid; padding-left: 1rem; margin-bottom: 1.5rem; }
+.rec-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 9999px; font-weight: 600; }
+{% endblock %}
+
+{% block content %}
+<!-- 顶部导航 -->
+<div class="flex items-center gap-3 mb-6">
+  <a href="/stock/{{ stock_code }}" class="text-slate-400 hover:text-primary transition">
+    <span class="material-icons-round">arrow_back</span>
+  </a>
+  <div>
+    <h1 class="text-xl font-bold text-white">{{ stock.stock_code }} {{ stock.stock_name or '' }}</h1>
+    <span class="text-sm text-slate-500">深度研究报告 · {{ report.date }}</span>
+  </div>
+  <div class="ml-auto flex gap-2">
+    <a href="/stock/{{ stock_code }}/followup"
+       class="px-4 py-2 rounded-lg bg-surface-card border border-slate-700 text-sm text-slate-300 hover:border-primary hover:text-primary transition">
+      <span class="material-icons-round text-base align-middle mr-1">update</span>追踪研究
+    </a>
+    <form action="/stock/{{ stock_code }}/run-research" method="post">
+      <button type="submit" class="px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+        <span class="material-icons-round text-base align-middle mr-1">refresh</span>重新研究
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="flex gap-6">
+  <!-- 主内容 -->
+  <div class="flex-1 min-w-0">
+
+    <!-- 评分卡片 + 雷达图 -->
+    <div class="card mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+          <span class="rec-badge {{ 'bg-emerald-500/20 text-emerald-400' if report.recommendation in ['强烈推荐','推荐'] else 'bg-amber-500/20 text-amber-400' if report.recommendation == '中性' else 'bg-red-500/20 text-red-400' }}">
+            <span class="material-icons-round text-base">{{ 'thumb_up' if report.recommendation in ['强烈推荐','推荐'] else 'thumbs_up_down' if report.recommendation == '中性' else 'thumb_down' }}</span>
+            {{ report.recommendation or '—' }}
+          </span>
+          <span class="text-2xl font-bold text-white">{{ report.scores.overall or 0 }}<span class="text-sm text-slate-500 font-normal">/100</span></span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-6">
+        <!-- 雷达图 -->
+        <div id="radar-chart" class="radar-chart"></div>
+        <!-- 6维评分 -->
+        <div class="grid grid-cols-3 gap-3 content-center">
+          {% set dim_info = [
+            ('financial', '财务', 'account_balance_wallet'),
+            ('valuation', '估值', 'price_check'),
+            ('technical', '技术', 'candlestick_chart'),
+            ('sentiment', '情绪', 'sentiment_satisfied'),
+            ('catalyst', '催化', 'bolt'),
+            ('risk', '风险', 'shield')
+          ] %}
+          {% for key, label, icon in dim_info %}
+          {% set val = report.scores.get(key, 0) or 0 %}
+          <div class="score-card">
+            <span class="material-icons-round text-base mb-1 {{ 'text-emerald-400' if val >= 70 else 'text-amber-400' if val >= 50 else 'text-red-400' }}">{{ icon }}</span>
+            <div class="score-val {{ 'text-emerald-400' if val >= 70 else 'text-amber-400' if val >= 50 else 'text-red-400' }}">{{ val }}</div>
+            <div class="text-xs text-slate-500 mt-1">{{ label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 执行摘要 -->
+    {% if report.report and report.report.executive_summary %}
+    <div class="card mb-6">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary">summarize</span>
+        <span class="font-semibold text-white">执行摘要</span>
+      </div>
+      <p class="text-sm text-slate-300 leading-relaxed">{{ report.report.executive_summary }}</p>
+    </div>
+    {% endif %}
+
+    <!-- 分析详情 -->
+    {% set sections = [
+      ('financial_analysis', '财务分析', '#10b981', 'account_balance_wallet'),
+      ('valuation_analysis', '估值分析', '#3b82f6', 'price_check'),
+      ('technical_analysis', '技术分析', '#8b5cf6', 'candlestick_chart'),
+      ('sentiment_analysis', '市场情绪', '#f59e0b', 'sentiment_satisfied'),
+      ('catalyst_analysis', '催化剂分析', '#ec4899', 'bolt'),
+      ('risk_analysis', '风险评估', '#ef4444', 'shield'),
+      ('conclusion', '投资结论', '#135bec', 'gavel'),
+    ] %}
+    {% for key, title, color, icon in sections %}
+    {% set content = report.report[key] if report.report and key in report.report else '' %}
+    {% if content %}
+    <div class="section-card" style="border-color: {{ color }}">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-icons-round text-base" style="color: {{ color }}">{{ icon }}</span>
+        <span class="font-semibold text-slate-200">{{ title }}</span>
+      </div>
+      <div class="text-sm text-slate-400 leading-relaxed whitespace-pre-line">{{ content }}</div>
+    </div>
+    {% endif %}
+    {% endfor %}
+
+  </div>
+
+  <!-- 右侧栏 -->
+  <aside class="w-72 flex-shrink-0 space-y-4">
+    <!-- 关联新闻 -->
+    {% if news %}
+    <div class="card">
+      <div class="flex items-center gap-2 mb-3">
+        <span class="material-icons-round text-primary text-base">newspaper</span>
+        <span class="text-sm font-semibold text-slate-200">关联新闻</span>
+      </div>
+      <div class="space-y-3">
+        {% for n in news[:8] %}
+        <div class="pb-2 {{ 'border-b border-slate-800' if not loop.last else '' }}">
+          <div class="flex items-start gap-2">
+            <span class="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-emerald-400' if n.sentiment == 'positive' else 'bg-red-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
+            <div>
+              <p class="text-xs text-slate-300 leading-relaxed">{{ n.summary[:80] }}</p>
+              <span class="text-xs text-slate-600">{{ n.cleaned_at[:10] if n.cleaned_at else '' }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const scores = {{ report.scores | tojson }};
+const dims = ['财务', '估值', '技术', '情绪', '催化', '风险'];
+const keys = ['financial', 'valuation', 'technical', 'sentiment', 'catalyst', 'risk'];
+const vals = keys.map(k => scores[k] || 0);
+
+Plotly.newPlot('radar-chart', [{
+  type: 'scatterpolar',
+  r: [...vals, vals[0]],
+  theta: [...dims, dims[0]],
+  fill: 'toself',
+  fillcolor: 'rgba(19,91,236,0.15)',
+  line: { color: '#135bec', width: 2 },
+  marker: { size: 6, color: '#135bec' },
+}], {
+  polar: {
+    bgcolor: 'transparent',
+    radialaxis: { visible: true, range: [0, 100], gridcolor: 'rgba(100,116,139,0.15)', color: '#64748b', tickfont: { size: 10 } },
+    angularaxis: { gridcolor: 'rgba(100,116,139,0.15)', color: '#94a3b8', tickfont: { size: 11 } },
+  },
+  paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+  showlegend: false,
+  margin: { l: 60, r: 60, t: 30, b: 30 },
+  font: { family: 'Manrope' },
+}, { responsive: true, displayModeBar: false });
+</script>
+{% endblock %}
