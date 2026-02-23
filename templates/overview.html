@@ -223,7 +223,44 @@
           </div>
         </div>
         <div id="tab-news" class="ov-tab-pane hidden p-6">
-          <p class="text-slate-500 text-sm text-center py-20">新闻聚合加载中...</p>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 宏观级 -->
+            <div class="card">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+                <span class="material-icons-round text-blue-400 text-sm">public</span>
+                <h4 class="text-xs font-bold">宏观级</h4>
+                <span class="text-[9px] text-slate-600 ml-auto" id="news-macro-count">0</span>
+              </div>
+              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-macro-list"></div>
+            </div>
+            <!-- 行业级 -->
+            <div class="card">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+                <span class="material-icons-round text-amber-400 text-sm">factory</span>
+                <h4 class="text-xs font-bold">行业级</h4>
+                <span class="text-[9px] text-slate-600 ml-auto" id="news-industry-count">0</span>
+              </div>
+              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-industry-list"></div>
+            </div>
+            <!-- 个股级 -->
+            <div class="card">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+                <span class="material-icons-round text-green-400 text-sm">trending_up</span>
+                <h4 class="text-xs font-bold">个股级</h4>
+                <span class="text-[9px] text-slate-600 ml-auto" id="news-stock-count">0</span>
+              </div>
+              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-stock-list"></div>
+            </div>
+            <!-- 风险聚焦 -->
+            <div class="card">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+                <span class="material-icons-round text-red-400 text-sm">warning</span>
+                <h4 class="text-xs font-bold">风险聚焦</h4>
+                <span class="text-[9px] text-slate-600 ml-auto" id="news-risk-count">0</span>
+              </div>
+              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-risk-list"></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -398,7 +435,58 @@ async function loadCapChart(url, elId, type) {
     }
   } catch(e) { console.error('Cap chart load failed:', type, e); }
 }
-function loadNewsTab() { /* Task 6 填充 */ }
+async function loadNewsTab() {
+  try {
+    var data = await fetch('/overview/api/news-feed?days=3').then(function(r) { return r.json(); });
+    renderNewsList('news-macro-list', 'news-macro-count', data.macro || []);
+    renderNewsList('news-industry-list', 'news-industry-count', data.industry || []);
+    renderNewsList('news-stock-list', 'news-stock-count', data.stock || []);
+    renderNewsList('news-risk-list', 'news-risk-count', data.risk || []);
+    bindDragEvents();
+  } catch(e) { console.error('News feed load failed:', e); }
+}
+
+function renderNewsList(listId, countId, items) {
+  document.getElementById(countId).textContent = items.length + '条';
+  var el = document.getElementById(listId);
+  if (!items.length) { el.innerHTML = '<p class="text-[9px] text-slate-600 text-center py-4">暂无</p>'; return; }
+
+  el.innerHTML = items.map(function(item) {
+    var summary = item.summary || item.fact_summary || '';
+    var dragData = JSON.stringify({
+      id: item.id, summary: summary,
+      fact: item.fact_summary || '', opinion: item.opinion_summary || '',
+      evidence: item.evidence_assessment || '', info_gaps: item.info_gaps || ''
+    });
+    var importanceBadge = item.importance ? '<span class="text-[8px] px-1 py-0.5 rounded bg-primary/20 text-primary">' + item.importance + '</span>' : '';
+    var timeBadge = item.publish_time ? '<span class="text-[8px] text-slate-600">' + item.publish_time.slice(0, 10) + '</span>' : '';
+    var docBadge = item.doc_type ? '<span class="text-[8px] px-1 py-0.5 rounded bg-slate-700/60 text-slate-400">' + item.doc_type + '</span>' : '';
+
+    return '<div class="foe-card card mb-2 overflow-hidden" draggable="true" data-foe=\'' + _escAttr(dragData) + '\'>' +
+      '<div class="foe-summary flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-slate-800/40 transition-colors" onclick="toggleFoeCard(this)">' +
+        '<p class="flex-1 text-[11px] text-slate-200 leading-snug line-clamp-2">' + _escHtml(summary) + '</p>' +
+        '<div class="flex items-center gap-1 flex-shrink-0">' + importanceBadge + docBadge + timeBadge +
+          '<span class="material-icons-round foe-chevron text-slate-500 text-sm transition-transform">expand_more</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="foe-detail hidden border-t border-slate-800 px-3 py-2 space-y-2">' +
+        (item.fact_summary ? '<div><span class="text-[9px] font-bold text-amber-400">事实</span><p class="text-[10px] text-slate-300 mt-0.5">' + _escHtml(item.fact_summary) + '</p></div>' : '') +
+        (item.opinion_summary ? '<div><span class="text-[9px] font-bold text-blue-400">观点</span><p class="text-[10px] text-slate-300 mt-0.5">' + _escHtml(item.opinion_summary) + '</p></div>' : '') +
+        (item.evidence_assessment ? '<div><span class="text-[9px] font-bold text-emerald-400">证据</span><p class="text-[10px] text-slate-400 mt-0.5">' + _escHtml(item.evidence_assessment) + '</p></div>' : '') +
+        (item.info_gaps ? '<div><span class="text-[9px] font-bold text-violet-400">信息缺口</span><p class="text-[10px] text-slate-500 mt-0.5 italic">' + _escHtml(item.info_gaps) + '</p></div>' : '') +
+        '<div class="flex gap-2 pt-1 border-t border-slate-800/50">' +
+          '<button onclick="likeToHotspot(' + item.id + ')" class="text-[9px] text-slate-500 hover:text-amber-400 flex items-center gap-0.5"><span class="material-icons-round text-xs">favorite_border</span>收藏到热点</button>' +
+          '<button onclick="linkToPortfolio(' + item.id + ')" class="text-[9px] text-slate-500 hover:text-primary flex items-center gap-0.5"><span class="material-icons-round text-xs">link</span>关联项目</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function _escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function _escAttr(s) { return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
+function likeToHotspot(newsId) { showToast && showToast('已收藏到热点（待实现完整逻辑）'); }
+function linkToPortfolio(newsId) { showToast && showToast('关联项目（待实现完整逻辑）'); }
 
 // ── Chat 占位 ──
 function sendOvChat() { /* Task 7 填充 */ }
