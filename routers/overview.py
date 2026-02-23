@@ -560,7 +560,73 @@ def overview_page(request: Request, date: str = None):
     return templates.TemplateResponse("overview.html", ctx)
 
 
-@router.post("/refresh", response_class=HTMLResponse)
+@router.get("/api/news-feed")
+def api_news_feed(days: int = 3):
+    """新闻聚合器：四容器，最近 days 天，各20条，按 importance DESC"""
+    from fastapi.responses import JSONResponse
+    try:
+        base_select = """
+            SELECT cs.id, cs.doc_type, cs.summary, cs.fact_summary,
+                   cs.opinion_summary, cs.evidence_assessment, cs.info_gaps,
+                   et.publish_time,
+                   ci.importance, ci.sentiment, ci.event_type
+            FROM content_summaries cs
+            JOIN extracted_texts et ON cs.extracted_text_id = et.id
+            LEFT JOIN cleaned_items ci ON ci.summary = cs.summary
+            WHERE et.publish_time >= DATE_SUB(NOW(), INTERVAL %s DAY)
+        """
+
+        macro = execute_query(f"""
+            {base_select}
+              AND cs.doc_type IN ('policy_doc','data_release','market_commentary','strategy_report')
+            ORDER BY COALESCE(ci.importance, 3) DESC, et.publish_time DESC LIMIT 20
+        """, [days]) or []
+
+        industry = execute_query(f"""
+            {base_select}
+              AND cs.doc_type IN ('feature_news','flash_news','research_report')
+              AND EXISTS (SELECT 1 FROM item_industries ii
+                          JOIN cleaned_items ci2 ON ii.cleaned_item_id = ci2.id
+                          WHERE ci2.summary = cs.summary)
+            ORDER BY COALESCE(ci.importance, 3) DESC, et.publish_time DESC LIMIT 20
+        """, [days]) or []
+
+        stock = execute_query(f"""
+            {base_select}
+              AND cs.doc_type IN ('announcement','financial_report','feature_news','flash_news')
+              AND EXISTS (SELECT 1 FROM stock_mentions sm
+                          WHERE sm.extracted_text_id = cs.extracted_text_id)
+            ORDER BY COALESCE(ci.importance, 3) DESC, et.publish_time DESC LIMIT 20
+        """, [days]) or []
+
+        risk = execute_query(f"""
+            {base_select}
+              AND (ci.sentiment = 'negative'
+                   OR cs.summary LIKE '%%风险%%' OR cs.summary LIKE '%%下跌%%'
+                   OR cs.summary LIKE '%%利空%%' OR cs.summary LIKE '%%减持%%'
+                   OR cs.summary LIKE '%%违约%%' OR cs.summary LIKE '%%退市%%')
+            ORDER BY COALESCE(ci.importance, 3) DESC, et.publish_time DESC LIMIT 20
+        """, [days]) or []
+
+        def _serialize(rows):
+            result = []
+            for r in rows:
+                d = dict(r)
+                if d.get("publish_time") and hasattr(d["publish_time"], "strftime"):
+                    d["publish_time"] = d["publish_time"].strftime("%Y-%m-%d %H:%M")
+                result.append(d)
+            return result
+
+        return JSONResponse({
+            "macro": _serialize(macro),
+            "industry": _serialize(industry),
+            "stock": _serialize(stock),
+            "risk": _serialize(risk),
+        })
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"macro": [], "industry": [], "stock": [], "risk": []})@router.post("/refresh", response_class=HTMLResponse)
 def refresh_dashboards(request: Request, date: str = None):
     date_str = date or datetime.now().strftime("%Y-%m-%d")
     error = None
