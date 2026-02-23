@@ -305,6 +305,12 @@
 
 {% block scripts %}
 <script>
+// 让 main 容器变成 overflow-hidden，使 overview 左右分栏布局正确撑满高度
+(function() {
+  var main = document.querySelector('main');
+  if (main) { main.classList.remove('overflow-y-auto'); main.classList.add('overflow-hidden'); }
+})();
+
 // ── Portfolio wlSelect ──
 (function() {
   var dataEl = document.getElementById('portfolio-data');
@@ -402,6 +408,7 @@ function bindDragEvents() {
 })();
 
 // ── Tab 切换 ──
+window.switchOvTab = function(tab) {
   document.querySelectorAll('.ov-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.ov-tab-pane').forEach(p => {
     p.classList.toggle('active', p.id === 'tab-' + tab);
