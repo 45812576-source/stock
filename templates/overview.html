@@ -372,6 +372,35 @@ function bindDragEvents() {
   });
 }
 
+// ── Chat Drop Zone ──
+(function() {
+  var panel = document.getElementById('ai-chat-panel');
+  if (!panel) return;
+  panel.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  panel.addEventListener('dragenter', function(e) { e.preventDefault(); document.getElementById('chatDropOverlay').classList.remove('hidden'); });
+  panel.addEventListener('dragleave', function(e) {
+    if (!panel.contains(e.relatedTarget)) document.getElementById('chatDropOverlay').classList.add('hidden');
+  });
+  panel.addEventListener('drop', function(e) {
+    e.preventDefault();
+    document.getElementById('chatDropOverlay').classList.add('hidden');
+    try {
+      var data = JSON.parse(e.dataTransfer.getData('text/plain'));
+      var ctx = '';
+      if (data.fact) ctx += '【事实】' + data.fact + '\n';
+      if (data.opinion) ctx += '【观点】' + data.opinion + '\n';
+      if (data.evidence) ctx += '【证据】' + data.evidence + '\n';
+      if (data.info_gaps) ctx += '【信息缺口】' + data.info_gaps + '\n';
+      if (!ctx && data.summary) ctx = data.summary;
+      window._chatContextData = ctx;
+      document.getElementById('chatContextText').textContent = ctx.slice(0, 200) + (ctx.length > 200 ? '...' : '');
+      document.getElementById('chatContext').classList.remove('hidden');
+      document.getElementById('ovChatInput').focus();
+      document.getElementById('ovChatInput').placeholder = '针对这条新闻提问...';
+    } catch(err) { console.error('Drop parse error:', err); }
+  });
+})();
+
 // ── Tab 切换 ──
   document.querySelectorAll('.ov-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.ov-tab-pane').forEach(p => {
@@ -488,8 +517,81 @@ function _escAttr(s) { return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;'); 
 function likeToHotspot(newsId) { showToast && showToast('已收藏到热点（待实现完整逻辑）'); }
 function linkToPortfolio(newsId) { showToast && showToast('关联项目（待实现完整逻辑）'); }
 
-// ── Chat 占位 ──
-function sendOvChat() { /* Task 7 填充 */ }
+// ── Chat 发送 + 轮询 ──
+var _ovChatProjectId = 1;
+var _ovChatPollTimer = null;
+
+function appendOvChatMsg(role, text, id, isPending) {
+  var el = document.getElementById('ovChatMessages');
+  var msgId = id ? ' id="msg-' + id + '"' : '';
+  var cls = role === 'user' ? 'chat-msg chat-msg-user' : 'chat-msg';
+  var bubbleCls = role === 'user'
+    ? 'chat-bubble bg-primary/15 border border-primary/25 rounded-xl rounded-br-sm'
+    : 'chat-bubble bg-slate-800/60 border border-slate-700 rounded-xl rounded-bl-sm';
+  var html = '<div class="' + cls + '"' + msgId + '><div class="' + bubbleCls + '">';
+  if (isPending) html += '<span class="material-icons-round text-xs animate-spin text-primary mr-1">refresh</span>';
+  html += '<span class="text-xs text-slate-300 whitespace-pre-wrap">' + _escHtml(text) + '</span>';
+  html += '</div></div>';
+  el.insertAdjacentHTML('beforeend', html);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function sendOvChat() {
+  var input = document.getElementById('ovChatInput');
+  var msg = input.value.trim();
+  if (!msg) return;
+
+  var fullMsg = msg;
+  if (window._chatContextData) {
+    fullMsg = '以下是一条新闻的结构化信息：\n' + window._chatContextData + '\n\n我的问题：' + msg;
+    clearChatContext();
+  }
+
+  input.value = '';
+  input.placeholder = '输入问题...';
+  appendOvChatMsg('user', msg);
+
+  var pendingId = 'pending-' + Date.now();
+  appendOvChatMsg('assistant', '思考中...', pendingId, true);
+
+  try {
+    var resp = await fetch('/portfolio/api/projects/' + _ovChatProjectId + '/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: fullMsg}),
+    });
+    var data = await resp.json();
+    if (!data.ok) {
+      var el = document.getElementById('msg-' + pendingId);
+      if (el) el.querySelector('span:last-child').textContent = '发送失败: ' + (data.error || '');
+      return;
+    }
+  } catch(e) {
+    var el = document.getElementById('msg-' + pendingId);
+    if (el) el.querySelector('span:last-child').textContent = '网络错误';
+    return;
+  }
+
+  if (_ovChatPollTimer) clearInterval(_ovChatPollTimer);
+  _ovChatPollTimer = setInterval(async function() {
+    try {
+      var resp = await fetch('/portfolio/api/projects/' + _ovChatProjectId + '/chat/poll');
+      var data = await resp.json();
+      if (data.reply) {
+        clearInterval(_ovChatPollTimer);
+        _ovChatPollTimer = null;
+        var el = document.getElementById('msg-' + pendingId);
+        if (el) el.remove();
+        appendOvChatMsg('assistant', data.reply);
+      } else if (data.status === 'error') {
+        clearInterval(_ovChatPollTimer);
+        _ovChatPollTimer = null;
+        var el = document.getElementById('msg-' + pendingId);
+        if (el) el.querySelector('span:last-child').textContent = '回复失败';
+      }
+    } catch(e) {}
+  }, 2000);
+}
 function clearChatContext() {
   document.getElementById('chatContext').classList.add('hidden');
   document.getElementById('chatContextText').textContent = '';
