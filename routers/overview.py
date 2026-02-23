@@ -294,7 +294,7 @@ def get_industry_heat(date_str: str) -> dict:
     """行业资金热度：近7个交易日，同时提供净流入和毛流入/出两套口径"""
     try:
         dates = execute_query(
-            "SELECT DISTINCT trade_date FROM capital_flow WHERE trade_date<=? ORDER BY trade_date DESC LIMIT 7",
+            "SELECT DISTINCT trade_date FROM capital_flow WHERE trade_date<=%s ORDER BY trade_date DESC LIMIT 7",
             [date_str],
         )
         if not dates:
