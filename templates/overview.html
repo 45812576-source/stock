@@ -1,310 +1,217 @@
 {% extends "base.html" %}
+{% from "partials/_foe_card.html" import foe_card %}
 {% block title %}每日概览 — 个人股票分析系统{% endblock %}
 
-{% block content %}
-<div id="overview-root" class="max-w-[1400px] mx-auto space-y-6">
+{% block extra_styles %}
+/* ── Carousel: split layout ── */
+.wl-container { display: flex; gap: 12px; height: 50vh; min-height: 240px; max-height: 400px; }
+.wl-list { flex: 0 0 20%; overflow: hidden; position: relative; }
+.wl-list-inner { will-change: transform; animation: scroll-up-infinite 30s linear infinite; }
+.wl-list-inner:hover { animation-play-state: paused; }
+@keyframes scroll-up-infinite {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
+.wl-list-item { padding: 10px; border-bottom: 1px solid #2d3748; cursor: pointer; transition: background 0.2s; }
+.wl-list-item:hover { background: #1a2233; }
+.wl-list-item.active { background: rgba(19,91,236,0.2); border-left: 3px solid #135bec; }
+.wl-list-item-name { font-size: 11px; font-weight: bold; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.wl-list-item-price { font-size: 10px; margin-top: 3px; font-weight: bold; }
+.wl-list-item-chart { width: 100%; height: 24px; margin-top: 3px; }
+.wl-detail { flex: 1; overflow: hidden; }
+.wl-detail-empty { text-align: center; color: #94a3b8; padding: 20px; }
+.carousel-expanded-card { background: #1a2233; border: 1px solid #135bec; border-radius: 12px; padding: 16px; height: 100%; box-shadow: 0 0 20px rgba(19,91,236,0.12); overflow-y: auto; position: relative; }
 
-  <!-- ═══ Header ═══ -->
-  <div class="flex items-center justify-between flex-wrap gap-4">
+/* ── Heatmap ── */
+.heatmap-table { width: 100%; border-collapse: separate; border-spacing: 2px; }
+.heatmap-table th { font-size: 9px; color: #94a3b8; font-weight: 600; padding: 3px 4px; text-align: center; }
+.heatmap-table td { font-size: 9px; padding: 4px 3px; text-align: center; border-radius: 3px; font-weight: 600; }
+.heatmap-label { text-align: left !important; white-space: nowrap; max-width: 80px; overflow: hidden; text-overflow: ellipsis; color: #e2e8f0; font-size: 10px; }
+.heatmap-pct { text-align: right !important; font-size: 9px; color: #94a3b8; white-space: nowrap; }
+
+/* ── Heat tab toggle ── */
+.heat-tab { padding: 4px 12px; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; color: #94a3b8; background: transparent; border: 1px solid transparent; }
+.heat-tab:hover { color: #e2e8f0; }
+.heat-tab.active { color: #135bec; background: rgba(19,91,236,0.1); border-color: rgba(19,91,236,0.3); }
+
+/* ── Insight panel ── */
+.insight-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: #2d3748 transparent; }
+.insight-scroll::-webkit-scrollbar { width: 4px; }
+.insight-scroll::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 2px; }
+
+/* ── Structured items ── */
+.structured-item { margin-bottom: 8px; }
+.structured-label { display: inline-flex; font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; margin-right: 4px; vertical-align: top; }
+.label-fact { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.label-opinion { background: rgba(168,85,247,0.15); color: #c084fc; }
+.label-evidence { background: rgba(100,116,139,0.15); color: #94a3b8; }
+
+/* ── Overview Tab ── */
+.ov-tab { padding: 10px 16px; font-size: 12px; font-weight: 700; color: #64748b; cursor: pointer;
+          border-bottom: 2px solid transparent; transition: all 0.2s; display: flex; align-items: center; gap: 6px; background: transparent; border-left: none; border-right: none; border-top: none; }
+.ov-tab:hover { color: #e2e8f0; }
+.ov-tab.active { color: #135bec; border-bottom-color: #135bec; }
+.ov-tab-pane.hidden { display: none; }
+
+/* ── Chat messages ── */
+.chat-msg { margin-bottom: 8px; max-width: 95%; }
+.chat-msg-user { margin-left: auto; }
+.chat-bubble { padding: 8px 12px; font-size: 0.75rem; line-height: 1.5; }
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full overflow-hidden" id="overview-root">
+
+  <!-- Sticky Header -->
+  <header class="sticky top-0 z-30 flex items-center justify-between px-6 py-3 bg-background-dark/90 backdrop-blur-md border-b border-border-dark flex-shrink-0">
     <div class="flex items-center gap-4">
-      <h1 class="text-2xl font-bold text-white">每日概览</h1>
-      <span class="badge bg-green-500/20 text-green-400"><span class="w-2 h-2 rounded-full bg-green-400 mr-1.5 inline-block"></span>系统运行中</span>
+      <h2 class="text-xl font-bold">每日概览</h2>
+      <span class="px-2 py-0.5 bg-green-500/10 text-green-500 text-[10px] font-bold uppercase rounded flex items-center gap-1">
+        <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Live
+      </span>
     </div>
     <div class="flex items-center gap-3">
       <input type="date" id="date-picker" value="{{ date }}"
-             class="bg-surface-card border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-gray-200 focus:border-blue-500 focus:outline-none"
+             class="bg-card-dark border border-border-dark rounded-lg text-sm px-4 py-2 text-slate-200 focus:ring-primary focus:border-primary"
              onchange="window.location.href='/overview?date='+this.value">
       <button hx-post="/overview/refresh?date={{ date }}" hx-target="#overview-root" hx-swap="innerHTML"
               hx-indicator="#refresh-spin"
-              class="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-1.5 rounded-lg transition">
+              class="bg-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors flex items-center gap-2">
         <svg id="refresh-spin" class="w-4 h-4 htmx-indicator animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
-        <span>🔄 刷新</span>
+        <span class="material-icons-round text-sm">refresh</span> 刷新
       </button>
     </div>
+  </header>
+
+  <!-- 主体：左右分栏 -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- ══ 左侧 4/5：三Tab ══ -->
+    <div class="flex-1 flex flex-col overflow-hidden min-w-0">
+      <!-- Tab Bar -->
+      <div class="flex border-b border-border-dark bg-card-dark/50 flex-shrink-0 px-6">
+        <button class="ov-tab active" data-tab="portfolio" onclick="switchOvTab('portfolio')">
+          <span class="material-icons-round text-sm">account_balance_wallet</span> 持有组合
+        </button>
+        <button class="ov-tab" data-tab="capital" onclick="switchOvTab('capital')">
+          <span class="material-icons-round text-sm">analytics</span> 大盘资金面
+        </button>
+        <button class="ov-tab" data-tab="news" onclick="switchOvTab('news')">
+          <span class="material-icons-round text-sm">newspaper</span> 新闻聚合
+        </button>
+      </div>
+
+      <!-- Tab Content -->
+      <div class="flex-1 overflow-y-auto" id="ov-tab-content">
+        <div id="tab-portfolio" class="ov-tab-pane active p-6">
+          <p class="text-slate-500 text-sm text-center py-20">持有组合加载中...</p>
+        </div>
+        <div id="tab-capital" class="ov-tab-pane hidden p-6">
+          <p class="text-slate-500 text-sm text-center py-20">大盘资金面加载中...</p>
+        </div>
+        <div id="tab-news" class="ov-tab-pane hidden p-6">
+          <p class="text-slate-500 text-sm text-center py-20">新闻聚合加载中...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ 右侧 1/5：AI 分析助理 ══ -->
+    <div class="flex-shrink-0 border-l border-border-dark bg-slate-900/50 flex flex-col relative"
+         style="width: 320px" id="ai-chat-panel">
+      <div class="px-4 py-3 border-b border-border-dark flex items-center gap-2">
+        <span class="material-icons-round text-sm text-primary">smart_toy</span>
+        <span class="text-xs font-bold text-slate-400">AI 分析助理</span>
+      </div>
+      <div class="flex-1 overflow-y-auto px-3 py-3" id="ovChatMessages">
+        <div class="text-center text-xs text-slate-600 py-4">拖拽新闻到此处，或直接提问</div>
+      </div>
+      <!-- Drop zone overlay（拖拽时显示） -->
+      <div id="chatDropOverlay" class="hidden absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg z-10 flex items-center justify-center pointer-events-none">
+        <span class="text-primary text-sm font-bold">释放以添加到对话</span>
+      </div>
+      <!-- Chat Input -->
+      <div class="px-3 pb-3 pt-1 border-t border-border-dark">
+        <div id="chatContext" class="hidden mb-2 p-2 bg-slate-800/60 rounded-lg text-[10px] text-slate-400 max-h-20 overflow-y-auto relative">
+          <button onclick="clearChatContext()" class="absolute top-1 right-1 text-slate-600 hover:text-white">
+            <span class="material-icons-round text-xs">close</span>
+          </button>
+          <span id="chatContextText"></span>
+        </div>
+        <div class="flex gap-2">
+          <input type="text" id="ovChatInput" placeholder="输入问题..."
+                 class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none"
+                 onkeydown="if(event.key==='Enter') sendOvChat()">
+          <button onclick="sendOvChat()" id="ovChatSendBtn"
+                  class="bg-primary/20 text-primary px-3 py-2 rounded-lg text-sm hover:bg-primary/30 transition">
+            <span class="material-icons-round text-base">send</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
-
-  <!-- ═══ Metrics Row ═══ -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="card">
-      <div class="text-xs text-gray-500 mb-1">已采集</div>
-      <div class="text-2xl font-bold text-white">{{ metrics.raw }}</div>
-    </div>
-    <div class="card">
-      <div class="text-xs text-gray-500 mb-1">已清洗</div>
-      <div class="text-2xl font-bold text-white">{{ metrics.cleaned }}</div>
-    </div>
-    <div class="card">
-      <div class="text-xs text-gray-500 mb-1">失败</div>
-      <div class="text-2xl font-bold {{ 'text-red-400' if metrics.failed > 0 else 'text-white' }}">{{ metrics.failed }}</div>
-    </div>
-    <div class="card">
-      <div class="text-xs text-gray-500 mb-1">活跃机会</div>
-      <div class="text-2xl font-bold text-amber-400">{{ metrics.opportunities }}</div>
-    </div>
-  </div>
-
-  <!-- ═══ Watchlist Alerts ═══ -->
-  <div>
-    <h2 class="text-lg font-semibold text-white mb-3">自选股提醒</h2>
-    {% if watchlist_alerts %}
-    <div class="flex gap-4 overflow-x-auto pb-2">
-      {% for s in watchlist_alerts %}
-      <div class="card card-hover flex-shrink-0 w-64">
-        <div class="flex items-center justify-between mb-2">
-          <div>
-            <span class="text-sm font-semibold text-white">{{ s.stock_name or s.stock_code }}</span>
-            <span class="text-xs text-gray-500 ml-1">{{ s.stock_code }}</span>
-          </div>
-          <span class="badge {{ 'bg-amber-500/20 text-amber-400' if s.watch_type == 'holding' else 'bg-blue-500/20 text-blue-400' }}">
-            {{ '持仓' if s.watch_type == 'holding' else '关注' }}
-          </span>
-        </div>
-        {% if s.change_pct is not none %}
-        <div class="text-lg font-bold {{ 'text-red-400' if s.change_pct > 0 else 'text-green-400' if s.change_pct < 0 else 'text-gray-400' }} mb-2">
-          {{ '%+.2f'|format(s.change_pct) }}%
-          {% if s.close %}<span class="text-xs text-gray-500 ml-1">¥{{ '%.2f'|format(s.close) }}</span>{% endif %}
-        </div>
-        {% endif %}
-        {% if s.latest_news %}
-        <p class="text-xs text-gray-400 line-clamp-2">{{ s.latest_news[:60] }}...</p>
-        {% else %}
-        <p class="text-xs text-gray-600">暂无相关新闻</p>
-        {% endif %}
-      </div>
-      {% endfor %}
-    </div>
-    {% else %}
-    <div class="card text-center text-gray-500 text-sm py-8">暂无自选股，请在个股研究中添加</div>
-    {% endif %}
-  </div>
-
-  <!-- ═══ 2×2 Grid ═══ -->
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-    <!-- 投资机会榜 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-amber-400 rounded-full inline-block"></span>投资机会榜
-      </h3>
-      {% if opportunities %}
-      <div class="space-y-3">
-        {% for o in opportunities %}
-        <div class="flex items-start justify-between gap-3 p-2 rounded-lg hover:bg-surface-hover">
-          <div class="flex-1 min-w-0">
-            <p class="text-sm text-gray-200 truncate">{{ o.summary[:50] }}</p>
-            <div class="flex gap-1 mt-1">
-              {% for t in o.tags %}<span class="badge bg-blue-500/10 text-blue-400 text-xs">{{ t }}</span>{% endfor %}
-            </div>
-          </div>
-          <div class="text-right flex-shrink-0">
-            <span class="text-sm">{{ o.level or ('⭐' * o.importance) }}</span>
-            {% if o.reason %}<p class="text-xs text-gray-500 max-w-[120px] truncate">{{ o.reason }}</p>{% endif %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 行业热度 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-red-400 rounded-full inline-block"></span>行业热度
-      </h3>
-      {% if industry_heat %}
-      <div class="grid grid-cols-3 gap-2">
-        {% for ind in industry_heat %}
-        <div class="rounded-lg p-2 text-center {{ 'bg-red-500/20' if ind.change_pct and ind.change_pct > 0 else 'bg-green-500/20' if ind.change_pct and ind.change_pct < 0 else 'bg-gray-700/30' }}">
-          <div class="text-xs text-gray-300 truncate">{{ ind.industry_name }}</div>
-          <div class="text-sm font-bold {{ 'text-red-400' if ind.change_pct and ind.change_pct > 0 else 'text-green-400' if ind.change_pct and ind.change_pct < 0 else 'text-gray-400' }}">
-            {% if ind.change_pct %}{{ '%+.2f'|format(ind.change_pct) }}%{% else %}--{% endif %}
-          </div>
-          {% if ind.leading_stock %}<div class="text-xs text-gray-500 truncate">{{ ind.leading_stock }}</div>{% endif %}
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 个股关注度 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-blue-400 rounded-full inline-block"></span>个股关注度
-      </h3>
-      {% if stock_attention %}
-      <div class="space-y-3">
-        {% for s in stock_attention %}
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <span class="text-sm text-gray-200">{{ s.stock_name or s.stock_code }}</span>
-            <span class="text-xs text-gray-500">{{ s.freq }}次</span>
-          </div>
-          <div class="progress-bar">
-            <div class="progress-fill bg-blue-500" style="width: {{ s.pct }}%"></div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 宏观政策 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-purple-400 rounded-full inline-block"></span>宏观政策
-      </h3>
-      {% if macro_policy %}
-      <div class="space-y-2">
-        {% for m in macro_policy %}
-        <div class="left-border-card {{ 'border-green-500' if m.sentiment == 'positive' else 'border-red-500' if m.sentiment == 'negative' else 'border-gray-600' }}">
-          <p class="text-sm text-gray-200">{{ m.summary[:80] }}</p>
-          <div class="flex items-center gap-2 mt-1">
-            <span class="text-xs">{{ '⭐' * m.importance }}</span>
-            {% for t in m.tags %}<span class="badge bg-purple-500/10 text-purple-400 text-xs">{{ t }}</span>{% endfor %}
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- ═══ 4-Column Grid ═══ -->
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-
-    <!-- 研报精选 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-cyan-400 rounded-full inline-block"></span>研报精选
-      </h3>
-      {% if research_picks %}
-      <div class="space-y-3">
-        {% for r in research_picks %}
-        <div class="p-2 rounded-lg hover:bg-surface-hover">
-          <p class="text-sm text-gray-200 line-clamp-2">{{ r.summary }}</p>
-          <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-            {% if r.broker_name %}<span>{{ r.broker_name }}</span>{% endif %}
-            {% if r.rating %}<span class="badge bg-green-500/10 text-green-400">{{ r.rating }}</span>{% endif %}
-            {% if r.target_price %}<span>目标 ¥{{ '%.2f'|format(r.target_price) }}</span>{% endif %}
-            <span>{{ '⭐' * r.importance }}</span>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 事件驱动 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-orange-400 rounded-full inline-block"></span>事件驱动
-      </h3>
-      {% if events %}
-      <div class="space-y-3">
-        {% for e in events %}
-        <div class="flex gap-3">
-          <div class="flex flex-col items-center">
-            <div class="timeline-dot {{ 'bg-red-400' if e.importance >= 5 else 'bg-amber-400' if e.importance >= 4 else 'bg-blue-400' }}"></div>
-            {% if not loop.last %}<div class="w-px flex-1 bg-gray-700 mt-1"></div>{% endif %}
-          </div>
-          <div class="pb-3 min-w-0">
-            <p class="text-sm text-gray-200 line-clamp-2">{{ e.summary[:60] }}</p>
-            <div class="flex items-center gap-2 mt-1 text-xs text-gray-500">
-              <span>{{ e.event_type or '' }}</span>
-              <span class="{{ 'text-red-400' if e.sentiment == 'negative' else 'text-green-400' if e.sentiment == 'positive' else '' }}">
-                {{ '利空' if e.sentiment == 'negative' else '利好' if e.sentiment == 'positive' else '中性' }}
-              </span>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 资金流向 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-green-400 rounded-full inline-block"></span>资金流向
-      </h3>
-      {% if capital_flow.northbound %}
-      <div id="capital-chart" style="height: 180px;"></div>
-      <div class="mt-2 space-y-1">
-        {% if capital_flow.northbound %}
-        {% set latest = capital_flow.northbound[-1] %}
-        <div class="flex justify-between text-xs">
-          <span class="text-gray-500">北向净流入</span>
-          <span class="{{ 'text-red-400' if (latest.total_net or 0) > 0 else 'text-green-400' }}">
-            {{ '%.2f'|format(latest.total_net or 0) }}亿
-          </span>
-        </div>
-        {% endif %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无数据</p>
-      {% endif %}
-    </div>
-
-    <!-- 风险预警 -->
-    <div class="card">
-      <h3 class="text-base font-semibold text-white mb-3 flex items-center gap-2">
-        <span class="w-1 h-5 bg-red-500 rounded-full inline-block"></span>风险预警
-      </h3>
-      {% if risk_warnings %}
-      <div class="space-y-2">
-        {% for w in risk_warnings %}
-        <div class="rounded-lg p-2 {{ 'bg-red-500/10 border border-red-500/20' if w.importance >= 5 else 'bg-orange-500/10 border border-orange-500/20' if w.importance >= 4 else 'bg-gray-700/30 border border-gray-700' }}">
-          <p class="text-sm {{ 'text-red-300' if w.importance >= 5 else 'text-orange-300' if w.importance >= 4 else 'text-gray-300' }} line-clamp-2">
-            {{ w.summary[:60] }}
-          </p>
-          <div class="text-xs text-gray-500 mt-1">{{ '⭐' * w.importance }} · {{ w.event_type or '' }}</div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-gray-600 text-center py-6">暂无风险预警</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- ═══ Footer ═══ -->
-  <div class="text-center text-xs text-gray-600 py-4 border-t border-gray-800">
-    个人股票分析系统 · 数据日期: {{ date }}
-  </div>
-
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-{% if capital_flow and capital_flow.northbound %}
-  var nbData = {{ capital_flow.northbound | tojson }};
-  var dates = nbData.map(d => d.trade_date);
-  var vals = nbData.map(d => d.total_net || 0);
-  var colors = vals.map(v => v >= 0 ? '#ef4444' : '#22c55e');
-  Plotly.newPlot('capital-chart', [{
-    x: dates, y: vals, type: 'bar',
-    marker: { color: colors, cornerradius: 4 }
-  }], {
-    margin: { t: 5, b: 30, l: 40, r: 10 },
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#9ca3af', size: 10 },
-    xaxis: { gridcolor: '#2a2d3a' },
-    yaxis: { gridcolor: '#2a2d3a', title: { text: '亿元', font: { size: 10 } } }
-  }, { displayModeBar: false, responsive: true });
-{% endif %}
+// ── Tab 切换 ──
+window.switchOvTab = function(tab) {
+  document.querySelectorAll('.ov-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll('.ov-tab-pane').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + tab);
+    p.classList.toggle('hidden', p.id !== 'tab-' + tab);
+  });
+  if (tab === 'capital' && !window._capitalLoaded) { window._capitalLoaded = true; loadCapitalTab(); }
+  if (tab === 'news' && !window._newsLoaded) { window._newsLoaded = true; loadNewsTab(); }
+};
+function loadCapitalTab() { /* Task 4 填充 */ }
+function loadNewsTab() { /* Task 6 填充 */ }
+
+// ── Chat 占位 ──
+function sendOvChat() { /* Task 7 填充 */ }
+function clearChatContext() {
+  document.getElementById('chatContext').classList.add('hidden');
+  document.getElementById('chatContextText').textContent = '';
+  window._chatContextData = null;
+}
+
+// ── FOE card toggle ──
+function toggleFoeCard(summaryEl) {
+  var card = summaryEl.closest('.foe-card');
+  var detail = card.querySelector('.foe-detail');
+  var chevron = card.querySelector('.foe-chevron');
+  detail.classList.toggle('hidden');
+  chevron.style.transform = detail.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+// ── Heatmap tab switch ──
+window.switchHeatTab = function(mode) {
+  document.getElementById('heatmap-net').style.display = mode === 'net' ? '' : 'none';
+  document.getElementById('heatmap-gross').style.display = mode === 'gross' ? '' : 'none';
+  document.querySelectorAll('#cap-heat-tabs .heat-tab').forEach(function(t) {
+    t.classList.toggle('active', t.dataset.mode === mode);
+  });
+};
+
+// ── Sparkline renderer ──
+function renderSparklines() {
+  document.querySelectorAll('svg[data-prices]').forEach(function(svg) {
+    try {
+      var prices = JSON.parse(svg.getAttribute('data-prices'));
+      if (!prices || prices.length < 2) return;
+      var w = 80, h = 24, pad = 2;
+      var minP = Math.min.apply(null, prices), maxP = Math.max.apply(null, prices);
+      var range = maxP - minP || 1;
+      var pts = prices.map(function(p, i) {
+        var x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+        var y = pad + (1 - (p - minP) / range) * (h - pad * 2);
+        return x.toFixed(1) + ',' + y.toFixed(1);
+      });
+      svg.querySelector('polyline').setAttribute('points', pts.join(' '));
+    } catch(e) {}
+  });
+}
+renderSparklines();
 </script>
 {% endblock %}
