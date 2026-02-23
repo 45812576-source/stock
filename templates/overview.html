@@ -104,7 +104,57 @@
       <!-- Tab Content -->
       <div class="flex-1 overflow-y-auto" id="ov-tab-content">
         <div id="tab-portfolio" class="ov-tab-pane active p-6">
-          <p class="text-slate-500 text-sm text-center py-20">持有组合加载中...</p>
+          {% if portfolio_holdings %}
+          <div class="wl-container">
+            <!-- 左侧：股票列表（自动滚动） -->
+            <div class="wl-list">
+              <div class="wl-list-inner" id="wl-scroll">
+                {% for s in portfolio_holdings %}
+                {% set chg = s.market.get('change_pct') %}
+                {% set chg_class = 'text-red-500' if chg and chg > 0 else 'text-green-500' if chg and chg < 0 else 'text-slate-400' %}
+                <div class="wl-list-item" data-idx="{{ loop.index0 }}" onclick="wlSelect({{ loop.index0 }})">
+                  <div class="wl-list-item-name">{{ s.stock_name or s.stock_code }}</div>
+                  <div class="wl-list-item-price {{ chg_class }}">
+                    {% if s.market.get('close') %}¥{{ '%.2f'|format(s.market.close) }}{% endif %}
+                    {% if chg is not none %}<span class="text-[9px]">{{ '%+.2f'|format(chg) }}%</span>{% endif %}
+                  </div>
+                  {% if s.price_history %}
+                  <svg class="wl-list-item-chart" viewBox="0 0 80 24" preserveAspectRatio="none" data-prices="{{ s.price_history | tojson }}">
+                    <polyline class="sparkline-line" fill="none" stroke="{{ '#ef4444' if chg and chg >= 0 else '#22c55e' }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points=""/>
+                  </svg>
+                  {% endif %}
+                </div>
+                {% endfor %}
+                <!-- 复制一份用于无缝循环 -->
+                {% for s in portfolio_holdings %}
+                {% set chg = s.market.get('change_pct') %}
+                {% set chg_class = 'text-red-500' if chg and chg > 0 else 'text-green-500' if chg and chg < 0 else 'text-slate-400' %}
+                <div class="wl-list-item" data-idx="{{ loop.index0 }}" onclick="wlSelect({{ loop.index0 }})">
+                  <div class="wl-list-item-name">{{ s.stock_name or s.stock_code }}</div>
+                  <div class="wl-list-item-price {{ chg_class }}">
+                    {% if s.market.get('close') %}¥{{ '%.2f'|format(s.market.close) }}{% endif %}
+                    {% if chg is not none %}<span class="text-[9px]">{{ '%+.2f'|format(chg) }}%</span>{% endif %}
+                  </div>
+                  {% if s.price_history %}
+                  <svg class="wl-list-item-chart" viewBox="0 0 80 24" preserveAspectRatio="none" data-prices="{{ s.price_history | tojson }}">
+                    <polyline class="sparkline-line" fill="none" stroke="{{ '#ef4444' if chg and chg >= 0 else '#22c55e' }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" points=""/>
+                  </svg>
+                  {% endif %}
+                </div>
+                {% endfor %}
+              </div>
+            </div>
+            <!-- 右侧：三栏详情面板 -->
+            <div class="wl-detail" id="wl-detail">
+              <div class="carousel-expanded-card" id="wl-detail-content">
+                <div class="wl-detail-empty text-sm py-12">点击左侧股票查看详情</div>
+              </div>
+            </div>
+          </div>
+          <script id="portfolio-data" type="application/json">{{ portfolio_holdings | tojson }}</script>
+          {% else %}
+          <div class="text-center text-slate-500 text-sm py-12">默认收藏组暂无股票，请先在个股研究中添加</div>
+          {% endif %}
         </div>
         <div id="tab-capital" class="ov-tab-pane hidden p-6">
           <p class="text-slate-500 text-sm text-center py-20">大盘资金面加载中...</p>
@@ -155,8 +205,74 @@
 
 {% block scripts %}
 <script>
+// ── Portfolio wlSelect ──
+(function() {
+  var dataEl = document.getElementById('portfolio-data');
+  if (!dataEl) return;
+  var stocks = JSON.parse(dataEl.textContent);
+  if (!stocks.length) return;
+  var detailContent = document.getElementById('wl-detail-content');
+
+  function escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  function renderFoeList(items, label) {
+    if (!items || !items.length) return '<p class="text-[9px] text-slate-600">暂无' + label + '</p>';
+    var html = '';
+    items.forEach(function(item) {
+      var summary = item.summary || item.fact_summary || '';
+      var dragData = JSON.stringify({summary: summary, fact: item.fact_summary||'', opinion: item.opinion_summary||'', evidence: item.evidence_assessment||'', id: item.id});
+      html += '<div class="foe-card-mini mb-2 p-2 bg-slate-800/40 rounded-lg cursor-grab hover:bg-slate-800/60 transition" draggable="true" data-foe=\'' + escHtml(dragData) + '\'>';
+      html += '<p class="text-[10px] text-slate-300 leading-relaxed line-clamp-2">' + escHtml(summary.slice(0, 120)) + '</p>';
+      if (item.doc_type) html += '<span class="text-[8px] text-slate-600 mt-1 inline-block">' + escHtml(item.doc_type) + '</span>';
+      html += '</div>';
+    });
+    return html;
+  }
+
+  window.wlSelect = function(idx) {
+    document.querySelectorAll('.wl-list-item').forEach(function(el) {
+      el.classList.toggle('active', parseInt(el.dataset.idx) === idx);
+    });
+    var s = stocks[idx], m = s.market || {}, chg = m.change_pct;
+    var chgClass = chg > 0 ? 'text-red-500' : chg < 0 ? 'text-green-500' : 'text-slate-400';
+    var chgStr = chg != null ? (chg > 0 ? '+' : '') + chg.toFixed(2) + '%' : '';
+
+    var html = '<div class="flex items-center gap-3 mb-3">';
+    html += '<a href="/stock/' + s.stock_code + '" class="text-sm font-bold hover:text-primary">' + escHtml(s.stock_name || s.stock_code) + '</a>';
+    html += '<span class="text-xs text-slate-500">' + s.stock_code + '</span>';
+    if (chgStr) html += '<span class="text-sm font-bold ' + chgClass + '">' + chgStr + '</span>';
+    html += '</div>';
+
+    html += '<div class="grid grid-cols-3 gap-3 max-h-[calc(100%-40px)] overflow-y-auto">';
+    html += '<div><div class="text-[10px] text-amber-400 font-bold mb-2">▸ 公司新闻/研报</div>' + renderFoeList(s.company_news, '公司新闻') + '</div>';
+    html += '<div><div class="text-[10px] text-blue-400 font-bold mb-2">▸ 产业/行业</div>' + renderFoeList(s.industry_news, '行业新闻') + '</div>';
+    html += '<div><div class="text-[10px] text-cyan-400 font-bold mb-2">▸ 宏观</div>' + renderFoeList(s.macro_news, '宏观新闻') + '</div>';
+    html += '</div>';
+
+    detailContent.innerHTML = html;
+    bindDragEvents();
+  };
+
+  if (stocks.length) wlSelect(0);
+  renderSparklines();
+})();
+
+function bindDragEvents() {
+  document.querySelectorAll('[draggable="true"][data-foe]').forEach(function(el) {
+    if (el._dragBound) return;
+    el._dragBound = true;
+    el.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', el.getAttribute('data-foe'));
+      e.dataTransfer.effectAllowed = 'copy';
+      document.getElementById('chatDropOverlay').classList.remove('hidden');
+    });
+    el.addEventListener('dragend', function() {
+      document.getElementById('chatDropOverlay').classList.add('hidden');
+    });
+  });
+}
+
 // ── Tab 切换 ──
-window.switchOvTab = function(tab) {
   document.querySelectorAll('.ov-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.querySelectorAll('.ov-tab-pane').forEach(p => {
     p.classList.toggle('active', p.id === 'tab-' + tab);
