@@ -2,287 +2,760 @@
 {% block title %}个股研究 — {{ stock.stock_name if stock else '选择股票' }}{% endblock %}
 
 {% block extra_styles %}
-.stock-sidebar { width: 260px; min-width: 260px; }
-.stock-sidebar a.active { background: rgba(19,91,236,0.15); color: #135bec; border-right: 2px solid #135bec; }
-.stock-sidebar a:hover:not(.active) { background: rgba(255,255,255,0.03); }
-.kline-chart { height: 360px; border-radius: 12px; overflow: hidden; }
+.kline-wrap { height: 520px; }
+.tb-btn { padding: 4px 10px; border-radius: 8px; font-size: 0.7rem; background: rgba(100,116,139,0.12); color: #94a3b8; border: 1px solid transparent; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.tb-btn:hover { border-color: #475569; color: #e2e8f0; }
+.tb-btn.active { background: rgba(19,91,236,0.2); color: #60a5fa; border-color: #135bec; }
+.tb-sep { width: 1px; height: 16px; background: #334155; margin: 0 4px; flex-shrink: 0; }
 .score-ring { width: 56px; height: 56px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; }
-.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 4px 12px; border-radius: 9999px; font-size: 0.75rem; background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+.tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.7rem; background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
 .tag-chip:hover { border-color: #135bec; color: #60a5fa; }
+.tag-chip .del { cursor: pointer; opacity: 0.5; font-size: 14px; line-height: 1; }
+.tag-chip .del:hover { opacity: 1; color: #ef4444; }
+.tag-chip.industry { background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.25); }
+.tag-chip.theme { background: rgba(139,92,246,0.15); color: #a78bfa; border-color: rgba(139,92,246,0.25); }
+.tag-chip.event { background: rgba(59,130,246,0.1); color: #60a5fa; border-color: rgba(59,130,246,0.2); }
+.tag-chip.selection { background: rgba(245,158,11,0.1); color: #fbbf24; border-color: rgba(245,158,11,0.2); }
+.tag-chip .heat { font-size: 0.6rem; opacity: 0.6; margin-left: 2px; }
+.tag-more-btn { padding: 3px 10px; border-radius: 9999px; font-size: 0.65rem; background: transparent; color: #64748b; border: 1px dashed rgba(100,116,139,0.3); cursor: pointer; transition: all .15s; }
+.tag-more-btn:hover { border-color: #64748b; color: #94a3b8; }
 .research-cta { background: linear-gradient(135deg, #135bec 0%, #3b82f6 100%); }
 .research-cta:hover { filter: brightness(1.1); }
 .history-row:hover { background: rgba(255,255,255,0.03); }
+.watch-btn { cursor: pointer; transition: all .15s; color: #475569; }
+.watch-btn:hover { color: #f59e0b; }
+.watch-btn.watched { color: #f59e0b; }
+.gen-tag-btn { padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.25); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.gen-tag-btn:hover { border-color: #a78bfa; background: rgba(139,92,246,0.25); }
+.gen-tag-btn:disabled { opacity: 0.5; cursor: wait; }
+.save-tag-btn { padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.25); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.save-tag-btn:hover { border-color: #34d399; background: rgba(16,185,129,0.25); }
+.tag-input { width: 80px; padding: 3px 8px; border-radius: 8px; font-size: 0.7rem; background: rgba(100,116,139,0.08); color: #e2e8f0; border: 1px solid rgba(100,116,139,0.2); outline: none; }
+.tag-input:focus { border-color: #135bec; width: 120px; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.animate-fadeIn { animation: fadeIn 0.4s ease-out; }
 {% endblock %}
 
 {% block content %}
-<div class="flex gap-6 min-h-[calc(100vh-4rem)]">
+<div>
+  {% if stock %}
+  <div class="pt-5 px-6 pb-8">
 
-  <!-- 左侧股票列表 -->
-  <aside class="stock-sidebar flex-shrink-0 border-r border-slate-800 pr-4 overflow-y-auto">
-    <form action="/stock/add" method="post" class="mb-4">
-      <div class="flex gap-2">
-        <input type="text" name="stock_code" placeholder="输入代码..."
-               class="flex-1 bg-surface-card border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:border-primary focus:outline-none">
-        <button type="submit" class="bg-primary/20 text-primary px-3 py-2 rounded-lg text-sm hover:bg-primary/30 transition">
-          <span class="material-icons-round text-base">add</span>
-        </button>
-      </div>
-    </form>
-
-    {% if sidebar.holding %}
+    <!-- Back navigation -->
     <div class="mb-4">
-      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2 px-2">已持仓</div>
-      {% for s in sidebar.holding %}
-      <a href="/stock/{{ s.stock_code }}"
-         class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition {{ 'active' if stock and stock.stock_code == s.stock_code else '' }}">
-        <div>
-          <div class="font-medium text-slate-200">{{ s.stock_code }}</div>
-          <div class="text-xs text-slate-500">{{ s.stock_name or '' }}</div>
-        </div>
-        <span class="material-icons-round text-amber-400 text-base">toll</span>
+      <a id="backBtn" href="javascript:history.back()" class="inline-flex items-center gap-1 text-sm text-slate-400 hover:text-primary transition">
+        <span class="material-icons-round text-base">arrow_back</span><span id="backLabel">返回</span>
       </a>
-      {% endfor %}
     </div>
-    {% endif %}
+    <script>
+    (function(){
+      const params = new URLSearchParams(location.search);
+      const fromParam = params.get('from');
+      const btn = document.getElementById('backBtn');
+      const label = document.getElementById('backLabel');
+      if (fromParam === 'sector') {
+        const sectorName = params.get('sector');
+        const projectId = params.get('project');
+        if (sectorName) {
+          btn.href = '/sector/' + sectorName + (projectId ? '?project=' + projectId : '');
+        }
+        label.textContent = '返回行业选股';
+      } else if (fromParam === 'portfolio') {
+        btn.href = '/portfolio';
+        label.textContent = '返回 Portfolio';
+      }
+    })();
+    </script>
 
-    {% if sidebar.interested %}
-    <div class="mb-4">
-      <div class="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-2 px-2">感兴趣</div>
-      {% for s in sidebar.interested %}
-      <a href="/stock/{{ s.stock_code }}"
-         class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition {{ 'active' if stock and stock.stock_code == s.stock_code else '' }}">
+      <!-- Stock header -->
+      <div class="flex items-start justify-between mb-2">
         <div>
-          <div class="font-medium text-slate-200">{{ s.stock_code }}</div>
-          <div class="text-xs text-slate-500">{{ s.stock_name or '' }}</div>
-        </div>
-        <span class="material-icons-round text-slate-600 text-base">bookmark_border</span>
-      </a>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if not sidebar.holding and not sidebar.interested %}
-    <div class="text-center text-slate-500 text-sm py-8">
-      <span class="material-icons-round text-3xl mb-2 block">playlist_add</span>
-      暂无跟踪股票<br>在上方输入代码添加
-    </div>
-    {% endif %}
-  </aside>
-
-  <!-- 主内容区 -->
-  <div class="flex-1 min-w-0">
-    {% if stock %}
-    <!-- 股票头部 -->
-    <div class="flex items-start justify-between mb-6">
-      <div>
-        <div class="flex items-center gap-3 mb-1">
-          <h1 class="text-2xl font-bold text-white">{{ stock.stock_code }}</h1>
-          <span class="text-lg text-slate-400">{{ stock.stock_name or '' }}</span>
-          {% if stock.industry %}
-          <span class="tag-chip">{{ stock.industry }}</span>
+          <div class="flex items-center gap-3 mb-1">
+            <h1 class="text-2xl font-bold text-white">{{ stock.stock_code }}</h1>
+            <span class="text-lg text-slate-400">{{ stock.stock_name or '' }}</span>
+            <!-- Watch button -->
+            <button id="watchBtn" onclick="toggleWatch()" class="watch-btn {{ 'watched' if in_watchlist }}" title="{{ '已关注' if in_watchlist else '点击关注' }}">
+              <span class="material-icons-round text-xl">{{ 'star' if in_watchlist else 'star_border' }}</span>
+            </button>
+            {% if stock.industry %}
+            <span class="tag-chip">{{ stock.industry }}</span>
+            {% endif %}
+          </div>
+          {% if price %}
+          <div class="flex items-center gap-4">
+            <span class="text-3xl font-bold {{ 'text-red-400' if (price.change_pct or 0) >= 0 else 'text-emerald-400' }}">
+              {{ '%.2f' | format(price.close) }}
+            </span>
+            <span class="text-lg {{ 'text-red-400' if (price.change_pct or 0) >= 0 else 'text-emerald-400' }}">
+              {{ '%+.2f' | format(price.change_pct or 0) }}%
+            </span>
+            <span class="text-sm text-slate-500">{{ price.trade_date }}</span>
+          </div>
           {% endif %}
         </div>
-        {% if price %}
-        <div class="flex items-center gap-4 mt-2">
-          <span class="text-3xl font-bold {{ 'text-emerald-400' if (price.change_pct or 0) >= 0 else 'text-red-400' }}">
-            {{ '%.2f' | format(price.close) }}
-          </span>
-          <span class="text-lg {{ 'text-emerald-400' if (price.change_pct or 0) >= 0 else 'text-red-400' }}">
-            {{ '%+.2f' | format(price.change_pct or 0) }}%
-          </span>
-          <span class="text-sm text-slate-500">{{ price.trade_date }}</span>
-        </div>
-        {% endif %}
-      </div>
-      <div class="flex gap-2">
-        <form action="/stock/{{ stock.stock_code }}/remove" method="post">
-          <button type="submit" class="px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition">
-            <span class="material-icons-round text-base align-middle">delete_outline</span>
+        <div class="flex gap-2 items-center relative">
+          <!-- Add to watchlist button -->
+          <button id="addToListBtn" onclick="toggleAddListDropdown(event)" class="px-3 py-1.5 rounded-lg text-sm bg-primary/20 text-primary hover:bg-primary/30 transition flex items-center gap-1">
+            <span class="material-icons-round text-base align-middle">add_circle_outline</span>
+            加入自选
           </button>
-        </form>
-      </div>
-    </div>
-
-    <!-- K线图 -->
-    <div class="card mb-6">
-      <div id="kline-chart" class="kline-chart"></div>
-    </div>
-
-    <!-- 知识标签 -->
-    {% if tags %}
-    <div class="flex flex-wrap gap-2 mb-6">
-      {% for t in tags %}
-      <span class="tag-chip">
-        <span class="material-icons-round text-xs">{{ 'sell' if t.type == 'tag' else 'hub' }}</span>
-        {{ t.name }}
-      </span>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <!-- 深度研究区域 -->
-    {% if research %}
-    <div class="card card-hover mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-          <span class="material-icons-round text-primary text-xl">science</span>
-          <span class="font-semibold text-white">最新深度研究报告</span>
-          <span class="badge bg-primary/20 text-primary">{{ research.recommendation }}</span>
-        </div>
-        <span class="text-xs text-slate-500">{{ research.date }}</span>
-      </div>
-      <div class="grid grid-cols-7 gap-3 mb-4">
-        {% set dims = [('financial', '财务'), ('valuation', '估值'), ('technical', '技术'), ('sentiment', '情绪'), ('catalyst', '催化'), ('risk', '风险'), ('overall', '综合')] %}
-        {% for key, label in dims %}
-        {% set val = research.scores.get(key, 0) %}
-        <div class="text-center">
-          <div class="score-ring mx-auto mb-1 {{ 'bg-emerald-500/20 text-emerald-400' if val >= 70 else 'bg-amber-500/20 text-amber-400' if val >= 50 else 'bg-red-500/20 text-red-400' }}">
-            {{ val }}
+          <div id="addListDropdown" class="hidden absolute right-0 top-full mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+            <div class="p-2 text-xs text-slate-500 text-center">加载中...</div>
           </div>
-          <div class="text-xs text-slate-500">{{ label }}</div>
+          <form action="/stock/{{ stock.stock_code }}/remove" method="post">
+            <button type="submit" class="px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-red-400 hover:bg-red-400/10 transition" title="删除股票">
+              <span class="material-icons-round text-base align-middle">delete_outline</span>
+            </button>
+          </form>
         </div>
-        {% endfor %}
       </div>
-      {% if research.report and research.report.executive_summary %}
-      <p class="text-sm text-slate-300 mb-4 leading-relaxed">{{ research.report.executive_summary }}</p>
-      {% endif %}
-      <div class="flex gap-3">
-        <a href="/stock/{{ stock.stock_code }}/report/{{ research.id }}"
-           class="flex-1 text-center py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
-          <span class="material-icons-round text-base align-middle mr-1">description</span>查看完整报告
-        </a>
-        <a href="/stock/{{ stock.stock_code }}/followup"
-           class="flex-1 text-center py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-primary hover:text-primary transition">
-          <span class="material-icons-round text-base align-middle mr-1">update</span>追踪研究
-        </a>
-        <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post" class="flex-1">
-          <button type="submit" class="w-full py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-amber-500 hover:text-amber-400 transition">
-            <span class="material-icons-round text-base align-middle mr-1">refresh</span>重新研究
-          </button>
-        </form>
-      </div>
-    </div>
-    {% else %}
-    <div class="card text-center py-12 mb-6">
-      <span class="material-icons-round text-5xl text-slate-600 mb-4">biotech</span>
-      <h3 class="text-lg font-semibold text-slate-300 mb-2">尚未生成深度研究报告</h3>
-      <p class="text-sm text-slate-500 mb-6 max-w-md mx-auto">
-        深度研究将从财务、估值、技术、情绪、催化剂、风险六个维度对该股票进行全面分析，生成投资建议。
-      </p>
-      <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post">
-        <button type="submit" class="research-cta px-8 py-3 rounded-xl text-white font-semibold text-sm transition">
-          <span class="material-icons-round text-base align-middle mr-1">science</span>执行深度研究
+
+      <!-- Layered tags area -->
+      <div class="flex items-center gap-2 mb-5 flex-wrap">
+        <!-- Core tags: industry + theme (全显示) -->
+        <div id="coreTagsContainer" class="flex flex-wrap gap-1.5"></div>
+        <!-- More tags toggle: selection rules -->
+        <button id="moreTagsBtn" class="tag-more-btn hidden" onclick="toggleMoreTags()">
+          <span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_more</span>
+          选股标签 <span id="moreTagsCount">0</span>
         </button>
-      </form>
-    </div>
-    {% endif %}
-
-    <!-- 研究历史 -->
-    {% if history %}
-    <div class="card mb-6">
-      <div class="flex items-center gap-2 mb-4">
-        <span class="material-icons-round text-slate-400">history</span>
-        <span class="font-semibold text-slate-200">研究历史</span>
+        <!-- More tags (hidden by default) -->
+        <div id="moreTagsContainer" class="hidden flex flex-wrap gap-1.5"></div>
+        <!-- Actions -->
+        <button id="genTagBtn" class="gen-tag-btn" onclick="generateTags()">
+          <span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签
+        </button>
+        <input id="tagInput" class="tag-input" placeholder="添加..." onkeydown="if(event.key==='Enter'){event.preventDefault();addTag()}">
+        <button id="saveTagBtn" class="save-tag-btn hidden" onclick="saveTags()">
+          <span class="material-icons-round text-xs align-middle" style="font-size:14px">save</span> 保存
+        </button>
       </div>
-      <div class="space-y-1">
-        {% for h in history %}
-        <a href="/stock/{{ stock.stock_code }}/report/{{ h.id }}"
-           class="history-row flex items-center justify-between px-3 py-2.5 rounded-lg transition block">
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-slate-500">{{ h.research_date }}</span>
-            <span class="badge {{ 'bg-emerald-500/20 text-emerald-400' if (h.overall_score or 0) >= 70 else 'bg-amber-500/20 text-amber-400' if (h.overall_score or 0) >= 50 else 'bg-red-500/20 text-red-400' }}">
-              {{ h.overall_score or 0 }}分
-            </span>
-            <span class="text-sm text-slate-300">{{ h.recommendation or '—' }}</span>
+
+      <!-- K-line chart -->
+      <div class="card mb-6">
+        <div class="px-4 pt-3 space-y-2">
+          <!-- Row 1: K-type + Zoom +/- + Vol/Amount -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button class="tb-btn active" onclick="setPeriodType('day',this)" data-group="ktype">日K</button>
+            <button class="tb-btn" onclick="setPeriodType('week',this)" data-group="ktype">周K</button>
+            <button class="tb-btn" onclick="setPeriodType('month',this)" data-group="ktype">月K</button>
+            <span class="tb-sep"></span>
+            <button class="tb-btn" onclick="zoomChart(-1)" title="放大">
+              <span class="material-icons-round text-xs" style="font-size:14px">add</span>
+            </button>
+            <button class="tb-btn" onclick="zoomChart(1)" title="缩小">
+              <span class="material-icons-round text-xs" style="font-size:14px">remove</span>
+            </button>
+            <span class="tb-sep"></span>
+            <button class="tb-btn active" onclick="setSub('volume',this)" data-group="sub">量</button>
+            <button class="tb-btn" onclick="setSub('amount',this)" data-group="sub">额</button>
           </div>
-          <span class="material-icons-round text-slate-600 text-base">chevron_right</span>
-        </a>
-        {% endfor %}
+          <!-- Row 2: MA overlays + Technical sub-indicators -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button class="tb-btn active" onclick="toggleMA(5,this)">MA5</button>
+            <button class="tb-btn active" onclick="toggleMA(10,this)">MA10</button>
+            <button class="tb-btn" onclick="toggleMA(20,this)">MA20</button>
+            <button class="tb-btn" onclick="toggleMA(60,this)">MA60</button>
+            <button class="tb-btn" onclick="toggleBoll(this)">BOLL</button>
+            <span class="tb-sep"></span>
+            <button class="tb-btn" onclick="setSub('macd',this)" data-group="sub">MACD</button>
+            <button class="tb-btn" onclick="setSub('kdj',this)" data-group="sub">KDJ</button>
+            <button class="tb-btn" onclick="setSub('rsi',this)" data-group="sub">RSI</button>
+            <button class="tb-btn" onclick="setSub('capital',this)" data-group="sub">资金流</button>
+          </div>
+        </div>
+        <div id="kline-chart" class="kline-wrap"></div>
       </div>
-    </div>
-    {% endif %}
 
+      <!-- Research section -->
+      {% if research %}
+      <div class="card card-hover p-5 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center gap-3">
+            <span class="material-icons-round text-primary text-xl">science</span>
+            <span class="font-semibold text-white">最新深度研究报告</span>
+            <span class="badge bg-primary/20 text-primary">{{ research.recommendation }}</span>
+          </div>
+          <span class="text-xs text-slate-500">{{ research.date }}</span>
+        </div>
+        <div class="flex items-center gap-4 mb-4">
+          {% set val = research.scores.get('overall', 0) %}
+          <div class="text-center">
+            <div class="score-ring mx-auto mb-1 {{ 'bg-emerald-500/20 text-emerald-400' if val >= 70 else 'bg-amber-500/20 text-amber-400' if val >= 50 else 'bg-red-500/20 text-red-400' }}">
+              {{ val }}
+            </div>
+            <div class="text-xs text-slate-500">综合评分</div>
+          </div>
+        </div>
+        {% if research.report and research.report.executive_summary %}
+        <p class="text-sm text-slate-300 mb-4 leading-relaxed">{{ research.report.executive_summary }}</p>
+        {% endif %}
+        <div class="flex gap-3">
+          <a href="/stock/{{ stock.stock_code }}/report/{{ research.id }}{% if request.url.query %}?{{ request.url.query }}{% endif %}"
+             class="flex-1 text-center py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+            <span class="material-icons-round text-base align-middle mr-1">description</span>查看完整报告
+          </a>
+          <a href="/stock/{{ stock.stock_code }}/followup"
+             class="flex-1 text-center py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-primary hover:text-primary transition">
+            <span class="material-icons-round text-base align-middle mr-1">update</span>追踪研究
+          </a>
+          <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post" class="flex-1">
+            <button type="submit" class="w-full py-2.5 rounded-lg bg-surface border border-slate-700 text-slate-300 text-sm font-medium hover:border-amber-500 hover:text-amber-400 transition">
+              <span class="material-icons-round text-base align-middle mr-1">refresh</span>重新研究
+            </button>
+          </form>
+        </div>
+      </div>
+      {% else %}
+      <div class="card text-center py-12 mb-6">
+        <span class="material-icons-round text-5xl text-slate-600 mb-4">biotech</span>
+        <h3 class="text-lg font-semibold text-slate-300 mb-2">尚未生成深度研究报告</h3>
+        <p class="text-sm text-slate-500 mb-6 max-w-md mx-auto">
+          深度研究将从财务、估值、技术、情绪、催化剂、风险六个维度对该股票进行全面分析，生成投资建议。
+        </p>
+        <form onsubmit="return startResearch(this)" action="/stock/{{ stock.stock_code }}/run-research" method="post">
+          <button type="submit" class="research-cta px-8 py-3 rounded-xl text-white font-semibold text-sm transition">
+            <span class="material-icons-round text-base align-middle mr-1">science</span>执行深度研究
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+      <!-- Research history -->
+      {% if history %}
+      <div class="card p-5 mb-6">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="material-icons-round text-slate-400">history</span>
+          <span class="font-semibold text-slate-200">研究历史</span>
+        </div>
+        <div class="space-y-1">
+          {% for h in history %}
+          <div class="history-row flex items-center justify-between px-3 py-2.5 rounded-lg transition group">
+            <a href="/stock/{{ stock.stock_code }}/report/{{ h.id }}{% if request.url.query %}?{{ request.url.query }}{% endif %}" class="flex items-center gap-3 flex-1 min-w-0">
+              <span class="text-xs text-slate-500">{{ h.research_date }}</span>
+              <span class="badge {{ 'bg-emerald-500/20 text-emerald-400' if (h.overall_score or 0) >= 70 else 'bg-amber-500/20 text-amber-400' if (h.overall_score or 0) >= 50 else 'bg-red-500/20 text-red-400' }}">
+                {{ h.overall_score or 0 }}分
+              </span>
+              <span class="text-sm text-slate-300">{{ h.recommendation or '—' }}</span>
+            </a>
+            <div class="flex items-center gap-1">
+              <button onclick="event.stopPropagation(); deleteReport({{ h.id }})"
+                      class="opacity-0 group-hover:opacity-100 transition p-1 rounded hover:bg-red-500/20 text-slate-500 hover:text-red-400"
+                      title="删除此报告">
+                <span class="material-icons-round text-base">delete_outline</span>
+              </button>
+              <a href="/stock/{{ stock.stock_code }}/report/{{ h.id }}{% if request.url.query %}?{{ request.url.query }}{% endif %}">
+                <span class="material-icons-round text-slate-600 text-base">chevron_right</span>
+              </a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- Related news -->
+      {% if news %}
+      <div class="card p-5 mb-6">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="material-icons-round text-primary text-base">newspaper</span>
+          <span class="text-sm font-semibold text-slate-200">关联新闻</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {% for n in news[:8] %}
+          <div class="flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-slate-800/30 transition">
+            <span class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-red-400' if n.sentiment == 'positive' else 'bg-emerald-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
+            <div class="min-w-0">
+              <p class="text-xs text-slate-300 leading-relaxed truncate">{{ n.summary[:100] if n.summary else '' }}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-[10px] text-slate-600">{{ n.cleaned_at.strftime('%Y-%m-%d') if n.cleaned_at else '' }}</span>
+                {% if n.importance %}
+                <span class="text-[10px] {{ 'text-amber-500' if n.importance >= 4 else 'text-slate-600' }}">{{ '★' * (n.importance or 0) }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
     {% else %}
-    <!-- 未选择股票 -->
+    <!-- No stock selected -->
     <div class="flex items-center justify-center h-full">
       <div class="text-center">
         <span class="material-icons-round text-6xl text-slate-700 mb-4">query_stats</span>
         <h2 class="text-xl font-semibold text-slate-400 mb-2">选择一只股票开始研究</h2>
-        <p class="text-sm text-slate-500">从左侧列表选择，或输入代码添加新股票</p>
+        <p class="text-sm text-slate-500">从<a href="/portfolio" class="text-primary hover:underline">自选页面</a>选择股票</p>
       </div>
     </div>
     {% endif %}
-  </div>
-
-  <!-- 右侧信息栏 -->
-  {% if stock %}
-  <aside class="w-72 flex-shrink-0 space-y-4">
-    {% if capital %}
-    <div class="card">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="material-icons-round text-primary text-base">account_balance</span>
-        <span class="text-sm font-semibold text-slate-200">资金流向</span>
-      </div>
-      {% for c in capital %}
-      <div class="flex items-center justify-between py-1.5 text-xs">
-        <span class="text-slate-500">{{ c.trade_date[-5:] }}</span>
-        <span class="{{ 'text-emerald-400' if (c.main_net_inflow or 0) > 0 else 'text-red-400' }}">
-          {{ '%+.1f' | format((c.main_net_inflow or 0) / 10000) }}万
-        </span>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if news %}
-    <div class="card">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="material-icons-round text-primary text-base">newspaper</span>
-        <span class="text-sm font-semibold text-slate-200">关联新闻</span>
-      </div>
-      <div class="space-y-3">
-        {% for n in news[:6] %}
-        <div class="pb-2 {{ 'border-b border-slate-800' if not loop.last else '' }}">
-          <div class="flex items-start gap-2">
-            <span class="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-emerald-400' if n.sentiment == 'positive' else 'bg-red-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
-            <div>
-              <p class="text-xs text-slate-300 leading-relaxed">{{ n.summary[:80] }}</p>
-              <span class="text-xs text-slate-600">{{ n.cleaned_at[:10] if n.cleaned_at else '' }}</span>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endif %}
-  </aside>
-  {% endif %}
-
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-{% if kline %}
+{% if stock and kline %}
+/* ====== Data ====== */
 const kdata = {{ kline_json | safe }};
-if (kdata.length > 0) {
-  const dates = kdata.map(d => d.trade_date);
-  const closes = kdata.map(d => d.close);
-  const volumes = kdata.map(d => d.volume);
-  Plotly.newPlot('kline-chart', [
-    { x: dates, y: closes, type: 'scatter', mode: 'lines', line: { color: '#135bec', width: 2 }, fill: 'tozeroy', fillcolor: 'rgba(19,91,236,0.08)', name: '收盘价' },
-    { x: dates, y: volumes, type: 'bar', marker: { color: 'rgba(100,116,139,0.3)' }, name: '成交量', yaxis: 'y2' }
-  ], {
-    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-    margin: { l: 50, r: 20, t: 20, b: 40 },
-    font: { color: '#94a3b8', family: 'Manrope' },
-    xaxis: { gridcolor: 'rgba(100,116,139,0.1)', showgrid: false },
-    yaxis: { gridcolor: 'rgba(100,116,139,0.1)', side: 'right' },
-    yaxis2: { overlaying: 'y', side: 'left', showgrid: false, showticklabels: false, range: [0, Math.max(...volumes) * 4] },
-    showlegend: false, hovermode: 'x unified',
-  }, { responsive: true, displayModeBar: false });
+const cdata = {{ capital_json | safe }};
+const coreTags = {{ core_tags | tojson | safe }};
+const moreTags = {{ more_tags | tojson | safe }};
+const stockCode = '{{ stock_code }}';
+const stockName = '{{ stock.stock_name | replace("'", "\\'") if stock else "" }}';
+let showMoreTags = false;
+
+/* ====== Delete Report ====== */
+function deleteReport(reportId) {
+  if (!confirm('确定删除这条研究报告？')) return;
+  fetch(`/stock/${stockCode}/report/${reportId}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.ok) location.reload();
+      else alert(d.error || '删除失败');
+    })
+    .catch(() => alert('网络错误'));
 }
-{% endif %}
+
+/* ====== Chart State ====== */
+const S = { visibleCount: 120, mas: new Set([5, 10]), sub: 'volume', boll: false, periodType: 'day' };
+const MA_CLR = { 5: '#fbbf24', 10: '#a78bfa', 20: '#60a5fa', 60: '#34d399' };
+let chartData = kdata; /* will be swapped to week/month aggregated data */
+
+/* ====== Week/Month Aggregation ====== */
+function aggregateWeek(data) {
+  if (!data.length) return [];
+  const weeks = []; let cur = null;
+  for (const d of data) {
+    const dt = new Date(d.trade_date);
+    /* ISO week key: year + week number */
+    const jan1 = new Date(dt.getFullYear(), 0, 1);
+    const wk = Math.ceil(((dt - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+    const key = dt.getFullYear() + '-W' + wk;
+    if (!cur || cur._key !== key) {
+      if (cur) weeks.push(cur);
+      cur = { _key: key, trade_date: d.trade_date, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume, amount: d.amount };
+    } else {
+      cur.high = Math.max(cur.high, d.high);
+      cur.low = Math.min(cur.low, d.low);
+      cur.close = d.close;
+      cur.volume += d.volume;
+      cur.amount += d.amount;
+      cur.trade_date = d.trade_date; /* use last trading day as label */
+    }
+  }
+  if (cur) weeks.push(cur);
+  return weeks;
+}
+
+function aggregateMonth(data) {
+  if (!data.length) return [];
+  const months = []; let cur = null;
+  for (const d of data) {
+    const key = d.trade_date.slice(0, 7); /* YYYY-MM */
+    if (!cur || cur._key !== key) {
+      if (cur) months.push(cur);
+      cur = { _key: key, trade_date: d.trade_date, open: d.open, high: d.high, low: d.low, close: d.close, volume: d.volume, amount: d.amount };
+    } else {
+      cur.high = Math.max(cur.high, d.high);
+      cur.low = Math.min(cur.low, d.low);
+      cur.close = d.close;
+      cur.volume += d.volume;
+      cur.amount += d.amount;
+      cur.trade_date = d.trade_date;
+    }
+  }
+  if (cur) months.push(cur);
+  return months;
+}
+
+function buildChartData() {
+  if (S.periodType === 'week') chartData = aggregateWeek(kdata);
+  else if (S.periodType === 'month') chartData = aggregateMonth(kdata);
+  else chartData = kdata;
+  S.visibleCount = Math.min(S.visibleCount, chartData.length);
+}
+
+/* ====== Calculation Helpers ====== */
+function calcMA(arr, n) {
+  const r = [];
+  for (let i = 0; i < arr.length; i++) {
+    if (i < n - 1) { r.push(null); continue; }
+    let s = 0; for (let j = i - n + 1; j <= i; j++) s += arr[j];
+    r.push(s / n);
+  }
+  return r;
+}
+
+function calcEMA(arr, n) {
+  const k = 2 / (n + 1), r = [arr[0]];
+  for (let i = 1; i < arr.length; i++) r.push(arr[i] * k + r[i-1] * (1-k));
+  return r;
+}
+
+function calcMACD(closes) {
+  const e12 = calcEMA(closes, 12), e26 = calcEMA(closes, 26);
+  const dif = e12.map((v,i) => v - e26[i]);
+  const dea = calcEMA(dif, 9);
+  const hist = dif.map((v,i) => (v - dea[i]) * 2);
+  return { dif, dea, hist };
+}
+
+function calcKDJ(highs, lows, closes, n=9) {
+  const rsv = [];
+  for (let i = 0; i < closes.length; i++) {
+    const st = Math.max(0, i - n + 1);
+    const hN = Math.max(...highs.slice(st, i+1));
+    const lN = Math.min(...lows.slice(st, i+1));
+    rsv.push(hN === lN ? 50 : (closes[i] - lN) / (hN - lN) * 100);
+  }
+  const K = [50], D = [50];
+  for (let i = 1; i < rsv.length; i++) {
+    K.push(2/3 * K[i-1] + 1/3 * rsv[i]);
+    D.push(2/3 * D[i-1] + 1/3 * K[i]);
+  }
+  const J = K.map((v,i) => 3*v - 2*D[i]);
+  return { K, D, J };
+}
+
+function calcRSI(closes, n=14) {
+  const r = [null]; let ag = 0, al = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const c = closes[i] - closes[i-1];
+    if (i <= n) {
+      ag += Math.max(c, 0); al += Math.abs(Math.min(c, 0));
+      r.push(i === n ? (al === 0 ? 100 : 100 - 100/(1+ag/n/(al/n))) : null);
+      if (i === n) { ag /= n; al /= n; }
+    } else {
+      ag = (ag * (n-1) + Math.max(c, 0)) / n;
+      al = (al * (n-1) + Math.abs(Math.min(c, 0))) / n;
+      r.push(al === 0 ? 100 : 100 - 100/(1+ag/al));
+    }
+  }
+  return r;
+}
+
+function calcBOLL(closes, n=20, m=2) {
+  const mid = calcMA(closes, n), up = [], lo = [];
+  for (let i = 0; i < closes.length; i++) {
+    if (i < n - 1) { up.push(null); lo.push(null); continue; }
+    const sl = closes.slice(i - n + 1, i + 1);
+    const std = Math.sqrt(sl.reduce((s,v) => s + (v - mid[i])**2, 0) / n);
+    up.push(mid[i] + m * std); lo.push(mid[i] - m * std);
+  }
+  return { mid, up, lo };
+}
+
+/* ====== Render Chart ====== */
+function renderChart() {
+  if (!chartData.length) return;
+  /* Use ALL chartData for calculations (MA etc need history), show visibleCount via xaxis range */
+  const dates = chartData.map(x => x.trade_date);
+  const opens = chartData.map(x => x.open);
+  const highs = chartData.map(x => x.high);
+  const lows = chartData.map(x => x.low);
+  const closes = chartData.map(x => x.close);
+  const vols = chartData.map(x => x.volume);
+  const amts = chartData.map(x => x.amount);
+  const upClr = chartData.map(x => x.close >= x.open ? '#ef4444' : '#22c55e');
+
+  const traces = [];
+
+  /* Candlestick */
+  traces.push({
+    type: 'candlestick', x: dates,
+    open: opens, high: highs, low: lows, close: closes,
+    increasing: { line: { color: '#ef4444' }, fillcolor: '#ef4444' },
+    decreasing: { line: { color: '#22c55e' }, fillcolor: '#22c55e' },
+    yaxis: 'y', showlegend: false,
+  });
+
+  /* MA overlays */
+  for (const p of S.mas) {
+    const ma = calcMA(closes, p);
+    traces.push({
+      type: 'scatter', mode: 'lines', x: dates, y: ma,
+      line: { width: 1, color: MA_CLR[p] }, name: 'MA'+p,
+      yaxis: 'y', showlegend: false, hoverinfo: 'skip',
+    });
+  }
+
+  /* BOLL overlay */
+  if (S.boll) {
+    const b = calcBOLL(closes);
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:b.up, line:{width:1,color:'#f87171',dash:'dot'}, yaxis:'y', showlegend:false, hoverinfo:'skip' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:b.mid, line:{width:1,color:'#fbbf24',dash:'dot'}, yaxis:'y', showlegend:false, hoverinfo:'skip' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:b.lo, line:{width:1,color:'#34d399',dash:'dot'}, yaxis:'y', showlegend:false, hoverinfo:'skip' });
+  }
+
+  /* Sub chart */
+  const sub = S.sub;
+  let subTitle = '';
+
+  if (sub === 'volume') {
+    subTitle = '成交量';
+    traces.push({ type:'bar', x:dates, y:vols, marker:{color:upClr}, yaxis:'y2', showlegend:false, hoverinfo:'x+y' });
+  } else if (sub === 'amount') {
+    subTitle = '成交额';
+    traces.push({ type:'bar', x:dates, y:amts, marker:{color:upClr}, yaxis:'y2', showlegend:false, hoverinfo:'x+y' });
+  } else if (sub === 'capital') {
+    subTitle = '主力净流入';
+    const capMap = {}; cdata.forEach(c => capMap[c.trade_date] = c);
+    const mainNet = dates.map(dt => (capMap[dt] || {}).main_net_inflow || 0);
+    const capClr = mainNet.map(v => v >= 0 ? '#ef4444' : '#22c55e');
+    traces.push({ type:'bar', x:dates, y:mainNet, marker:{color:capClr}, yaxis:'y2', showlegend:false, hoverinfo:'x+y' });
+  } else if (sub === 'macd') {
+    subTitle = 'MACD';
+    const m = calcMACD(closes);
+    const mClr = m.hist.map(v => v >= 0 ? '#ef4444' : '#22c55e');
+    traces.push({ type:'bar', x:dates, y:m.hist, marker:{color:mClr}, yaxis:'y2', showlegend:false, hoverinfo:'skip' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:m.dif, line:{width:1,color:'#ffffff'}, yaxis:'y2', showlegend:false, hoverinfo:'skip' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:m.dea, line:{width:1,color:'#fbbf24'}, yaxis:'y2', showlegend:false, hoverinfo:'skip' });
+  } else if (sub === 'kdj') {
+    subTitle = 'KDJ';
+    const k = calcKDJ(highs, lows, closes);
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:k.K, line:{width:1,color:'#ffffff'}, yaxis:'y2', showlegend:false, hoverinfo:'skip', name:'K' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:k.D, line:{width:1,color:'#fbbf24'}, yaxis:'y2', showlegend:false, hoverinfo:'skip', name:'D' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:k.J, line:{width:1,color:'#a78bfa'}, yaxis:'y2', showlegend:false, hoverinfo:'skip', name:'J' });
+  } else if (sub === 'rsi') {
+    subTitle = 'RSI(14)';
+    const rsi = calcRSI(closes);
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:rsi, line:{width:1.5,color:'#60a5fa'}, yaxis:'y2', showlegend:false, hoverinfo:'x+y' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:dates.map(()=>80), line:{width:0.5,color:'#ef4444',dash:'dot'}, yaxis:'y2', showlegend:false, hoverinfo:'skip' });
+    traces.push({ type:'scatter', mode:'lines', x:dates, y:dates.map(()=>20), line:{width:0.5,color:'#22c55e',dash:'dot'}, yaxis:'y2', showlegend:false, hoverinfo:'skip' });
+  }
+
+  /* Visible range: show last visibleCount bars via category index */
+  const rangeStart = Math.max(0, dates.length - S.visibleCount) - 0.5;
+  const rangeEnd = dates.length - 0.5;
+
+  const layout = {
+    paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+    margin: { l: 60, r: 16, t: 12, b: 36 },
+    font: { color: '#94a3b8', family: 'Manrope', size: 11 },
+    xaxis: {
+      type: 'category',
+      rangeslider: { visible: false },
+      gridcolor: 'rgba(100,116,139,0.08)',
+      nticks: 12,
+      tickfont: { size: 10 },
+      range: [rangeStart, rangeEnd],
+    },
+    yaxis: {
+      side: 'left', domain: [0.24, 1],
+      gridcolor: 'rgba(100,116,139,0.08)',
+      tickfont: { size: 10 },
+      autorange: true,
+    },
+    yaxis2: {
+      side: 'left', domain: [0, 0.18],
+      gridcolor: 'rgba(100,116,139,0.06)',
+      tickfont: { size: 9 },
+      title: { text: subTitle, font: { size: 9, color: '#64748b' }, standoff: 5 },
+    },
+    showlegend: false,
+    hovermode: 'x unified',
+    hoverlabel: { bgcolor: '#1e293b', bordercolor: '#334155', font: { size: 11 } },
+  };
+
+  Plotly.newPlot('kline-chart', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+/* ====== Toolbar Actions ====== */
+function zoomChart(dir) {
+  /* dir: -1 = zoom in (fewer bars), +1 = zoom out (more bars) */
+  const step = Math.max(10, Math.round(S.visibleCount * 0.3));
+  S.visibleCount = Math.max(20, Math.min(chartData.length, S.visibleCount + dir * step));
+  renderChart();
+}
+
+function setPeriodType(type, btn) {
+  S.periodType = type;
+  document.querySelectorAll('[data-group="ktype"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildChartData();
+  renderChart();
+}
+
+function setSub(type, btn) {
+  S.sub = type;
+  document.querySelectorAll('[data-group="sub"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart();
+}
+
+function toggleMA(period, btn) {
+  if (S.mas.has(period)) { S.mas.delete(period); btn.classList.remove('active'); }
+  else { S.mas.add(period); btn.classList.add('active'); }
+  renderChart();
+}
+
+function toggleBoll(btn) {
+  S.boll = !S.boll;
+  btn.classList.toggle('active', S.boll);
+  renderChart();
+}
+
+/* ====== Watch Toggle ====== */
+function toggleWatch() {
+  const btn = document.getElementById('watchBtn');
+  const icon = btn.querySelector('.material-icons-round');
+  fetch('/stock/' + stockCode + '/api/toggle-watch', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.watched) {
+        icon.textContent = 'star';
+        btn.classList.add('watched');
+        btn.title = '已关注';
+      } else {
+        icon.textContent = 'star_border';
+        btn.classList.remove('watched');
+        btn.title = '点击关注';
+      }
+    });
+}
+
+/* ====== Tag Management ====== */
+function getTagIcon(type) {
+  switch(type) {
+    case 'industry': return 'domain';
+    case 'theme': return 'auto_awesome';
+    case 'event': return 'event';
+    case 'selection': return 'rule';
+    default: return 'sell';
+  }
+}
+
+function getTagClass(type) {
+  switch(type) {
+    case 'industry': return 'industry';
+    case 'theme': return 'theme';
+    case 'event': return 'event';
+    case 'selection': return 'selection';
+    default: return '';
+  }
+}
+
+function renderLayeredTags() {
+  // Render core tags
+  const coreContainer = document.getElementById('coreTagsContainer');
+  coreContainer.innerHTML = coreTags.map((t, i) =>
+    '<span class="tag-chip ' + getTagClass(t.type) + '">' +
+      '<span class="material-icons-round" style="font-size:12px">' + getTagIcon(t.type) + '</span>' +
+      t.name +
+      (t.heat ? '<span class="heat">' + t.heat + '</span>' : '') +
+      '<span class="del" onclick="removeCoreTag(' + i + ')">&times;</span>' +
+    '</span>'
+  ).join('');
+
+  // Render more tags
+  const moreContainer = document.getElementById('moreTagsContainer');
+  moreContainer.innerHTML = moreTags.map((t, i) =>
+    '<span class="tag-chip ' + getTagClass(t.type) + '">' +
+      '<span class="material-icons-round" style="font-size:12px">' + getTagIcon(t.type) + '</span>' +
+      t.name +
+      '<span class="del" onclick="removeMoreTag(' + i + ')">&times;</span>' +
+    '</span>'
+  ).join('');
+
+  // Update more button
+  const moreBtn = document.getElementById('moreTagsBtn');
+  if (moreTags.length > 0) {
+    moreBtn.classList.remove('hidden');
+    document.getElementById('moreTagsCount').textContent = moreTags.length;
+  } else {
+    moreBtn.classList.add('hidden');
+  }
+}
+
+function toggleMoreTags() {
+  showMoreTags = !showMoreTags;
+  const container = document.getElementById('moreTagsContainer');
+  const btn = document.getElementById('moreTagsBtn');
+  if (showMoreTags) {
+    container.classList.remove('hidden');
+    btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_less</span>收起';
+  } else {
+    container.classList.add('hidden');
+    btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_more</span><span id="moreTagsCount">' + moreTags.length + '</span>个更多';
+  }
+}
+
+function removeCoreTag(i) {
+  coreTags.splice(i, 1);
+  renderLayeredTags();
+  document.getElementById('saveTagBtn').classList.remove('hidden');
+}
+
+function removeMoreTag(i) {
+  moreTags.splice(i, 1);
+  renderLayeredTags();
+  document.getElementById('saveTagBtn').classList.remove('hidden');
+}
+
+function addTag() {
+  const inp = document.getElementById('tagInput');
+  const v = inp.value.trim();
+  if (v && !coreTags.find(t => t.name === v) && !moreTags.find(t => t.name === v)) {
+    // 新添加的标签默认放到 more 区
+    moreTags.push({ name: v, type: 'tag' });
+    renderLayeredTags();
+    inp.value = '';
+    document.getElementById('saveTagBtn').classList.remove('hidden');
+  }
+}
+
+function generateTags() {
+  const btn = document.getElementById('genTagBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:14px">refresh</span> 生成中...';
+  fetch('/stock/' + stockCode + '/api/generate-tags')
+    .then(r => r.json())
+    .then(data => {
+      const existingCore = new Set(coreTags.map(t => t.name));
+      const existingMore = new Set(moreTags.map(t => t.name));
+      let added = 0;
+      (data.core || []).forEach(tag => {
+        if (!existingCore.has(tag.name)) { coreTags.push(tag); added++; }
+      });
+      (data.more || []).forEach(tag => {
+        if (!existingMore.has(tag.name)) { moreTags.push(tag); added++; }
+      });
+      if (added > 0) {
+        renderLayeredTags();
+        document.getElementById('saveTagBtn').classList.remove('hidden');
+      }
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+    });
+}
+
+function saveTags() {
+  const btn = document.getElementById('saveTagBtn');
+  btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:14px">refresh</span> 保存中...';
+  fetch('/stock/' + stockCode + '/api/save-tags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tags: [...coreTags, ...moreTags].map(t => t.name) })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">check</span> 已保存';
+      setTimeout(() => btn.classList.add('hidden'), 1500);
+    }
+  })
+  .catch(() => {
+    btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">save</span> 保存';
+  });
+}
+
+/* ====== Research ====== */
+let _activeTaskId = null;
+let _pollTimer = null;
 
 function startResearch(form) {
   const btn = form.querySelector('button[type="submit"]');
@@ -290,17 +763,216 @@ function startResearch(form) {
   btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1 animate-spin">refresh</span>启动中...';
   fetch(form.action, { method: 'POST' }).then(r => r.json()).then(data => {
     if (data.ok) {
-      btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">check</span>已启动，查看左下角进度';
+      _activeTaskId = data.task_id;
+      btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">check</span>已启动';
       btn.classList.add('text-emerald-400', 'border-emerald-700');
+      showLiveResearchPanel();
+      startPollingSteps();
     } else {
       btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">error</span>启动失败';
       btn.disabled = false;
     }
-  }).catch(function() {
+  }).catch(() => {
     btn.innerHTML = '<span class="material-icons-round text-base align-middle mr-1">error</span>请求失败';
     btn.disabled = false;
   });
   return false;
 }
+
+function showLiveResearchPanel() {
+  let panel = document.getElementById('liveResearchPanel');
+  if (panel) { panel.classList.remove('hidden'); return; }
+  /* 在 research section 后面插入 live panel */
+  const anchor = document.querySelector('.card.card-hover.p-5.mb-6') || document.querySelector('.card.text-center.py-12.mb-6');
+  if (!anchor) return;
+  panel = document.createElement('div');
+  panel.id = 'liveResearchPanel';
+  panel.className = 'card p-5 mb-6';
+  panel.innerHTML = `
+    <div class="flex items-center gap-3 mb-4">
+      <span class="material-icons-round text-primary text-xl animate-pulse">science</span>
+      <span class="font-semibold text-white">深度研究进行中</span>
+      <span id="liveProgress" class="badge bg-primary/20 text-primary">0%</span>
+      <span id="liveMessage" class="text-xs text-slate-500 ml-auto"></span>
+    </div>
+    <div class="w-full bg-slate-800 rounded-full h-1.5 mb-4">
+      <div id="liveBar" class="bg-primary h-1.5 rounded-full transition-all duration-500" style="width:0%"></div>
+    </div>
+    <div id="liveSteps" class="space-y-3"></div>
+    <div id="liveReportLink" class="hidden mt-4 text-center">
+      <a id="liveReportAnchor" href="#" class="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+        <span class="material-icons-round text-base">description</span>查看完整报告
+      </a>
+    </div>
+  `;
+  anchor.after(panel);
+}
+
+const STEP_META = {
+  business_model: { label: '商业模式画布', icon: 'business', color: '#10b981' },
+  value_chain: { label: '产业链地图', icon: 'hub', color: '#8b5cf6' },
+  financial: { label: '财务分析', icon: 'analytics', color: '#f59e0b' },
+  valuation: { label: '估值分析', icon: 'price_check', color: '#3b82f6' },
+  sector_heat: { label: '板块热度', icon: 'local_fire_department', color: '#ec4899' },
+  policy_impact: { label: '政策与行业动向', icon: 'policy', color: '#ef4444' },
+};
+let _renderedSteps = new Set();
+
+function startPollingSteps() {
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(pollStepResults, 4000);
+  pollStepResults();
+}
+
+function pollStepResults() {
+  if (!_activeTaskId) return;
+  fetch('/stock/api/research-task/' + _activeTaskId).then(r => r.json()).then(task => {
+    if (task.error) return;
+    /* 更新进度 */
+    const progEl = document.getElementById('liveProgress');
+    const barEl = document.getElementById('liveBar');
+    const msgEl = document.getElementById('liveMessage');
+    if (progEl) progEl.textContent = task.progress + '%';
+    if (barEl) barEl.style.width = task.progress + '%';
+    if (msgEl) msgEl.textContent = task.message || '';
+
+    /* 渲染新完成的步骤 */
+    const container = document.getElementById('liveSteps');
+    if (container && task.step_results) {
+      for (const [key, data] of Object.entries(task.step_results)) {
+        if (_renderedSteps.has(key)) continue;
+        _renderedSteps.add(key);
+        const meta = STEP_META[key] || { label: key, icon: 'check', color: '#64748b' };
+        const div = document.createElement('div');
+        div.className = 'border-l-[3px] pl-3 mb-3 animate-fadeIn';
+        div.style.borderColor = meta.color;
+        div.innerHTML = `
+          <div class="flex items-center gap-2 mb-1.5 cursor-pointer" onclick="this.nextElementSibling.classList.toggle('hidden')">
+            <span class="material-icons-round text-sm" style="color:${meta.color}">${meta.icon}</span>
+            <span class="text-sm font-semibold text-slate-200">${meta.label}</span>
+            <span class="material-icons-round text-xs text-emerald-400">check_circle</span>
+            <span class="material-icons-round text-xs text-slate-600 ml-auto">expand_more</span>
+          </div>
+          <div class="text-xs text-slate-400 leading-relaxed whitespace-pre-line max-h-[200px] overflow-y-auto">${escapeHtml(data.content || '').slice(0, 2000)}</div>
+        `;
+        container.appendChild(div);
+      }
+    }
+
+    /* 完成或失败 */
+    if (task.status === 'done' || task.status === 'error') {
+      clearInterval(_pollTimer);
+      _pollTimer = null;
+      const headerIcon = document.querySelector('#liveResearchPanel .animate-pulse');
+      if (headerIcon) headerIcon.classList.remove('animate-pulse');
+      const headerText = document.querySelector('#liveResearchPanel .font-semibold');
+      if (task.status === 'done') {
+        if (headerText) headerText.textContent = '深度研究完成';
+        if (barEl) barEl.classList.replace('bg-primary', 'bg-emerald-500');
+        /* 显示报告链接 */
+        if (task.research_id) {
+          const linkDiv = document.getElementById('liveReportLink');
+          const anchor = document.getElementById('liveReportAnchor');
+          if (linkDiv && anchor) {
+            anchor.href = '/stock/' + task.stock_code + '/report/' + task.research_id;
+            linkDiv.classList.remove('hidden');
+          }
+        }
+      } else {
+        if (headerText) { headerText.textContent = '研究失败'; headerText.classList.add('text-red-400'); }
+        if (barEl) barEl.classList.replace('bg-primary', 'bg-red-500');
+      }
+    }
+  }).catch(() => {});
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+/* ====== Add to Watchlist ====== */
+let _watchlists = [];
+
+function loadWatchlists() {
+  fetch('/portfolio/api/strategies').then(r => r.json()).then(data => {
+    _watchlists = data || [];
+    const dropdown = document.getElementById('addListDropdown');
+    if (_watchlists.length === 0) {
+      dropdown.innerHTML = '<div class="p-2 text-xs text-slate-500 text-center">暂无自选组</div>';
+    } else {
+      dropdown.innerHTML = _watchlists.map(w => `
+        <div class="px-3 py-2 hover:bg-slate-700 cursor-pointer text-sm text-slate-300 flex items-center justify-between" onclick="addToList(${w.id})">
+          <span>${escapeHtml(w.name)}</span>
+          <span class="text-xs text-slate-500">${w.stock_count || 0}只</span>
+        </div>
+      `).join('');
+    }
+  }).catch(() => {
+    document.getElementById('addListDropdown').innerHTML = '<div class="p-2 text-xs text-red-400 text-center">加载失败</div>';
+  });
+}
+
+function toggleAddListDropdown(event) {
+  event.stopPropagation();
+  const dropdown = document.getElementById('addListDropdown');
+  dropdown.classList.toggle('hidden');
+  if (!dropdown.classList.contains('hidden') && _watchlists.length === 0) {
+    loadWatchlists();
+  }
+}
+
+function addToList(listId) {
+  const list = _watchlists.find(w => w.id === listId);
+  fetch(`/portfolio/api/strategy/${listId}/add-stock`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ stock_code: stockCode, stock_name: stockName })
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      // Show success feedback
+      const btn = document.getElementById('addToListBtn');
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<span class="material-icons-round text-base align-middle">check</span> 已加入';
+      btn.classList.add('bg-emerald-500/30', 'text-emerald-400');
+      setTimeout(() => {
+        btn.innerHTML = orig;
+        btn.classList.remove('bg-emerald-500/30', 'text-emerald-400');
+      }, 2000);
+    } else {
+      alert(res.error || '添加失败');
+    }
+    document.getElementById('addListDropdown').classList.add('hidden');
+  }).catch(err => {
+    alert('添加失败: ' + err);
+  });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  const dropdown = document.getElementById('addListDropdown');
+  const btn = document.getElementById('addToListBtn');
+  if (dropdown && !dropdown.contains(e.target) && e.target !== btn && !btn.contains(e.target)) {
+    dropdown.classList.add('hidden');
+  }
+});
+
+/* ====== Init ====== */
+renderLayeredTags();
+buildChartData();
+if (chartData.length > 0) renderChart();
+
+/* 检查是否有正在运行的研究任务 */
+fetch('/stock/api/research-tasks').then(r => r.json()).then(tasks => {
+  const active = tasks.find(t => t.stock_code === stockCode && t.status === 'running');
+  if (active) {
+    _activeTaskId = active.id;
+    showLiveResearchPanel();
+    startPollingSteps(); /* pollStepResults 会获取完整 step_results 并渲染 */
+  }
+}).catch(() => {});
+
+{% endif %}
 </script>
 {% endblock %}

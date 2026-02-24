@@ -12,8 +12,7 @@ from pathlib import Path
 
 from utils.db_utils import execute_query, execute_insert
 from tracking.watchlist_manager import (
-    get_watchlist, get_stock_today_news, get_open_positions,
-    get_position_summary, add_to_watchlist, remove_from_watchlist,
+    add_to_watchlist, remove_from_watchlist,
     update_watch_type,
 )
 from research.report_generator import get_research_report, list_research_records
@@ -29,8 +28,8 @@ _tasks_lock = threading.Lock()
 
 _PROGRESS_MAP = {
     "正在检查数据充分性": 5, "正在获取个股数据": 10,
-    "[1/5]": 20, "[2/5]": 35, "[3/5]": 50,
-    "[4/5]": 65, "[5/5]": 80,
+    "[1/6]": 15, "[2/6]": 28, "[3/6]": 42,
+    "[4/6]": 55, "[5/6]": 68, "[6/6]": 80,
     "正在综合": 90, "正在保存": 95,
 }
 
@@ -42,6 +41,7 @@ def _create_research_task(stock_code, stock_name=""):
             "stock_name": stock_name, "status": "running",
             "progress": 0, "message": "准备中...",
             "created_at": time.time(), "finished_at": None,
+            "research_id": None, "step_results": {},
         }
     return task_id
 
@@ -61,14 +61,28 @@ def _make_progress_cb(task_id):
     return cb
 
 
+def _make_step_cb(task_id):
+    """创建步骤结果回调，每完成一步就存入 task"""
+    _STEP_LABELS = {
+        "business_model": "商业模式画布",
+        "value_chain": "产业链地图",
+        "financial": "财务分析",
+        "valuation": "估值分析",
+        "sector_heat": "板块热度",
+        "policy_impact": "政策与行业动向",
+    }
+    def cb(step_name, result_text):
+        with _tasks_lock:
+            task = _research_tasks.get(task_id)
+            if task and result_text and not result_text.startswith("分析失败"):
+                task["step_results"][step_name] = {
+                    "label": _STEP_LABELS.get(step_name, step_name),
+                    "content": result_text[:3000],  # 截断避免过大
+                }
+    return cb
+
+
 # ==================== 辅助函数 ====================
-
-def _get_sidebar_stocks():
-    """获取侧边栏股票列表：感兴趣 + 已持仓"""
-    interested = get_watchlist("interested") or []
-    holding = get_watchlist("holding") or []
-    return {"interested": interested, "holding": holding}
-
 
 def _get_stock_info(stock_code):
     """获取个股基本信息"""
@@ -84,55 +98,93 @@ def _get_stock_info(stock_code):
 
 
 def _get_latest_price(stock_code):
-    """获取最新行情"""
+    """获取最新行情（全部字段）"""
     rows = execute_query(
-        """SELECT close, change_pct, volume, amount, trade_date
-           FROM stock_daily WHERE stock_code=?
+        """SELECT * FROM stock_daily WHERE stock_code=?
            ORDER BY trade_date DESC LIMIT 1""",
         [stock_code],
     )
-    return rows[0] if rows else None
+    return dict(rows[0]) if rows else None
 
 
 def _get_kline_data(stock_code, days=120):
     """获取K线数据"""
     rows = execute_query(
-        """SELECT trade_date, open, high, low, close, volume
+        """SELECT trade_date, open, high, low, close, volume, amount
            FROM stock_daily WHERE stock_code=?
            ORDER BY trade_date DESC LIMIT ?""",
         [stock_code, days],
     )
-    return list(reversed(rows)) if rows else []
+    return [dict(r) for r in reversed(rows)] if rows else []
 
 
 def _get_knowledge_tags(stock_code):
-    """获取个股关联的知识标签"""
-    rows = execute_query(
-        """SELECT DISTINCT e.entity_name, e.entity_type
-           FROM kg_entities e
-           JOIN kg_relationships r ON e.id=r.source_entity_id OR e.id=r.target_entity_id
-           WHERE e.entity_name LIKE ? OR e.entity_type='stock'
-           LIMIT 20""",
-        [f"%{stock_code}%"],
-    )
-    if not rows:
-        # fallback: 从 item_companies 获取关联标签
-        rows2 = execute_query(
-            """SELECT DISTINCT ci.tags_json
-               FROM item_companies ic JOIN cleaned_items ci ON ic.cleaned_item_id=ci.id
-               WHERE ic.stock_code=?
-               ORDER BY ci.cleaned_at DESC LIMIT 20""",
-            [stock_code],
+    """获取个股关联的知识标签（三源聚合：行业/主题/选股）
+
+    Returns:
+        {
+            'core': [  # 行业标签 + 投资主题标签（全显示）
+                {'name': '半导体', 'type': 'industry'},
+                {'name': 'AI芯片', 'type': 'theme'},
+            ],
+            'more': [  # 选股标签（matched=1 的规则）
+                {'name': '均线多头排列', 'type': 'selection', 'category': '技术形态', 'layer': 1},
+            ],
+            'structured': {  # 结构化分类（供新模板使用）
+                'industry': [...], 'themes': [...], 'selection': [...]
+            }
+        }
+    """
+    try:
+        from tagging.stock_tag_service import get_stock_tags
+        result = get_stock_tags(stock_code)
+        display = result.to_display_dict()
+        core = (
+            [{"name": t, "type": "industry"} for t in result.industry_tags] +
+            [{"name": t, "type": "theme"} for t in result.theme_tags]
         )
-        tags = set()
-        for r in (rows2 or []):
-            try:
-                for t in json.loads(r["tags_json"] or "[]"):
-                    tags.add(t)
-            except (json.JSONDecodeError, TypeError):
-                pass
-        return [{"name": t, "type": "tag"} for t in list(tags)[:15]]
-    return [{"name": r["entity_name"], "type": r["entity_type"]} for r in rows]
+        more = [
+            {
+                "name": t.name, "type": "selection",
+                "category": t.category, "layer": t.layer,
+                "confidence": t.confidence,
+            }
+            for t in result.selection_tags
+        ]
+        return {"core": core, "more": more, "structured": display}
+    except Exception as e:
+        logger.warning(f"标签聚合失败，降级到旧逻辑: {e}")
+        rows = execute_query(
+            """SELECT DISTINCT e.entity_name, e.entity_type
+               FROM kg_entities e
+               JOIN kg_relationships r ON e.id=r.source_entity_id OR e.id=r.target_entity_id
+               WHERE e.entity_name LIKE %s OR e.entity_type='stock'
+               LIMIT 20""",
+            [f"%{stock_code}%"],
+        )
+        if not rows:
+            rows2 = execute_query(
+                """SELECT ci.tags_json
+                   FROM item_companies ic JOIN cleaned_items ci ON ic.cleaned_item_id=ci.id
+                   WHERE ic.stock_code=%s
+                   ORDER BY ci.cleaned_at DESC LIMIT 20""",
+                [stock_code],
+            )
+            tags = set()
+            for r in (rows2 or []):
+                try:
+                    for t in json.loads(r["tags_json"] or "[]"):
+                        tags.add(t)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return {
+                "core": [{"name": t, "type": "tag"} for t in list(tags)[:5]],
+                "more": [{"name": t, "type": "tag"} for t in list(tags)[5:10]],
+                "structured": {},
+            }
+        core = [{"name": r["entity_name"], "type": r["entity_type"]} for r in rows[:5]]
+        more = [{"name": r["entity_name"], "type": r["entity_type"]} for r in rows[5:10]]
+        return {"core": core, "more": more, "structured": {}}
 
 
 def _get_latest_research(stock_code):
@@ -151,16 +203,10 @@ def _get_latest_research(stock_code):
         "id": r["id"],
         "date": r["research_date"],
         "scores": {
-            "financial": r.get("financial_score", 0) or 0,
-            "valuation": r.get("valuation_score", 0) or 0,
-            "technical": r.get("technical_score", 0) or 0,
-            "sentiment": r.get("sentiment_score", 0) or 0,
-            "catalyst": r.get("catalyst_score", 0) or 0,
-            "risk": r.get("risk_score", 0) or 0,
             "overall": r.get("overall_score", 0) or 0,
         },
         "recommendation": r.get("recommendation", ""),
-        "report": report.get("report", report),
+        "report": report.get("report", report) if isinstance(report, dict) else report,
         "created_at": r.get("created_at", ""),
     }
 
@@ -188,10 +234,10 @@ def _get_related_news(stock_code, limit=10):
     )
 
 
-def _get_capital_flow(stock_code, limit=10):
+def _get_capital_flow(stock_code, limit=250):
     """获取资金流向"""
     return execute_query(
-        """SELECT trade_date, main_net_inflow, super_large_net, large_net
+        """SELECT trade_date, main_net_inflow, super_large_net, large_net, medium_net, small_net
            FROM capital_flow WHERE stock_code=?
            ORDER BY trade_date DESC LIMIT ?""",
         [stock_code, limit],
@@ -372,7 +418,7 @@ def _collect_followup_context(stock_code, tags, selected_sources, months=6):
             for n in news:
                 context_parts.append(
                     f"  [{n.get('sentiment','')}][{n.get('importance',0)}⭐] "
-                    f"{n.get('summary','')} ({n.get('cleaned_at','')[:10]})"
+                    f"{n.get('summary','')} ({str(n.get('cleaned_at',''))[:10]})"
                 )
             context_parts.append("")
 
@@ -415,65 +461,61 @@ def _collect_followup_context(stock_code, tags, selected_sources, months=6):
 # ==================== 路由 ====================
 
 @router.get("", response_class=HTMLResponse)
-async def stock_list(request: Request):
-    """个股研究首页 — 重定向到第一个持仓/关注股票，或显示空状态"""
-    sidebar = _get_sidebar_stocks()
-    first = None
-    if sidebar["holding"]:
-        first = sidebar["holding"][0]["stock_code"]
-    elif sidebar["interested"]:
-        first = sidebar["interested"][0]["stock_code"]
-    if first:
-        return RedirectResponse(url=f"/stock/{first}", status_code=302)
-    return templates.TemplateResponse("stock_detail.html", {
-        "request": request,
-        "active_page": "stock",
-        "sidebar": sidebar,
-        "stock": None,
-        "price": None,
-        "kline": [],
-        "tags": [],
-        "research": None,
-        "history": [],
-        "news": [],
-        "capital": [],
-    })
+def stock_list(request: Request):
+    """个股研究首页 — 重定向到自选页"""
+    return RedirectResponse(url="/portfolio", status_code=302)
 
 
 @router.get("/{stock_code}", response_class=HTMLResponse)
-async def stock_detail(request: Request, stock_code: str):
+def stock_detail(request: Request, stock_code: str):
     """个股详情页"""
-    sidebar = _get_sidebar_stocks()
+    # 先检查本地是否有数据，没有则从云端同步
+    from utils.db_utils import ensure_stock_data
+    sync_result = ensure_stock_data(stock_code, days=250)
+    if sync_result.get('synced'):
+        logger.info(f"已从云端同步 {stock_code} 数据: K线={sync_result.get('kline')}")
+
     stock = _get_stock_info(stock_code)
     price = _get_latest_price(stock_code)
-    kline = _get_kline_data(stock_code)
-    tags = _get_knowledge_tags(stock_code)
+    kline = _get_kline_data(stock_code, 250)
+    layered_tags = _get_knowledge_tags(stock_code)
     research = _get_latest_research(stock_code)
     history = _get_research_history(stock_code)
     news = _get_related_news(stock_code)
-    capital = _get_capital_flow(stock_code, 5)
+    capital = _get_capital_flow(stock_code, 250)
+
+    # 是否已在 watchlist
+    wl = execute_query("SELECT watch_type FROM watchlist WHERE stock_code=%s", [stock_code])
+    in_watchlist = wl[0]["watch_type"] if wl else None
+
+    # 为模板准备标签数据
+    core_tags = layered_tags.get('core', [])
+    more_tags = layered_tags.get('more', [])
 
     return templates.TemplateResponse("stock_detail.html", {
         "request": request,
         "active_page": "stock",
-        "sidebar": sidebar,
         "stock": stock,
         "stock_code": stock_code,
         "price": price,
         "kline": kline,
         "kline_json": json.dumps(kline, ensure_ascii=False, default=str),
-        "tags": tags,
+        "capital_json": json.dumps([dict(c) for c in reversed(capital)] if capital else [], ensure_ascii=False, default=str),
+        "tags": core_tags + more_tags,  # 兼容旧模板
+        "core_tags": core_tags,
+        "more_tags": more_tags,
+        "tags_json": json.dumps(core_tags + more_tags, ensure_ascii=False),
         "research": research,
         "history": history,
         "news": news,
         "capital": capital,
+        "in_watchlist": in_watchlist,
     })
 
 
 @router.get("/{stock_code}/report/{report_id}", response_class=HTMLResponse)
-async def stock_report(request: Request, stock_code: str, report_id: int):
+def stock_report(request: Request, stock_code: str, report_id: int):
     """深度研究报告页"""
-    sidebar = _get_sidebar_stocks()
     stock = _get_stock_info(stock_code)
     report = get_research_report(report_id)
     news = _get_related_news(stock_code, 8)
@@ -484,7 +526,6 @@ async def stock_report(request: Request, stock_code: str, report_id: int):
     return templates.TemplateResponse("stock_report.html", {
         "request": request,
         "active_page": "stock",
-        "sidebar": sidebar,
         "stock": stock,
         "stock_code": stock_code,
         "report": report,
@@ -493,9 +534,8 @@ async def stock_report(request: Request, stock_code: str, report_id: int):
 
 
 @router.get("/{stock_code}/followup", response_class=HTMLResponse)
-async def stock_followup(request: Request, stock_code: str):
+def stock_followup(request: Request, stock_code: str):
     """追踪研究配置页"""
-    sidebar = _get_sidebar_stocks()
     stock = _get_stock_info(stock_code)
     research = _get_latest_research(stock_code)
     tags = _get_all_stock_tags(stock_code)
@@ -516,7 +556,6 @@ async def stock_followup(request: Request, stock_code: str):
     return templates.TemplateResponse("stock_followup.html", {
         "request": request,
         "active_page": "stock",
-        "sidebar": sidebar,
         "stock": stock,
         "stock_code": stock_code,
         "research": research,
@@ -528,7 +567,7 @@ async def stock_followup(request: Request, stock_code: str):
 # ==================== API 操作 ====================
 
 @router.get("/api/research-tasks")
-async def get_research_tasks():
+def get_research_tasks():
     """获取所有研究任务状态"""
     now = time.time()
     with _tasks_lock:
@@ -537,10 +576,39 @@ async def get_research_tasks():
                  if v["finished_at"] and now - v["finished_at"] > 3600]
         for k in stale:
             del _research_tasks[k]
-        return list(_research_tasks.values())
+        # 返回摘要（不含 step_results 内容，减少传输量）
+        result = []
+        for t in _research_tasks.values():
+            item = {k: v for k, v in t.items() if k != "step_results"}
+            item["completed_steps"] = list(t.get("step_results", {}).keys())
+            result.append(item)
+        return result
+
+
+@router.get("/api/research-task/{task_id}")
+def get_research_task_detail(task_id: str):
+    """获取单个研究任务详情（含步骤结果）"""
+    with _tasks_lock:
+        task = _research_tasks.get(task_id)
+        if not task:
+            return JSONResponse({"error": "任务不存在"}, status_code=404)
+        return dict(task)
+
+@router.delete("/{stock_code}/report/{report_id}")
+def delete_report(stock_code: str, report_id: int):
+    """删除一条深度研究报告"""
+    row = execute_query(
+        "SELECT id FROM deep_research WHERE id=? AND target=?",
+        [report_id, stock_code],
+    )
+    if not row:
+        return JSONResponse({"error": "报告不存在"}, status_code=404)
+    execute_insert("DELETE FROM deep_research WHERE id=?", [report_id])
+    return JSONResponse({"ok": True})
+
 
 @router.post("/{stock_code}/run-research")
-async def run_research(stock_code: str, background_tasks: BackgroundTasks):
+def run_research(stock_code: str, background_tasks: BackgroundTasks):
     """触发深度研究（后台执行）"""
     from research.deep_researcher import deep_research_stock
 
@@ -548,32 +616,24 @@ async def run_research(stock_code: str, background_tasks: BackgroundTasks):
     stock_name = info[0]["stock_name"] if info else stock_code
     task_id = _create_research_task(stock_code, stock_name)
 
-    # 记录开始
-    research_id = execute_insert(
-        """INSERT INTO deep_research
-           (research_type, target, research_date, overall_score, recommendation)
-           VALUES ('stock', ?, date('now'), 0, '研究中...')""",
-        [stock_code],
-    )
-
     def _run():
         try:
-            result = deep_research_stock(stock_code, progress_callback=_make_progress_cb(task_id))
-            _update_research_task(task_id, status="done", progress=100,
-                                 message="研究完成", finished_at=time.time())
+            result = deep_research_stock(
+                stock_code,
+                progress_callback=_make_progress_cb(task_id),
+                step_callback=_make_step_cb(task_id),
+            )
+            rid = result.get("research_id")
             if result.get("error"):
-                execute_insert(
-                    "UPDATE deep_research SET recommendation=? WHERE id=?",
-                    [f"失败: {result['error']}", research_id],
-                )
-                _update_research_task(task_id, status="error",
-                                     message=f"失败: {result['error']}", finished_at=time.time())
+                _update_research_task(task_id, status="error", progress=100,
+                                     message=f"失败: {result['error']}",
+                                     finished_at=time.time(), research_id=rid)
+            else:
+                _update_research_task(task_id, status="done", progress=100,
+                                     message="研究完成", finished_at=time.time(),
+                                     research_id=rid)
         except Exception as e:
             logger.error(f"深度研究失败: {e}")
-            execute_insert(
-                "UPDATE deep_research SET recommendation=? WHERE id=?",
-                [f"异常: {e}", research_id],
-            )
             _update_research_task(task_id, status="error",
                                  message=f"异常: {e}", finished_at=time.time())
 
@@ -626,18 +686,30 @@ async def run_followup(request: Request, stock_code: str,
 
 @router.post("/add")
 async def add_stock(request: Request):
-    """添加股票到跟踪列表"""
+    """添加股票到跟踪列表（支持代码或名称搜索）"""
     form = await request.form()
-    code = form.get("stock_code", "").strip()
+    raw_input = form.get("stock_code", "").strip()
     name = form.get("stock_name", "").strip()
     wtype = form.get("watch_type", "interested")
+
+    code = raw_input
+    # 如果输入包含中文，按名称搜索 stock_info 查找对应代码
+    if raw_input and any('\u4e00' <= c <= '\u9fff' for c in raw_input):
+        rows = execute_query(
+            "SELECT stock_code, stock_name FROM stock_info WHERE stock_name LIKE ? LIMIT 5",
+            [f"%{raw_input}%"],
+        )
+        if rows:
+            code = rows[0]["stock_code"]
+            name = name or rows[0]["stock_name"]
+
     if code:
         add_to_watchlist(code, name or None, wtype)
     return RedirectResponse(url=f"/stock/{code}" if code else "/stock", status_code=303)
 
 
 @router.post("/{stock_code}/remove")
-async def remove_stock(stock_code: str):
+def remove_stock(stock_code: str):
     """从跟踪列表移除"""
     remove_from_watchlist(stock_code)
     return RedirectResponse(url="/stock", status_code=303)
@@ -650,3 +722,165 @@ async def update_type(request: Request, stock_code: str):
     wtype = form.get("watch_type", "interested")
     update_watch_type(stock_code, wtype)
     return RedirectResponse(url=f"/stock/{stock_code}", status_code=303)
+
+
+# ==================== 自动采集 ====================
+
+def _auto_fetch_stock_data(stock_code: str) -> dict:
+    """自动从 AKShare 采集个股 K 线 + 资金流 + 基本信息"""
+    import akshare as ak
+    from utils.db_utils import get_db
+    from datetime import timedelta
+
+    result = {"kline": 0, "capital": 0, "info": False, "errors": []}
+    start_date = (datetime.now() - timedelta(days=180)).strftime("%Y%m%d")
+
+    # 判断市场
+    is_hk = stock_code.startswith("HK.") or (len(stock_code) == 5 and stock_code.isdigit())
+    clean_code = stock_code.replace("HK.", "")
+
+    # 1. K 线
+    try:
+        if is_hk:
+            df = ak.stock_hk_hist(symbol=clean_code, period="daily",
+                                  start_date=start_date, adjust="qfq")
+        else:
+            df = ak.stock_zh_a_hist(symbol=clean_code, period="daily",
+                                    start_date=start_date, adjust="qfq")
+        if df is not None and not df.empty:
+            with get_db() as conn:
+                for _, row in df.iterrows():
+                    td = str(row.get("日期", ""))[:10]
+                    conn.execute(
+                        """REPLACE INTO stock_daily
+                           (stock_code, trade_date, open, high, low, close,
+                            volume, amount, turnover_rate, amplitude,
+                            change_pct, change_amount)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [clean_code, td, row.get("开盘"), row.get("最高"),
+                         row.get("最低"), row.get("收盘"), row.get("成交量"),
+                         row.get("成交额"), row.get("换手率"), row.get("振幅"),
+                         row.get("涨跌幅"), row.get("涨跌额")],
+                    )
+                    result["kline"] += 1
+    except Exception as e:
+        result["errors"].append(f"K线: {e}")
+
+    # 2. 资金流（仅 A 股）
+    if not is_hk:
+        try:
+            time.sleep(0.5)
+            market = "sh" if clean_code.startswith("6") else "sz"
+            df2 = ak.stock_individual_fund_flow(stock=clean_code, market=market)
+            if df2 is not None and not df2.empty:
+                with get_db() as conn:
+                    for _, row in df2.iterrows():
+                        td = str(row.get("日期", ""))[:10]
+                        conn.execute(
+                            """REPLACE INTO capital_flow
+                               (stock_code, trade_date, main_net_inflow,
+                                super_large_net, large_net, medium_net, small_net)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                            [clean_code, td,
+                             row.get("主力净流入-净额"), row.get("超大单净流入-净额"),
+                             row.get("大单净流入-净额"), row.get("中单净流入-净额"),
+                             row.get("小单净流入-净额")],
+                        )
+                        result["capital"] += 1
+        except Exception as e:
+            result["errors"].append(f"资金流: {e}")
+
+    # 3. 基本信息
+    if not is_hk:
+        try:
+            time.sleep(0.5)
+            df3 = ak.stock_individual_info_em(symbol=clean_code)
+            info = dict(zip(df3["item"], df3["value"]))
+            with get_db() as conn:
+                conn.execute(
+                    """UPDATE stock_info SET industry_l1=%s, market_cap=%s,
+                              total_shares=%s, float_shares=%s
+                       WHERE stock_code=%s""",
+                    [info.get("行业"), info.get("总市值"),
+                     info.get("总股本"), info.get("流通股"), clean_code],
+                )
+            result["info"] = True
+        except Exception:
+            pass  # 非关键
+
+    logger.info(f"自动采集 {stock_code}: K线{result['kline']} 资金流{result['capital']}")
+    return result
+
+
+@router.get("/{stock_code}/api/auto-fetch")
+def api_auto_fetch(stock_code: str):
+    """自动采集个股数据（前端检测无数据时调用）"""
+    # 先检查是否已有数据，避免重复采集
+    rows = execute_query(
+        "SELECT COUNT(*) as cnt FROM stock_daily WHERE stock_code=?",
+        [stock_code],
+    )
+    if rows and rows[0]["cnt"] > 0:
+        return JSONResponse({"status": "exists", "kline": rows[0]["cnt"]})
+
+    result = _auto_fetch_stock_data(stock_code)
+    return JSONResponse({
+        "status": "ok" if result["kline"] > 0 else "no_data",
+        **result,
+    })
+
+
+@router.post("/{stock_code}/api/toggle-watch")
+def api_toggle_watch(stock_code: str):
+    """切换关注状态"""
+    wl = execute_query("SELECT id FROM watchlist WHERE stock_code=?", [stock_code])
+    if wl:
+        remove_from_watchlist(stock_code)
+        return JSONResponse({"watched": False})
+    else:
+        info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=?", [stock_code])
+        name = info[0]["stock_name"] if info else ""
+        add_to_watchlist(stock_code, name, "interested")
+        return JSONResponse({"watched": True, "type": "interested"})
+
+
+@router.get("/{stock_code}/api/generate-tags")
+def api_generate_tags(stock_code: str):
+    """从三源聚合生成标签（行业/主题/选股）"""
+    try:
+        from tagging.stock_tag_service import get_stock_tags
+        result = get_stock_tags(stock_code)
+        core = (
+            [{"name": t, "type": "industry"} for t in result.industry_tags] +
+            [{"name": t, "type": "theme"} for t in result.theme_tags]
+        )
+        more = [
+            {"name": t.name, "type": "selection", "category": t.category, "layer": t.layer}
+            for t in result.selection_tags
+        ]
+        return JSONResponse({"core": core, "more": more})
+    except Exception as e:
+        logger.warning(f"generate-tags 失败 {stock_code}: {e}")
+        return JSONResponse({"core": [], "more": []})
+
+
+@router.post("/{stock_code}/api/save-tags")
+async def api_save_tags(request: Request, stock_code: str):
+    """保存标签到 watchlist.related_tags"""
+    body = await request.json()
+    tags = body.get("tags", [])
+    wl = execute_query("SELECT id FROM watchlist WHERE stock_code=?", [stock_code])
+    if wl:
+        execute_insert(
+            "UPDATE watchlist SET related_tags=? WHERE stock_code=?",
+            [json.dumps(tags, ensure_ascii=False), stock_code],
+        )
+    else:
+        info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=?", [stock_code])
+        name = info[0]["stock_name"] if info else ""
+        add_to_watchlist(stock_code, name, "interested")
+        execute_insert(
+            "UPDATE watchlist SET related_tags=? WHERE stock_code=?",
+            [json.dumps(tags, ensure_ascii=False), stock_code],
+        )
+    return JSONResponse({"ok": True, "count": len(tags)})

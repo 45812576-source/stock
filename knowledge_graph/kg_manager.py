@@ -8,7 +8,9 @@ logger = logging.getLogger(__name__)
 
 # ========== 实体操作 ==========
 
-def add_entity(entity_type, entity_name, description=None, properties=None, investment_logic=None):
+def add_entity(entity_type, entity_name, description=None, properties=None,
+               investment_logic=None, sub_type=None, aliases=None,
+               data_source=None, external_id=None):
     """添加实体（去重），返回实体ID"""
     # 先检查是否已存在
     existing = execute_query(
@@ -19,11 +21,15 @@ def add_entity(entity_type, entity_name, description=None, properties=None, inve
         return existing[0]["id"]
 
     eid = execute_insert(
-        """INSERT OR IGNORE INTO kg_entities (entity_type, entity_name, description, properties_json, investment_logic)
-           VALUES (?, ?, ?, ?, ?)""",
-        [entity_type, entity_name, description,
+        """INSERT IGNORE INTO kg_entities
+           (entity_type, sub_type, entity_name, aliases, description,
+            properties_json, investment_logic, data_source, external_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [entity_type, sub_type, entity_name,
+         json.dumps(aliases, ensure_ascii=False) if aliases else None,
+         description,
          json.dumps(properties, ensure_ascii=False) if properties else None,
-         investment_logic],
+         investment_logic, data_source, external_id],
     )
     if eid:
         _log_change(entity_id=eid, action="create",
@@ -112,8 +118,11 @@ def get_entity_count(entity_type=None):
 # ========== 关系操作 ==========
 
 def add_relationship(source_id, target_id, relation_type, strength=0.5,
-                     direction="positive", evidence=None, confidence=0.5):
-    """添加关系（检查重复）"""
+                     direction="positive", evidence=None, confidence=0.5,
+                     relation_category=None, time_lag=None, certainty=None,
+                     conditions=None, percentage=None, lead_period=None,
+                     properties_json=None, source_text=None):
+    """添加关系（检查重复），支持丰富属性"""
     existing = execute_query(
         """SELECT id FROM kg_relationships
            WHERE source_entity_id=? AND target_entity_id=? AND relation_type=?""",
@@ -122,8 +131,8 @@ def add_relationship(source_id, target_id, relation_type, strength=0.5,
     if existing:
         # 更新已有关系的强度（取较大值）
         execute_insert(
-            """UPDATE kg_relationships SET strength=MAX(strength, ?),
-               confidence=MAX(confidence, ?), updated_at=CURRENT_TIMESTAMP
+            """UPDATE kg_relationships SET strength=GREATEST(strength, ?),
+               confidence=GREATEST(confidence, ?), updated_at=CURRENT_TIMESTAMP
                WHERE id=?""",
             [strength, confidence, existing[0]["id"]],
         )
@@ -131,9 +140,13 @@ def add_relationship(source_id, target_id, relation_type, strength=0.5,
 
     rid = execute_insert(
         """INSERT INTO kg_relationships
-           (source_entity_id, target_entity_id, relation_type, strength, direction, evidence, confidence)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        [source_id, target_id, relation_type, strength, direction, evidence, confidence],
+           (source_entity_id, target_entity_id, relation_type, strength, direction,
+            evidence, confidence, relation_category, time_lag, certainty,
+            conditions, percentage, lead_period, properties_json, source_text)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        [source_id, target_id, relation_type, strength, direction,
+         evidence, confidence, relation_category, time_lag, certainty,
+         conditions, percentage, lead_period, properties_json, source_text],
     )
     if rid:
         _log_change(relationship_id=rid, action="create",
@@ -259,3 +272,52 @@ def get_update_log(limit=50):
     return execute_query(
         "SELECT * FROM kg_update_log ORDER BY updated_at DESC LIMIT ?", [limit]
     )
+
+
+# ========== 三元组数据来源 ==========
+
+def write_triple_source(
+    relationship_id: int,
+    source_entity_id: int,
+    target_entity_id: int,
+    source_type: str,          # 'content_summary' | 'extracted_text' | 'cleaned_item'
+    source_id: int,
+    source_title: str = None,
+    source_time=None,
+    extracted_text_id: int = None,
+) -> bool:
+    """记录三元组的数据来源（建表 + 写入）"""
+    # 建表（如不存在）
+    execute_insert("""
+        CREATE TABLE IF NOT EXISTS kg_triple_sources (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            relationship_id INT NOT NULL,
+            source_entity_id INT NOT NULL,
+            target_entity_id INT NOT NULL,
+            source_type ENUM('content_summary', 'extracted_text', 'cleaned_item') NOT NULL,
+            source_id INT NOT NULL,
+            source_title VARCHAR(500),
+            source_time DATETIME,
+            extracted_text_id INT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_rel_source (relationship_id, source_type, source_id),
+            KEY idx_relationship (relationship_id),
+            KEY idx_source (source_type, source_id),
+            KEY idx_source_entity (source_entity_id),
+            KEY idx_target_entity (target_entity_id)
+        )
+    """, [])
+
+    try:
+        execute_insert(
+            """INSERT IGNORE INTO kg_triple_sources
+               (relationship_id, source_entity_id, target_entity_id,
+                source_type, source_id, source_title, source_time, extracted_text_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            [relationship_id, source_entity_id, target_entity_id,
+             source_type, source_id, source_title, source_time, extracted_text_id],
+        )
+        return True
+    except Exception as e:
+        logger.warning(f"write_triple_source failed: {e}")
+        return False
