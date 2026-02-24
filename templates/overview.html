@@ -4,7 +4,7 @@
 
 {% block extra_styles %}
 /* ── Carousel: split layout ── */
-.wl-container { display: flex; gap: 12px; height: 50vh; min-height: 240px; max-height: 400px; }
+.wl-container { display: flex; gap: 12px; height: calc(100vh - 160px); min-height: 300px; }
 .wl-list { flex: 0 0 20%; overflow: hidden; position: relative; }
 .wl-list-inner { will-change: transform; animation: scroll-up-infinite 30s linear infinite; }
 .wl-list-inner:hover { animation-play-state: paused; }
@@ -104,6 +104,36 @@
       <!-- Tab Content -->
       <div class="flex-1 overflow-y-auto" id="ov-tab-content">
         <div id="tab-portfolio" class="ov-tab-pane active p-6">
+          <!-- 股票搜索置顶 -->
+          <div class="mb-2 flex gap-2 items-center">
+            <input type="text" id="ovStockSearch" placeholder="搜索股票代码、名称或标签..."
+                   class="flex-1 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none"
+                   onkeydown="if(event.key==='Enter') ovSearchStocks()">
+            <button onclick="ovSearchStocks()" id="ovSearchBtn"
+                    class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold flex items-center gap-1">
+              <span class="material-icons-round text-sm">search</span> 搜索
+            </button>
+            <!-- 标签组选择器 -->
+            <div class="relative">
+              <button onclick="ovToggleTagGroupPicker()"
+                      class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold flex items-center gap-1 border border-slate-700"
+                      title="选择标签组">
+                <span class="material-icons-round text-sm">label</span>
+              </button>
+              <div id="ovTagGroupDropdown" class="hidden absolute right-0 top-full mt-1 w-64 bg-slate-900 border border-slate-700 rounded-lg p-2 z-50 shadow-xl max-h-64 overflow-y-auto"></div>
+            </div>
+            <div class="relative">
+              <button onclick="document.getElementById('ovColDropdown').classList.toggle('hidden')"
+                      class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-sm font-bold flex items-center gap-1 border border-slate-700">
+                <span class="material-icons-round text-sm">view_column</span>
+              </button>
+              <div id="ovColDropdown" class="hidden absolute right-0 top-full mt-1 w-48 bg-slate-900 border border-slate-700 rounded-lg p-3 z-50 shadow-xl space-y-1.5"></div>
+            </div>
+          </div>
+          <!-- 已选标签 chips -->
+          <div id="ovTagChips" class="hidden flex flex-wrap gap-1.5 mb-2"></div>
+          <div id="ovSearchStatus" class="text-xs text-slate-500 mb-2 hidden"></div>
+          <div id="ovStockTable" class="overflow-x-auto mb-4 hidden"></div>
           {% if portfolio_holdings %}
           <div class="wl-container">
             <!-- 左侧：股票列表（自动滚动） -->
@@ -158,10 +188,12 @@
         </div>
         <div id="tab-capital" class="ov-tab-pane hidden p-6">
 
-          <!-- 指数卡片 -->
+          <!-- 指数卡片（置顶，点击切换走势图） -->
           <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4" id="capIndexCards">
             {% for idx in index_list %}
-            <div class="card p-3 hover:border-primary transition-colors cursor-pointer">
+            <div class="card p-3 hover:border-primary transition-colors cursor-pointer cap-idx-card {% if loop.first %}border-primary{% endif %}"
+                 data-code="{{ idx.code }}" data-name="{{ idx.name }}" data-color="{{ idx.color }}"
+                 onclick="selectIndex('{{ idx.code }}')">
               <div class="flex items-center justify-between mb-1">
                 <span class="text-[10px] font-bold text-slate-400">{{ idx.name }}</span>
                 <span class="w-1.5 h-1.5 rounded-full" style="background:{{ idx.color }}"></span>
@@ -170,6 +202,12 @@
               <span class="text-[10px] font-bold text-slate-500 cap-idx-pct" id="cap-pct-{{ idx.code }}">--</span>
             </div>
             {% endfor %}
+          </div>
+
+          <!-- 指数走势图（单条，跟随点击切换） -->
+          <div class="card p-3 mb-4">
+            <h4 class="text-[10px] font-bold text-slate-400 mb-2" id="capIndexTrendTitle">主要指数走势（近20日）</h4>
+            <div id="capIndexTrendChart" style="height:160px;"></div>
           </div>
 
           <!-- 行业资金热力图 + 解读 -->
@@ -193,12 +231,15 @@
               <div class="p-3 border-b border-border-dark flex items-center gap-2">
                 <span class="material-icons-round text-cyan-500 text-sm">insights</span>
                 <h4 class="font-bold text-xs">资金热度解读</h4>
+                <span class="text-[9px] text-slate-600 ml-auto">可拖拽到 AI 助理</span>
               </div>
               <div class="flex-1 p-3 insight-scroll overflow-y-auto">
                 {% if capital_insight %}
                 <div class="space-y-2">
                   {% for ins in capital_insight %}
-                  <div class="p-2 rounded-lg {{ 'bg-red-500/5 border border-red-500/10' if ins.sentiment == 'negative' else 'bg-green-500/5 border border-green-500/10' if ins.sentiment == 'positive' else 'bg-slate-500/5 border border-slate-500/10' }}">
+                  {% set drag_data = {'summary': ins.fact or ins.opinion or '', 'fact': ins.fact or '', 'opinion': ins.opinion or '', 'evidence': '', 'id': loop.index} | tojson %}
+                  <div class="p-2 rounded-lg cursor-grab {{ 'bg-red-500/5 border border-red-500/10' if ins.sentiment == 'negative' else 'bg-green-500/5 border border-green-500/10' if ins.sentiment == 'positive' else 'bg-slate-500/5 border border-slate-500/10' }}"
+                       draggable="true" data-foe="{{ drag_data | replace('"', '&quot;') | replace("'", '&#39;') }}">
                     <div class="flex items-center gap-2 mb-1">
                       <span class="text-[8px] font-bold px-1 py-0.5 rounded {{ 'bg-amber-500/20 text-amber-400' if ins.category == '宏观资金面' else 'bg-blue-500/20 text-blue-400' }}">{{ ins.category }}</span>
                     </div>
@@ -222,43 +263,43 @@
             <div class="card p-3"><h4 class="text-[10px] font-bold text-slate-400 mb-2">ETF 成交量</h4><div id="capEtfChart2" style="height:180px;"></div></div>
           </div>
         </div>
-        <div id="tab-news" class="ov-tab-pane hidden p-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div id="tab-news" class="ov-tab-pane hidden p-6 h-full">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 h-full" style="grid-template-rows: 1fr 1fr;">
             <!-- 宏观级 -->
-            <div class="card">
-              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+            <div class="card flex flex-col min-h-0">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2 flex-shrink-0">
                 <span class="material-icons-round text-blue-400 text-sm">public</span>
                 <h4 class="text-xs font-bold">宏观级</h4>
                 <span class="text-[9px] text-slate-600 ml-auto" id="news-macro-count">0</span>
               </div>
-              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-macro-list"></div>
+              <div class="p-3 flex-1 overflow-y-auto" id="news-macro-list"></div>
             </div>
             <!-- 行业级 -->
-            <div class="card">
-              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+            <div class="card flex flex-col min-h-0">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2 flex-shrink-0">
                 <span class="material-icons-round text-amber-400 text-sm">factory</span>
                 <h4 class="text-xs font-bold">行业级</h4>
                 <span class="text-[9px] text-slate-600 ml-auto" id="news-industry-count">0</span>
               </div>
-              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-industry-list"></div>
+              <div class="p-3 flex-1 overflow-y-auto" id="news-industry-list"></div>
             </div>
             <!-- 个股级 -->
-            <div class="card">
-              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+            <div class="card flex flex-col min-h-0">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2 flex-shrink-0">
                 <span class="material-icons-round text-green-400 text-sm">trending_up</span>
                 <h4 class="text-xs font-bold">个股级</h4>
                 <span class="text-[9px] text-slate-600 ml-auto" id="news-stock-count">0</span>
               </div>
-              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-stock-list"></div>
+              <div class="p-3 flex-1 overflow-y-auto" id="news-stock-list"></div>
             </div>
             <!-- 风险聚焦 -->
-            <div class="card">
-              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2">
+            <div class="card flex flex-col min-h-0">
+              <div class="px-3 py-2 border-b border-border-dark flex items-center gap-2 flex-shrink-0">
                 <span class="material-icons-round text-red-400 text-sm">warning</span>
                 <h4 class="text-xs font-bold">风险聚焦</h4>
                 <span class="text-[9px] text-slate-600 ml-auto" id="news-risk-count">0</span>
               </div>
-              <div class="p-3 max-h-[60vh] overflow-y-auto" id="news-risk-list"></div>
+              <div class="p-3 flex-1 overflow-y-auto" id="news-risk-list"></div>
             </div>
           </div>
         </div>
@@ -301,6 +342,19 @@
 
   </div>
 </div>
+
+<!-- ── 加入Portfolio 弹窗 ── -->
+<div id="ovAddStockModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+  <div class="bg-slate-900 border border-border-dark rounded-xl p-5 w-80 shadow-2xl">
+    <h3 class="text-sm font-bold mb-3">加入 Portfolio</h3>
+    <p class="text-xs text-slate-400 mb-3">股票：<span id="ovAddStockLabel" class="text-white font-mono"></span></p>
+    <div id="ovPortfolioList" class="space-y-1.5 max-h-48 overflow-y-auto mb-3"></div>
+    <div class="flex gap-2">
+      <button onclick="ovAddStockNewPortfolio()" class="flex-1 text-xs py-2 rounded-lg bg-slate-700 hover:bg-slate-600 transition">+ 新建</button>
+      <button onclick="document.getElementById('ovAddStockModal').classList.add('hidden')" class="flex-1 text-xs py-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition text-slate-400">取消</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -322,14 +376,31 @@
   function escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
   function renderFoeList(items, label) {
-    if (!items || !items.length) return '<p class="text-[9px] text-slate-600">暂无' + label + '</p>';
+    if (!items || !items.length) return '<p class="text-[9px] text-slate-600 py-2">暂无' + label + '</p>';
     var html = '';
     items.forEach(function(item) {
       var summary = item.summary || item.fact_summary || '';
-      var dragData = JSON.stringify({summary: summary, fact: item.fact_summary||'', opinion: item.opinion_summary||'', evidence: item.evidence_assessment||'', id: item.id});
-      html += '<div class="foe-card-mini mb-2 p-2 bg-slate-800/40 rounded-lg cursor-grab hover:bg-slate-800/60 transition" draggable="true" data-foe=\'' + escHtml(dragData) + '\'>';
-      html += '<p class="text-[10px] text-slate-300 leading-relaxed line-clamp-2">' + escHtml(summary.slice(0, 120)) + '</p>';
-      if (item.doc_type) html += '<span class="text-[8px] text-slate-600 mt-1 inline-block">' + escHtml(item.doc_type) + '</span>';
+      var fact = item.fact_summary || item.fact || '';
+      var opinion = item.opinion_summary || item.opinion || '';
+      var evidence = item.evidence_assessment || item.evidence || '';
+      var dragData = JSON.stringify({summary: summary, fact: fact, opinion: opinion, evidence: evidence, id: item.id});
+      var escapedDrag = dragData.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+      var docType = item.doc_type || item.event_type || '';
+      var iconMap = {company_event:'business',earnings:'bar_chart',research_report:'description',industry_news:'factory',macro_policy:'public',market:'trending_up'};
+      var icon = iconMap[docType] || 'article';
+      html += '<div class="foe-card card mb-2 overflow-hidden" draggable="true" data-foe=\'' + escapedDrag + '\'>';
+      html += '<div class="foe-summary flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-slate-800/40 transition-colors" onclick="toggleFoeCard(this)">';
+      html += '<span class="material-icons-round text-slate-500 text-sm flex-shrink-0 mt-0.5">' + icon + '</span>';
+      html += '<p class="flex-1 text-[11px] text-slate-200 leading-snug line-clamp-2">' + escHtml(summary) + '</p>';
+      if (docType) html += '<span class="text-[8px] px-1 py-0.5 rounded bg-slate-700/60 text-slate-400 flex-shrink-0">' + escHtml(docType) + '</span>';
+      html += '<span class="material-icons-round foe-chevron text-slate-500 text-sm transition-transform flex-shrink-0">expand_more</span>';
+      html += '</div>';
+      html += '<div class="foe-detail hidden border-t border-slate-800 px-3 py-2 space-y-1">';
+      if (fact) html += '<div><span class="text-[9px] font-bold text-amber-400">事实</span><p class="text-[10px] text-slate-300 mt-0.5">' + escHtml(fact) + '</p></div>';
+      if (opinion) html += '<div><span class="text-[9px] font-bold text-blue-400">观点</span><p class="text-[10px] text-slate-300 mt-0.5">' + escHtml(opinion) + '</p></div>';
+      if (evidence) html += '<div><span class="text-[9px] font-bold text-emerald-400">证据</span><p class="text-[10px] text-slate-400 mt-0.5">' + escHtml(evidence) + '</p></div>';
+      if (!fact && !opinion && !evidence && summary) html += '<p class="text-[10px] text-slate-300">' + escHtml(summary) + '</p>';
+      html += '</div>';
       html += '</div>';
     });
     return html;
@@ -349,7 +420,7 @@
     if (chgStr) html += '<span class="text-sm font-bold ' + chgClass + '">' + chgStr + '</span>';
     html += '</div>';
 
-    html += '<div class="grid grid-cols-3 gap-3 max-h-[calc(100%-40px)] overflow-y-auto">';
+    html += '<div class="flex flex-col gap-3 overflow-y-auto max-h-[calc(100%-40px)]">';
     html += '<div><div class="text-[10px] text-amber-400 font-bold mb-2">▸ 公司新闻/研报</div>' + renderFoeList(s.company_news, '公司新闻') + '</div>';
     html += '<div><div class="text-[10px] text-blue-400 font-bold mb-2">▸ 产业/行业</div>' + renderFoeList(s.industry_news, '行业新闻') + '</div>';
     html += '<div><div class="text-[10px] text-cyan-400 font-bold mb-2">▸ 宏观</div>' + renderFoeList(s.macro_news, '宏观新闻') + '</div>';
@@ -403,6 +474,8 @@ function bindDragEvents() {
       document.getElementById('chatContext').classList.remove('hidden');
       document.getElementById('ovChatInput').focus();
       document.getElementById('ovChatInput').placeholder = '针对这条新闻提问...';
+      // 立即显示 context 预览气泡
+      appendOvChatMsg('user', '', null, false, ctx);
     } catch(err) { console.error('Drop parse error:', err); }
   });
 })();
@@ -415,11 +488,99 @@ window.switchOvTab = function(tab) {
     p.classList.toggle('hidden', p.id !== 'tab-' + tab);
   });
   if (tab === 'capital' && !window._capitalLoaded) { window._capitalLoaded = true; loadCapitalTab(); }
+  else if (tab === 'capital') {
+    // 重新触发 Plotly resize，修复 tab 切换后图表尺寸错乱
+    setTimeout(function() {
+      ['capIndexTrendChart','capFlowChart','capMarginChart2','capSouthChart2','capEtfChart2'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && el.data) Plotly.Plots.resize(el);
+      });
+    }, 50);
+  }
   if (tab === 'news' && !window._newsLoaded) { window._newsLoaded = true; loadNewsTab(); }
 };
+// ── 指数数据缓存 + 切换逻辑 ──
+var _indexData = [];
+var _activeIndexCode = null;
+
+window.selectIndex = function(code) {
+  _activeIndexCode = code;
+  document.querySelectorAll('.cap-idx-card').forEach(function(el) {
+    el.classList.toggle('border-primary', el.dataset.code === code);
+    el.classList.toggle('border-border-dark', el.dataset.code !== code);
+  });
+  loadIndexKlineChart(code);
+};
+
+async function loadIndexKlineChart(code) {
+  var el = document.getElementById('capIndexTrendChart');
+  var titleEl = document.getElementById('capIndexTrendTitle');
+  var idx = _indexData.find(function(d) { return d.code === code; });
+  if (titleEl && idx) titleEl.textContent = idx.name + ' K线（近60日）';
+  try {
+    var data = await fetch('/market/api/index-chart?code=' + code + '&days=60').then(function(r){return r.json();});
+    if (!data.dates || !data.dates.length) { el.innerHTML = '<p class="text-xs text-slate-600 text-center py-8">暂无数据</p>'; return; }
+    var dates = data.dates;
+    var ohlc = data.ohlc;
+    var closes = ohlc.map(function(d){return d[3];});
+
+    function sma(arr, n) {
+      return arr.map(function(_, i) {
+        if (i < n-1) return null;
+        var s = 0; for (var j=i-n+1;j<=i;j++) s+=arr[j]; return +(s/n).toFixed(3);
+      });
+    }
+    var ma5 = sma(closes,5), ma20 = sma(closes,20), ma60 = sma(closes,60);
+
+    var candlestick = {
+      x: dates, open: ohlc.map(function(d){return d[0];}),
+      high: ohlc.map(function(d){return d[1];}), low: ohlc.map(function(d){return d[2];}),
+      close: closes, type: 'candlestick', name: 'K线',
+      increasing: {line:{color:'#ef4444'},fillcolor:'#ef4444'},
+      decreasing: {line:{color:'#10b981'},fillcolor:'#10b981'},
+      xaxis:'x', yaxis:'y',
+    };
+    var mkLine = function(ma, name, color) {
+      return {x:dates, y:ma, type:'scatter', mode:'lines', name:name,
+              line:{color:color,width:1}, xaxis:'x', yaxis:'y'};
+    };
+
+    // 副图：资金流（从已加载的 capFlowChart 数据复用，或单独请求）
+    var volTraces = [];
+    if (data.volume && data.volume.length) {
+      volTraces = [{
+        x: dates, y: data.volume.map(function(v){return v/1e8;}),
+        type:'bar', name:'成交量(亿)',
+        marker:{color: closes.map(function(c,i){return i===0||c>=ohlc[i-1][0]?'rgba(239,68,68,0.5)':'rgba(16,185,129,0.5)'})},
+        xaxis:'x', yaxis:'y2',
+      }];
+    }
+
+    var layout = {
+      margin:{t:5,b:30,l:55,r:10},
+      paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#94a3b8',size:9},
+      xaxis:{gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:8},
+             rangebreaks:[{bounds:['sat','mon']}], rangeslider:{visible:false}},
+      yaxis:{gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:8}, domain:[0.28,1]},
+      yaxis2:{gridcolor:'rgba(100,116,139,0.05)', tickfont:{size:7}, domain:[0,0.25], showticklabels:true},
+      showlegend:true,
+      legend:{font:{size:8}, orientation:'h', x:0, y:1.02, xanchor:'left'},
+      hovermode:'x unified',
+    };
+
+    Plotly.newPlot('capIndexTrendChart',
+      [candlestick, mkLine(ma5,'MA5','#f59e0b'), mkLine(ma20,'MA20','#3b82f6'), mkLine(ma60,'MA60','#8b5cf6')].concat(volTraces),
+      layout, {displayModeBar:false, responsive:true});
+  } catch(e) { console.error('K线图加载失败:', e); }
+};
+
 async function loadCapitalTab() {
   try {
     var data = await fetch('/market/api/indices?days=20').then(function(r) { return r.json(); });
+    _indexData = data;
+
+    // 填充指数卡片数值
     for (var i = 0; i < data.length; i++) {
       var idx = data[i];
       var priceEl = document.getElementById('cap-idx-' + idx.code);
@@ -430,7 +591,16 @@ async function loadCapitalTab() {
         pctEl.className = 'text-[10px] font-bold cap-idx-pct ' + (idx.change_pct >= 0 ? 'text-red-400' : 'text-emerald-400');
       }
     }
-  } catch(e) {}
+
+    // 默认显示第一个指数
+    if (data.length > 0) {
+      _activeIndexCode = data[0].code;
+      selectIndex(data[0].code);
+    }
+  } catch(e) { console.error('loadCapitalTab index error:', e); }
+
+  // 绑定 insight 卡片拖拽
+  bindDragEvents();
 
   var qs = '?start=' + new Date(Date.now() - 30*86400000).toISOString().slice(0,10) + '&end=' + new Date().toISOString().slice(0,10);
   loadCapChart('/market/api/capital/market-flow' + qs, 'capFlowChart', 'flow');
@@ -443,8 +613,9 @@ async function loadCapChart(url, elId, type) {
   try {
     var data = await fetch(url).then(function(r) { return r.json(); });
     if (!data || (Array.isArray(data) && !data.length) || (!Array.isArray(data) && !Object.keys(data).length)) return;
+    var xaxis = {gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:8}, rangebreaks:[{bounds:['sat','mon']}]};
     var plotOpts = { margin:{t:5,b:25,l:45,r:10}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
-                     font:{color:'#94a3b8',size:9}, xaxis:{gridcolor:'rgba(100,116,139,0.1)'},
+                     font:{color:'#94a3b8',size:9}, xaxis: xaxis,
                      yaxis:{gridcolor:'rgba(100,116,139,0.1)'}, showlegend:false };
     if (type === 'flow') {
       var dates = data.map(function(d){return d.trade_date;}), amounts = data.map(function(d){return d.total_amount/1e8;}), nets = data.map(function(d){return d.main_net/1e8;});
@@ -472,20 +643,35 @@ async function loadCapChart(url, elId, type) {
   } catch(e) { console.error('Cap chart load failed:', type, e); }
 }
 async function loadNewsTab() {
+  var listIds = ['news-macro-list','news-industry-list','news-stock-list','news-risk-list'];
+  listIds.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = '<p class="text-[9px] text-slate-500 text-center py-4 animate-pulse">加载中...</p>';
+  });
   try {
-    var data = await fetch('/overview/api/news-feed?days=3').then(function(r) { return r.json(); });
+    var resp = await fetch('/overview/api/news-feed?days=7');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    var data = await resp.json();
     renderNewsList('news-macro-list', 'news-macro-count', data.macro || []);
     renderNewsList('news-industry-list', 'news-industry-count', data.industry || []);
     renderNewsList('news-stock-list', 'news-stock-count', data.stock || []);
     renderNewsList('news-risk-list', 'news-risk-count', data.risk || []);
     bindDragEvents();
-  } catch(e) { console.error('News feed load failed:', e); }
+  } catch(e) {
+    console.error('News feed load failed:', e);
+    window._newsLoaded = false;  // allow retry on next tab click
+    listIds.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = '<p class="text-[9px] text-red-500 text-center py-4">加载失败，请重新点击标签页重试</p>';
+    });
+  }
 }
 
 function renderNewsList(listId, countId, items) {
   document.getElementById(countId).textContent = items.length + '条';
   var el = document.getElementById(listId);
   if (!items.length) { el.innerHTML = '<p class="text-[9px] text-slate-600 text-center py-4">暂无</p>'; return; }
+  var iconMap = {macro_policy:'public',market:'trending_up',industry_news:'factory',company_event:'business',earnings:'bar_chart',research_report:'description',announcement:'campaign',feature_news:'article',flash_news:'bolt'};
 
   el.innerHTML = items.map(function(item) {
     var summary = item.summary || item.fact_summary || '';
@@ -496,11 +682,13 @@ function renderNewsList(listId, countId, items) {
     });
     var importanceBadge = item.importance ? '<span class="text-[8px] px-1 py-0.5 rounded bg-primary/20 text-primary">' + item.importance + '</span>' : '';
     var timeBadge = item.publish_time ? '<span class="text-[8px] text-slate-600">' + item.publish_time.slice(0, 10) + '</span>' : '';
-    var docBadge = item.doc_type ? '<span class="text-[8px] px-1 py-0.5 rounded bg-slate-700/60 text-slate-400">' + item.doc_type + '</span>' : '';
+    var typeLabel = item.event_type || item.doc_type || '';
+    var docBadge = typeLabel ? '<span class="text-[8px] px-1 py-0.5 rounded bg-slate-700/60 text-slate-400">' + typeLabel + '</span>' : '';
 
     return '<div class="foe-card card mb-2 overflow-hidden" draggable="true" data-foe=\'' + _escAttr(dragData) + '\'>' +
       '<div class="foe-summary flex items-start gap-2 px-3 py-2 cursor-pointer hover:bg-slate-800/40 transition-colors" onclick="toggleFoeCard(this)">' +
-        '<p class="flex-1 text-[11px] text-slate-200 leading-snug line-clamp-2">' + _escHtml(summary) + '</p>' +
+        '<span class="material-icons-round text-slate-500 text-sm flex-shrink-0 mt-0.5">' + (iconMap[item.event_type||'']||'article') + '</span>' +
+        '<p class="flex-1 text-[11px] text-slate-200 leading-snug line-clamp-1">' + _escHtml(summary) + '</p>' +
         '<div class="flex items-center gap-1 flex-shrink-0">' + importanceBadge + docBadge + timeBadge +
           '<span class="material-icons-round foe-chevron text-slate-500 text-sm transition-transform">expand_more</span>' +
         '</div>' +
@@ -524,11 +712,40 @@ function _escAttr(s) { return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;'); 
 function likeToHotspot(newsId) { showToast && showToast('已收藏到热点（待实现完整逻辑）'); }
 function linkToPortfolio(newsId) { showToast && showToast('关联项目（待实现完整逻辑）'); }
 
-// ── Chat 发送 + 轮询 ──
-var _ovChatProjectId = 1;
-var _ovChatPollTimer = null;
+// ── Chat 发送 ──
+var _ovChatHistory = [];  // 保留最近30轮对话
 
-function appendOvChatMsg(role, text, id, isPending) {
+// 渲染 assistant 回复：解析股票代码为可点击加号按钮
+function _renderChatReply(text) {
+  var html = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+  // 匹配A股代码（6位，0/3/6开头），先用代码占位，异步查名称
+  html = html.replace(/\b([036]\d{5})\b/g, function(match, code) {
+    return '<button class="inline-flex items-center gap-0.5 px-1 py-0.5 rounded bg-primary/15 border border-primary/30 text-blue-400 text-[10px] font-mono hover:bg-primary/30 transition" onclick="ovAddStockPrompt(\'' + code + '\',this.dataset.name||this.dataset.code)" data-code="' + code + '" data-name="' + code + '" title="加入Portfolio">' + code + '<span class="material-icons-round text-[10px]">add_circle</span></button>';
+  });
+  return html;
+}
+
+// 异步填充股票名称到已渲染的按钮
+function _fillStockNames(container) {
+  var btns = container.querySelectorAll('button[data-code]');
+  btns.forEach(function(btn) {
+    var code = btn.dataset.code;
+    if (btn.dataset.name !== code) return; // 已有名称
+    fetch('/overview/api/stock-name/' + code)
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.name && d.name !== code) {
+          btn.dataset.name = d.name;
+          btn.childNodes[0].textContent = d.name + '(' + code + ')';
+        }
+      })
+      .catch(function() {});
+  });
+}
+
+function appendOvChatMsg(role, text, id, isPending, newsContext, recs) {
   var el = document.getElementById('ovChatMessages');
   var msgId = id ? ' id="msg-' + id + '"' : '';
   var cls = role === 'user' ? 'chat-msg chat-msg-user' : 'chat-msg';
@@ -537,10 +754,36 @@ function appendOvChatMsg(role, text, id, isPending) {
     : 'chat-bubble bg-slate-800/60 border border-slate-700 rounded-xl rounded-bl-sm';
   var html = '<div class="' + cls + '"' + msgId + '><div class="' + bubbleCls + '">';
   if (isPending) html += '<span class="material-icons-round text-xs animate-spin text-primary mr-1">refresh</span>';
-  html += '<span class="text-xs text-slate-300 whitespace-pre-wrap">' + _escHtml(text) + '</span>';
+  // 用户消息：如果有新闻上下文，先显示新闻摘要卡片
+  if (role === 'user' && newsContext) {
+    html += '<div class="mb-1.5 p-1.5 bg-slate-900/60 rounded border border-slate-700/50 text-[9px] text-slate-400 line-clamp-2">' + _escHtml(newsContext.slice(0, 120)) + (newsContext.length > 120 ? '...' : '') + '</div>';
+  }
+  if (role === 'assistant' && !isPending) {
+    html += '<span class="text-xs text-slate-300">' + _renderChatReply(text) + '</span>';
+    // 推荐股票卡片
+    if (recs && recs.length) {
+      html += '<div class="mt-2 space-y-1">';
+      for (var i = 0; i < recs.length; i++) {
+        var r = recs[i];
+        html += '<div class="flex items-center gap-1.5 p-1.5 bg-slate-900/60 rounded border border-slate-700/50">' +
+          '<span class="font-mono text-[10px] text-primary/70">' + _escHtml(r.stock_code) + '</span>' +
+          '<span class="text-[11px] font-semibold text-white">' + _escHtml(r.stock_name) + '</span>' +
+          '<button onclick="ovAddStockPrompt(\'' + r.stock_code + '\',\'' + (r.stock_name || '').replace(/'/g, "\\'") + '\')" class="ml-auto flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/20 border border-primary/30 text-primary text-[10px] font-bold hover:bg-primary/40 transition"><span class="material-icons-round text-[11px]">add</span>加入</button>' +
+          (r.reason ? '<p class="text-[9px] text-slate-400 w-full mt-0.5">' + _escHtml(r.reason) + '</p>' : '') +
+          '</div>';
+      }
+      html += '</div>';
+    }
+  } else {
+    html += '<span class="text-xs text-slate-300 whitespace-pre-wrap pending-text">' + _escHtml(text) + '</span>';
+  }
   html += '</div></div>';
   el.insertAdjacentHTML('beforeend', html);
   el.scrollTop = el.scrollHeight;
+  // 异步填充股票名称
+  if (role === 'assistant' && !isPending) {
+    _fillStockNames(el.lastElementChild);
+  }
 }
 
 async function sendOvChat() {
@@ -549,55 +792,50 @@ async function sendOvChat() {
   if (!msg) return;
 
   var fullMsg = msg;
+  var newsCtx = null;
   if (window._chatContextData) {
-    fullMsg = '以下是一条新闻的结构化信息：\n' + window._chatContextData + '\n\n我的问题：' + msg;
+    newsCtx = window._chatContextData;
+    fullMsg = '以下是一条新闻的结构化信息：\n' + newsCtx + '\n\n我的问题：' + msg;
     clearChatContext();
   }
 
+  // 记录用户消息到历史
+  _ovChatHistory.push({role: 'user', content: fullMsg});
+  if (_ovChatHistory.length > 60) _ovChatHistory = _ovChatHistory.slice(-60);
+
   input.value = '';
   input.placeholder = '输入问题...';
-  appendOvChatMsg('user', msg);
+  appendOvChatMsg('user', msg, null, false, newsCtx);
 
   var pendingId = 'pending-' + Date.now();
   appendOvChatMsg('assistant', '思考中...', pendingId, true);
 
   try {
-    var resp = await fetch('/portfolio/api/projects/' + _ovChatProjectId + '/chat', {
+    var controller = new AbortController();
+    var timeout = setTimeout(function() { controller.abort(); }, 120000);
+    var resp = await fetch('/overview/api/chat/send', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: fullMsg}),
+      body: JSON.stringify({message: fullMsg, history: _ovChatHistory.slice(-60)}),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     var data = await resp.json();
+    var el = document.getElementById('msg-' + pendingId);
     if (!data.ok) {
-      var el = document.getElementById('msg-' + pendingId);
-      if (el) el.querySelector('span:last-child').textContent = '发送失败: ' + (data.error || '');
+      if (el) el.querySelector('.pending-text').textContent = '发送失败: ' + (data.error || '');
       return;
     }
+    if (el) el.remove();
+    // 记录 AI 回复到历史
+    _ovChatHistory.push({role: 'assistant', content: data.reply});
+    if (_ovChatHistory.length > 60) _ovChatHistory = _ovChatHistory.slice(-60);
+    appendOvChatMsg('assistant', data.reply, null, false, null, data.recommendations || []);
   } catch(e) {
     var el = document.getElementById('msg-' + pendingId);
-    if (el) el.querySelector('span:last-child').textContent = '网络错误';
-    return;
+    var errMsg = e.name === 'AbortError' ? 'AI 响应超时（>2分钟），请重试' : ('请求失败: ' + e.message);
+    if (el) el.querySelector('.pending-text').textContent = errMsg;
   }
-
-  if (_ovChatPollTimer) clearInterval(_ovChatPollTimer);
-  _ovChatPollTimer = setInterval(async function() {
-    try {
-      var resp = await fetch('/portfolio/api/projects/' + _ovChatProjectId + '/chat/poll');
-      var data = await resp.json();
-      if (data.reply) {
-        clearInterval(_ovChatPollTimer);
-        _ovChatPollTimer = null;
-        var el = document.getElementById('msg-' + pendingId);
-        if (el) el.remove();
-        appendOvChatMsg('assistant', data.reply);
-      } else if (data.status === 'error') {
-        clearInterval(_ovChatPollTimer);
-        _ovChatPollTimer = null;
-        var el = document.getElementById('msg-' + pendingId);
-        if (el) el.querySelector('span:last-child').textContent = '回复失败';
-      }
-    } catch(e) {}
-  }, 2000);
 }
 function clearChatContext() {
   document.getElementById('chatContext').classList.add('hidden');
@@ -613,6 +851,177 @@ function toggleFoeCard(summaryEl) {
   detail.classList.toggle('hidden');
   chevron.style.transform = detail.classList.contains('hidden') ? '' : 'rotate(180deg)';
 }
+
+// ── Portfolio 股票搜索 ──
+var _ovSearchCols = null;
+var _ovSearchData = [];
+var _ovSortKey = 'change_pct', _ovSortDir = -1;
+var OV_COLUMNS = [
+  {key:'stock_code',label:'代码',default:true},{key:'stock_name',label:'名称',default:true},
+  {key:'industry',label:'行业',default:true},{key:'latest_price',label:'最新价',default:true,fmt:'price'},
+  {key:'change_pct',label:'涨跌幅%',default:true,fmt:'pct'},{key:'market_cap',label:'市值(亿)',default:false,fmt:'num'},
+  {key:'main_net_inflow',label:'主力净流入',default:false,fmt:'amt'},
+];
+function _ovGetCols() {
+  try { return JSON.parse(localStorage.getItem('ov_search_cols')) || OV_COLUMNS.filter(c=>c.default).map(c=>c.key); }
+  catch(e) { return OV_COLUMNS.filter(c=>c.default).map(c=>c.key); }
+}
+function _ovInitColDropdown() {
+  var dd = document.getElementById('ovColDropdown');
+  if (!dd) return;
+  _ovSearchCols = _ovGetCols();
+  dd.innerHTML = OV_COLUMNS.map(function(c) {
+    return '<label class="flex items-center gap-2 text-xs text-slate-300 hover:text-white py-0.5 cursor-pointer">' +
+      '<input type="checkbox" ' + (_ovSearchCols.includes(c.key)?'checked':'') + ' onchange="ovToggleCol(\'' + c.key + '\',this.checked)" class="w-3.5 h-3.5 rounded">' +
+      c.label + '</label>';
+  }).join('');
+}
+function ovToggleCol(key, on) {
+  if (!_ovSearchCols) _ovSearchCols = _ovGetCols();
+  if (on && !_ovSearchCols.includes(key)) _ovSearchCols.push(key);
+  if (!on) _ovSearchCols = _ovSearchCols.filter(function(k){return k!==key;});
+  localStorage.setItem('ov_search_cols', JSON.stringify(_ovSearchCols));
+  _ovRenderTable();
+}
+function _ovFmtCell(val, fmt) {
+  if (val == null || val === '') return '<span class="text-slate-700">--</span>';
+  if (fmt === 'pct') { var cls = val>=0?'text-red-400':'text-emerald-400'; return '<span class="'+cls+' font-bold">'+(val>=0?'+':'')+val.toFixed(2)+'%</span>'; }
+  if (fmt === 'price') return '<span class="text-white font-bold">'+val.toFixed(2)+'</span>';
+  if (fmt === 'amt') return typeof val==='number'?(Math.abs(val)>=1e8?(val/1e8).toFixed(2)+'亿':(val/1e4).toFixed(0)+'万'):val;
+  if (fmt === 'num') return typeof val==='number'?val.toFixed(2):val;
+  return val;
+}
+function _ovRenderTable() {
+  var tableEl = document.getElementById('ovStockTable');
+  if (!tableEl || !_ovSearchData.length) return;
+  var cols = OV_COLUMNS.filter(function(c){return (_ovSearchCols||[]).includes(c.key);});
+  var sorted = _ovSearchData.slice().sort(function(a,b){
+    var va=a[_ovSortKey],vb=b[_ovSortKey];
+    if(va==null&&vb==null)return 0; if(va==null)return 1; if(vb==null)return -1;
+    return (va>vb?1:va<vb?-1:0)*_ovSortDir;
+  });
+  var html = '<table class="w-full text-xs"><thead><tr class="border-b border-slate-800">';
+  cols.forEach(function(c){
+    var arrow = _ovSortKey===c.key?(_ovSortDir>0?' ↑':' ↓'):'';
+    html += '<th class="px-3 py-2 text-left text-slate-500 font-bold cursor-pointer hover:text-white whitespace-nowrap" onclick="ovSortBy(\''+c.key+'\')">'+c.label+arrow+'</th>';
+  });
+  html += '</tr></thead><tbody>';
+  sorted.forEach(function(row){
+    html += '<tr class="border-b border-slate-800/50 hover:bg-slate-800/30 cursor-pointer" onclick="window.location=\'/stock/'+row.stock_code+'\'">';
+    cols.forEach(function(c){
+      var lnk = (c.key==='stock_code'||c.key==='stock_name')?' text-blue-400 hover:underline':'';
+      html += '<td class="px-3 py-2 whitespace-nowrap'+lnk+'">'+_ovFmtCell(row[c.key],c.fmt)+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  tableEl.innerHTML = html;
+  tableEl.classList.remove('hidden');
+}
+function ovSortBy(key) {
+  if (_ovSortKey===key) _ovSortDir*=-1; else {_ovSortKey=key;_ovSortDir=-1;}
+  _ovRenderTable();
+}
+// ── 标签组多选 ──
+var _ovSelectedTags = [];  // 已选标签列表
+var _ovTagGroups = [];     // 所有标签组
+
+async function ovToggleTagGroupPicker() {
+  var dd = document.getElementById('ovTagGroupDropdown');
+  if (!dd.classList.contains('hidden')) { dd.classList.add('hidden'); return; }
+  if (!_ovTagGroups.length) {
+    dd.innerHTML = '<p class="text-[10px] text-slate-500 text-center py-2">加载中...</p>';
+    dd.classList.remove('hidden');
+    try {
+      var resp = await fetch('/overview/api/tag-groups');
+      _ovTagGroups = await resp.json();
+    } catch(e) { dd.innerHTML = '<p class="text-[10px] text-red-500 text-center py-2">加载失败</p>'; return; }
+  }
+  _ovRenderTagGroupDropdown();
+  dd.classList.remove('hidden');
+  // 点击外部关闭
+  setTimeout(function() {
+    document.addEventListener('click', function _close(e) {
+      if (!dd.contains(e.target) && !e.target.closest('[onclick*="ovToggleTagGroupPicker"]')) {
+        dd.classList.add('hidden');
+        document.removeEventListener('click', _close);
+      }
+    });
+  }, 0);
+}
+
+function _ovRenderTagGroupDropdown() {
+  var dd = document.getElementById('ovTagGroupDropdown');
+  if (!_ovTagGroups.length) { dd.innerHTML = '<p class="text-[10px] text-slate-500 text-center py-2">暂无标签组</p>'; return; }
+  dd.innerHTML = _ovTagGroups.map(function(g) {
+    var allSelected = g.tags.length && g.tags.every(function(t) { return _ovSelectedTags.includes(t); });
+    return '<button onclick="ovToggleTagGroup(' + g.id + ')" class="w-full text-left px-2 py-1.5 rounded hover:bg-slate-800 transition flex items-center gap-2 ' + (allSelected ? 'bg-primary/10' : '') + '">' +
+      '<span class="material-icons-round text-[12px] ' + (allSelected ? 'text-primary' : 'text-slate-600') + '">' + (allSelected ? 'check_box' : 'check_box_outline_blank') + '</span>' +
+      '<div class="min-w-0">' +
+        '<p class="text-[11px] text-slate-200 font-medium truncate">' + _escHtml(g.name) + '</p>' +
+        '<p class="text-[9px] text-slate-500 truncate">' + g.tags.slice(0,4).map(_escHtml).join(' · ') + (g.tags.length > 4 ? ' ...' : '') + '</p>' +
+      '</div>' +
+    '</button>';
+  }).join('');
+}
+
+function ovToggleTagGroup(groupId) {
+  var g = _ovTagGroups.find(function(x) { return x.id === groupId; });
+  if (!g) return;
+  var allSelected = g.tags.every(function(t) { return _ovSelectedTags.includes(t); });
+  if (allSelected) {
+    // 取消选择该组的所有标签
+    _ovSelectedTags = _ovSelectedTags.filter(function(t) { return !g.tags.includes(t); });
+  } else {
+    // 添加该组标签（去重）
+    g.tags.forEach(function(t) { if (!_ovSelectedTags.includes(t)) _ovSelectedTags.push(t); });
+  }
+  _ovRenderTagChips();
+  _ovRenderTagGroupDropdown();
+  ovSearchStocks();
+}
+
+function _ovRenderTagChips() {
+  var el = document.getElementById('ovTagChips');
+  if (!_ovSelectedTags.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = _ovSelectedTags.map(function(t) {
+    return '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 border border-primary/30 text-primary text-[10px] font-medium">' +
+      _escHtml(t) +
+      '<button onclick="ovRemoveTag(\'' + _escHtml(t).replace(/'/g, "\\'") + '\')" class="hover:text-white ml-0.5"><span class="material-icons-round text-[10px]">close</span></button>' +
+    '</span>';
+  }).join('');
+}
+
+function ovRemoveTag(tag) {
+  _ovSelectedTags = _ovSelectedTags.filter(function(t) { return t !== tag; });
+  _ovRenderTagChips();
+  _ovRenderTagGroupDropdown();
+  if (_ovSelectedTags.length || document.getElementById('ovStockSearch').value.trim()) ovSearchStocks();
+  else { document.getElementById('ovStockTable').classList.add('hidden'); document.getElementById('ovSearchStatus').classList.add('hidden'); }
+}
+
+async function ovSearchStocks() {
+  var q = document.getElementById('ovStockSearch').value.trim();
+  if (!q && !_ovSelectedTags.length) return;
+  var btn = document.getElementById('ovSearchBtn');
+  var status = document.getElementById('ovSearchStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span>';
+  status.classList.remove('hidden'); status.textContent = '搜索中...';
+  try {
+    var url = '/market/api/search-stocks?days=20';
+    if (q) url += '&q=' + encodeURIComponent(q);
+    if (_ovSelectedTags.length) url += '&tags=' + encodeURIComponent(_ovSelectedTags.join(','));
+    var resp = await fetch(url);
+    _ovSearchData = await resp.json();
+    status.textContent = '找到 ' + _ovSearchData.length + ' 只股票';
+    _ovRenderTable();
+  } catch(e) { status.textContent = '搜索失败: ' + e.message; }
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-icons-round text-sm">search</span> 搜索';
+}
+_ovInitColDropdown();
 
 // ── Heatmap tab switch ──
 window.switchHeatTab = function(mode) {
@@ -642,5 +1051,75 @@ function renderSparklines() {
   });
 }
 renderSparklines();
+
+// 预加载新闻和资金面数据（不等用户点击 tab）
+window._newsLoaded = true; loadNewsTab();
+window._capitalLoaded = true; loadCapitalTab();
+
+// ── 加入Portfolio ──
+var _ovAddStock = null;
+
+async function ovAddStockPrompt(code, name) {
+  _ovAddStock = {code: code, name: name};
+  document.getElementById('ovAddStockLabel').textContent = code + (name && name !== code ? ' ' + name : '');
+  // 加载 portfolio 列表
+  var listEl = document.getElementById('ovPortfolioList');
+  listEl.innerHTML = '<p class="text-[10px] text-slate-500">加载中...</p>';
+  document.getElementById('ovAddStockModal').classList.remove('hidden');
+  try {
+    var resp = await fetch('/portfolio/api/lists');
+    var data = await resp.json();
+    var lists = (data.lists || []).filter(function(l) { return l.list_type !== 'strategy' && l.list_type !== 'overview'; });
+    if (!lists.length) {
+      listEl.innerHTML = '<p class="text-[10px] text-slate-500">暂无 Portfolio，请新建</p>';
+      return;
+    }
+    listEl.innerHTML = lists.map(function(l) {
+      return '<button onclick="ovAddStockToList(' + l.id + ')" class="w-full text-left px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition text-xs text-white">' + _escHtml(l.list_name) + '</button>';
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = '<p class="text-[10px] text-red-500">加载失败</p>';
+  }
+}
+
+async function ovAddStockToList(listId) {
+  if (!_ovAddStock) return;
+  document.getElementById('ovAddStockModal').classList.add('hidden');
+  try {
+    var resp = await fetch('/portfolio/api/lists/' + listId + '/stocks', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({stock_code: _ovAddStock.code, stock_name: _ovAddStock.name, source: 'overview_chat'}),
+    });
+    var data = await resp.json();
+    showToast && showToast(data.ok ? (_ovAddStock.code + ' 已加入') : '添加失败');
+  } catch(e) {
+    showToast && showToast('添加失败', true);
+  }
+  _ovAddStock = null;
+}
+
+async function ovAddStockNewPortfolio() {
+  if (!_ovAddStock) return;
+  var name = prompt('新 Portfolio 名称：');
+  if (!name || !name.trim()) return;
+  document.getElementById('ovAddStockModal').classList.add('hidden');
+  try {
+    // 创建新 portfolio
+    var resp = await fetch('/portfolio/api/lists', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({list_name: name.trim(), list_type: 'theme'}),
+    });
+    var data = await resp.json();
+    if (data.ok && data.id) {
+      await ovAddStockToList(data.id);
+    } else {
+      showToast && showToast('创建失败', true);
+    }
+  } catch(e) {
+    showToast && showToast('创建失败', true);
+  }
+}
 </script>
 {% endblock %}

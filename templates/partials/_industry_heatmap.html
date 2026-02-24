@@ -7,11 +7,11 @@
     <thead><tr>
       <th class="text-left">行业</th>
       {% for d in industry_heat.dates %}<th>{{ d[5:] }}</th>{% endfor %}
-      <th>{{ ndays }}日合计</th><th>占比</th>
+      <th>{{ ndays }}日合计</th><th>占比</th><th>市值(亿)</th>
     </tr></thead>
     <tbody>
       {% if industry_heat.net.inflow_top5 %}
-      <tr><td colspan="{{ ndays + 3 }}" class="text-[9px] text-red-400 font-bold pt-2 pb-1">▲ 净流入 Top5</td></tr>
+      <tr><td colspan="{{ ndays + 4 }}" class="text-[9px] text-red-400 font-bold pt-2 pb-1">▲ 净流入 Top5</td></tr>
       {% for ind in industry_heat.net.inflow_top5 %}
       <tr>
         <td class="heatmap-label">{{ ind.name }}</td>
@@ -23,9 +23,10 @@
         {% endfor %}
         <td class="text-red-400 font-bold" style="white-space:nowrap;">{{ '%.1f'|format(ind.total / 1e8) }}</td>
         <td class="heatmap-pct text-red-400">{{ '%.1f'|format(ind.pct) }}%</td>
+        <td class="heatmap-pct text-slate-400">{{ '%.0f'|format(ind.mktcap) }}</td>
       </tr>{% endfor %}{% endif %}
       {% if industry_heat.net.outflow_top5 %}
-      <tr><td colspan="{{ ndays + 3 }}" class="text-[9px] text-green-400 font-bold pt-3 pb-1">▼ 净流出 Top5</td></tr>
+      <tr><td colspan="{{ ndays + 4 }}" class="text-[9px] text-green-400 font-bold pt-3 pb-1">▼ 净流出 Top5</td></tr>
       {% for ind in industry_heat.net.outflow_top5 %}
       <tr>
         <td class="heatmap-label">{{ ind.name }}</td>
@@ -37,29 +38,8 @@
         {% endfor %}
         <td class="text-green-400 font-bold" style="white-space:nowrap;">{{ '%.1f'|format(ind.total / 1e8) }}</td>
         <td class="heatmap-pct text-green-400">{{ '%.1f'|format(ind.pct) }}%</td>
+        <td class="heatmap-pct text-slate-400">{{ '%.0f'|format(ind.mktcap) }}</td>
       </tr>{% endfor %}{% endif %}
-      {% if industry_heat.market_daily_net %}
-      {% set abs_vals = [] %}
-      {% for d in industry_heat.dates %}{% set _ = abs_vals.append(industry_heat.market_daily_net.get(d, 0) | abs) %}{% endfor %}
-      {% set max_abs = abs_vals | max if abs_vals else 1 %}
-      {% set max_abs = max_abs if max_abs > 0 else 1 %}
-      <tr style="border-top: 2px solid #2d3748;">
-        <td class="heatmap-label" style="color:#94a3b8;">大盘</td>
-        {% for d in industry_heat.dates %}
-        {% set val = industry_heat.market_daily_net.get(d, 0) %}
-        {% set bar_h = ((val | abs) / max_abs * 28) | int %}
-        <td style="padding:2px 3px; text-align:center; vertical-align:bottom; height:32px;">
-          {% if val != 0 %}
-          <div style="display:inline-block; width:6px; height:{{ bar_h }}px; background:{{ '#ef4444' if val > 0 else '#22c55e' }}; border-radius:2px 2px 0 0;"></div>
-          {% endif %}
-        </td>
-        {% endfor %}
-        {% set total_net = namespace(v=0) %}
-        {% for d in industry_heat.dates %}{% set total_net.v = total_net.v + industry_heat.market_daily_net.get(d, 0) %}{% endfor %}
-        <td class="{{ 'text-red-400' if total_net.v > 0 else 'text-green-400' }} font-bold" style="white-space:nowrap; vertical-align:bottom;">{{ '%.1f'|format(total_net.v / 1e8) }}</td>
-        <td></td>
-      </tr>
-      {% endif %}
     </tbody>
   </table>
   <p class="text-[9px] text-slate-600 mt-1 text-right">净流入口径 · 单位: 亿元</p>
@@ -71,11 +51,11 @@
     <thead><tr>
       <th class="text-left">行业</th>
       {% for d in industry_heat.dates %}<th>{{ d[5:] }}</th>{% endfor %}
-      <th>{{ ndays }}日合计</th><th>占比</th>
+      <th>{{ ndays }}日合计</th><th>占比</th><th>市值(亿)</th>
     </tr></thead>
     <tbody>
       {% if industry_heat.gross.inflow_top5 %}
-      <tr><td colspan="{{ ndays + 3 }}" class="text-[9px] text-red-400 font-bold pt-2 pb-1">▲ 毛流入 Top5</td></tr>
+      <tr><td colspan="{{ ndays + 4 }}" class="text-[9px] text-red-400 font-bold pt-2 pb-1">▲ 毛流入 Top5</td></tr>
       {% for ind in industry_heat.gross.inflow_top5 %}
       <tr>
         <td class="heatmap-label">{{ ind.name }}</td>
@@ -87,9 +67,10 @@
         {% endfor %}
         <td class="text-red-400 font-bold" style="white-space:nowrap;">{{ '%.1f'|format(ind.total / 1e8) }}</td>
         <td class="heatmap-pct text-red-400">{{ '%.1f'|format(ind.pct) }}%</td>
+        <td class="heatmap-pct text-slate-400">{{ '%.0f'|format(ind.mktcap) }}</td>
       </tr>{% endfor %}{% endif %}
       {% if industry_heat.gross.outflow_top5 %}
-      <tr><td colspan="{{ ndays + 3 }}" class="text-[9px] text-green-400 font-bold pt-3 pb-1">▼ 毛流出 Top5</td></tr>
+      <tr><td colspan="{{ ndays + 4 }}" class="text-[9px] text-green-400 font-bold pt-3 pb-1">▼ 毛流出 Top5</td></tr>
       {% for ind in industry_heat.gross.outflow_top5 %}
       <tr>
         <td class="heatmap-label">{{ ind.name }}</td>
@@ -101,29 +82,8 @@
         {% endfor %}
         <td class="text-green-400 font-bold" style="white-space:nowrap;">{{ '%.1f'|format(ind.total / 1e8) }}</td>
         <td class="heatmap-pct text-green-400">{{ '%.1f'|format(ind.pct) }}%</td>
+        <td class="heatmap-pct text-slate-400">{{ '%.0f'|format(ind.mktcap) }}</td>
       </tr>{% endfor %}{% endif %}
-      {% if industry_heat.market_daily_net %}
-      {% set abs_vals2 = [] %}
-      {% for d in industry_heat.dates %}{% set _ = abs_vals2.append(industry_heat.market_daily_net.get(d, 0) | abs) %}{% endfor %}
-      {% set max_abs2 = abs_vals2 | max if abs_vals2 else 1 %}
-      {% set max_abs2 = max_abs2 if max_abs2 > 0 else 1 %}
-      <tr style="border-top: 2px solid #2d3748;">
-        <td class="heatmap-label" style="color:#94a3b8;">大盘</td>
-        {% for d in industry_heat.dates %}
-        {% set val = industry_heat.market_daily_net.get(d, 0) %}
-        {% set bar_h2 = ((val | abs) / max_abs2 * 28) | int %}
-        <td style="padding:2px 3px; text-align:center; vertical-align:bottom; height:32px;">
-          {% if val != 0 %}
-          <div style="display:inline-block; width:6px; height:{{ bar_h2 }}px; background:{{ '#ef4444' if val > 0 else '#22c55e' }}; border-radius:2px 2px 0 0;"></div>
-          {% endif %}
-        </td>
-        {% endfor %}
-        {% set total_net2 = namespace(v=0) %}
-        {% for d in industry_heat.dates %}{% set total_net2.v = total_net2.v + industry_heat.market_daily_net.get(d, 0) %}{% endfor %}
-        <td class="{{ 'text-red-400' if total_net2.v > 0 else 'text-green-400' }} font-bold" style="white-space:nowrap; vertical-align:bottom;">{{ '%.1f'|format(total_net2.v / 1e8) }}</td>
-        <td></td>
-      </tr>
-      {% endif %}
     </tbody>
   </table>
   <p class="text-[9px] text-slate-600 mt-1 text-right">毛流入/出口径 · 单位: 亿元</p>
@@ -132,3 +92,4 @@
 {% else %}
 <p class="text-sm text-slate-600 text-center py-6">暂无数据</p>
 {% endif %}
+
