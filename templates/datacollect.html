@@ -1,488 +1,1331 @@
 {% extends "base.html" %}
-{% block title %}数据管理 — {% if tab == 'collection' %}采集{% elif tab == 'cleaning' %}清洗{% else %}浏览{% endif %}{% endblock %}
+{% block title %}数据管理{% endblock %}
 
 {% block extra_styles %}
-.source-card { background: #161d2b; border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; padding: 1.5rem; transition: border-color 0.2s; }
-.source-card:hover { border-color: rgba(19,91,236,0.4); }
-.feed-item { transition: background 0.15s; }
-.feed-item:hover { background: rgba(19,91,236,0.03); }
-.status-online { background: rgba(16,185,129,0.1); color: #34d399; }
-.status-idle { background: rgba(245,158,11,0.1); color: #fbbf24; }
-.status-offline { background: rgba(100,116,139,0.1); color: #94a3b8; }
-.status-syncing { background: rgba(19,91,236,0.1); color: #60a5fa; }
-.stat-card { background: #161d2b; border: 1px solid rgba(100,116,139,0.15); border-radius: 10px; padding: 1rem 1.25rem; }
-.tab-btn { padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid transparent; transition: all 0.2s; }
-.tab-btn.active { color: #135bec; border-bottom-color: #135bec; }
-.tab-btn:not(.active) { color: #64748b; }
-.tab-btn:not(.active):hover { color: #94a3b8; }
-.sync-btn { transition: all 0.2s; }
-.sync-btn:hover .material-icons-round { animation: spin 0.5s ease; }
-@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
-.toast { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 100; padding: 0.75rem 1.25rem; border-radius: 10px; font-size: 0.8rem; font-weight: 600; transform: translateX(120%); transition: transform 0.3s ease; }
-.toast.show { transform: translateX(0); }
+.toggle-switch { position:relative; display:inline-flex; align-items:center; cursor:pointer; }
+.toggle-switch input { position:absolute; opacity:0; width:0; height:0; }
+.toggle-track { width:36px; height:20px; background:#334155; border-radius:9999px; transition:background .2s; }
+.toggle-switch input:checked + .toggle-track { background:#135bec; }
+.toggle-knob { position:absolute; left:2px; top:2px; width:16px; height:16px; background:#fff; border-radius:9999px; transition:transform .2s; }
+.toggle-switch input:checked ~ .toggle-knob { transform:translateX(16px); }
+#kwSnippetTip { position:fixed; z-index:9999; max-width:360px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.6; color:#cbd5e1; white-space:pre-wrap; word-break:break-all; pointer-events:none; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+/* flatpickr 暗色覆盖 */
+.flatpickr-calendar { background:#1a2233; border:1px solid #2d3748; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.5); font-family:'Manrope',sans-serif; }
+.flatpickr-months, .flatpickr-weekdays { background:#1a2233; }
+.flatpickr-month { color:#e2e8f0; }
+.flatpickr-current-month input.cur-year, .flatpickr-current-month .flatpickr-monthDropdown-months { color:#e2e8f0; background:transparent; }
+span.flatpickr-weekday { color:#64748b; }
+.flatpickr-day { color:#cbd5e1; border-radius:6px; }
+.flatpickr-day:hover { background:#2d3748; border-color:#2d3748; }
+.flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background:#135bec; border-color:#135bec; color:#fff; }
+.flatpickr-day.inRange { background:#135bec22; border-color:transparent; box-shadow:-5px 0 0 #135bec22, 5px 0 0 #135bec22; }
+.flatpickr-day.today { border-color:#135bec; }
+.flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover { color:#334155; }
+.flatpickr-prev-month, .flatpickr-next-month { color:#64748b !important; fill:#64748b !important; }
+.flatpickr-prev-month:hover, .flatpickr-next-month:hover { color:#e2e8f0 !important; fill:#e2e8f0 !important; }
 {% endblock %}
 
 {% block content %}
-<!-- 页面标题 + 标签页 -->
+<!-- 页面标题 + Tab 导航 -->
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
   <div>
     <h1 class="text-2xl font-extrabold tracking-tight">数据管理</h1>
-    <p class="text-sm text-slate-500 mt-1">信息采集、AI清洗、数据浏览</p>
+    <p class="text-sm text-slate-500 mt-1">信息源管理 · 文档提取 · 清洗管线</p>
   </div>
-  <div class="flex items-center gap-3">
-    <div class="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full border border-primary/20">
-      <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-      <span class="text-xs font-semibold text-primary/80">采集器运行中</span>
-    </div>
+  <div class="flex gap-1 bg-slate-800/50 rounded-lg p-1">
+    <a href="/data/cleaning" class="px-4 py-1.5 rounded-md text-sm font-bold bg-primary/15 text-primary">采集清洗</a>
+    <a href="/data/input" class="px-4 py-1.5 rounded-md text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-700/50 transition">手动录入</a>
   </div>
 </div>
 
-<!-- 统计卡片 -->
-<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-  {% set stat_items = [
-    ("hourglass_empty", "待清洗", stats.pending, "amber"),
-    ("sync", "处理中", stats.processing, "blue"),
-    ("check_circle", "已清洗", stats.cleaned, "emerald"),
-    ("error", "失败", stats.failed, "red"),
-    ("today", "今日清洗", stats.today_cleaned, "primary"),
-  ] %}
-  {% for icon, label, value, color in stat_items %}
-  <div class="stat-card">
-    <div class="flex items-center gap-2 mb-1">
-      <span class="material-icons-round text-{{ color }}-400 text-sm">{{ icon }}</span>
-      <span class="text-xs text-slate-500 font-semibold">{{ label }}</span>
-    </div>
-    <p class="text-xl font-extrabold text-white">{{ value }}</p>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- Tab 导航 -->
-<div class="flex items-center gap-1 border-b border-slate-800 mb-6">
-  <a href="/data" class="tab-btn {% if tab == 'collection' %}active{% endif %}">采集管理</a>
-  <a href="/data/cleaning" class="tab-btn {% if tab == 'cleaning' %}active{% endif %}">清洗管理</a>
-  <a href="/data/browse" class="tab-btn {% if tab == 'browse' %}active{% endif %}">数据浏览</a>
-</div>
-
-{% if tab == 'collection' %}
-<!-- ==================== 采集管理 ==================== -->
-
-<!-- 全量采集按钮 -->
-<div class="card flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-  <div>
-    <h2 class="text-lg font-extrabold tracking-tight">数据源管理</h2>
-    <p class="text-sm text-slate-500">监控和触发各信息源的同步操作</p>
-  </div>
-  <button onclick="syncAll()" id="syncAllBtn"
-          class="sync-btn flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-sm transition-all shadow-lg shadow-primary/30">
-    <span class="material-icons-round text-lg">sync</span>
-    一键采集全部信息源
-  </button>
-</div>
-
-<!-- 数据源卡片 -->
-<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-  {% for g in groups %}
-  <div class="source-card flex flex-col">
-    <div class="flex justify-between items-start mb-4">
-      <div class="p-3 bg-{{ g.color }}-500/10 rounded-xl">
-        <span class="material-icons-round text-{{ g.color }}-500 text-3xl">{{ g.icon }}</span>
+<div>
+  <!-- 云端文档库概况 -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+    <div class="p-4 border-b border-slate-800 flex items-center gap-2 flex-wrap">
+      <span class="material-icons-round text-primary text-base">cloud_done</span>
+      <h3 class="font-bold text-sm">云端文档库概况</h3>
+      <div class="ml-auto flex items-center gap-1" id="docTypeFilterTabs">
+        <button onclick="setDocTypeFilter('')"   data-dt="" class="doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-primary bg-primary/20 text-primary transition">全部</button>
+        <button onclick="setDocTypeFilter('report')" data-dt="report" class="doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-slate-700 text-slate-400 hover:border-violet-500 hover:text-violet-400 transition">报告</button>
+        <button onclick="setDocTypeFilter('news')"   data-dt="news"   class="doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-slate-700 text-slate-400 hover:border-blue-500 hover:text-blue-400 transition">新闻</button>
+        <button onclick="setDocTypeFilter('audio')"  data-dt="audio"  class="doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-slate-700 text-slate-400 hover:border-amber-500 hover:text-amber-400 transition">音频</button>
       </div>
-      <span class="px-2 py-1 status-{{ g.status }} text-[10px] font-bold rounded flex items-center gap-1">
-        <span class="w-1.5 h-1.5 rounded-full bg-current {% if g.status == 'online' %}animate-pulse{% endif %}"></span>
-        {{ g.status|upper }}
-      </span>
     </div>
-    <h3 class="text-lg font-bold mb-1">{{ g.label }}</h3>
-    <div class="text-xs text-slate-500 mb-3 space-y-0.5">
-      {% for sub in g.sub_sources %}
-      <span class="inline-flex items-center gap-1 mr-2">
-        <span class="w-1.5 h-1.5 rounded-full {% if sub.enabled %}bg-emerald-500{% else %}bg-slate-600{% endif %}"></span>
-        {{ sub.label }}
-      </span>
-      {% endfor %}
-    </div>
-    <div class="mt-auto space-y-3">
-      <div class="flex justify-between text-xs border-t border-slate-800 pt-3">
-        <span class="text-slate-500 uppercase font-bold tracking-wider">最近同步</span>
-        <span class="text-slate-300 font-mono">{{ g.last_sync_text }}</span>
-      </div>
-      <div class="flex justify-between text-xs">
-        <span class="text-slate-500 uppercase font-bold tracking-wider">今日采集</span>
-        <span class="text-white font-bold">{{ g.today_count }} 条</span>
-      </div>
-      <button onclick="syncGroup('{{ g.key }}')"
-              class="sync-btn w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg font-bold text-sm transition-all border border-slate-700">
-        <span class="material-icons-round text-lg">refresh</span>
-        手动同步
-      </button>
-    </div>
-  </div>
-  {% endfor %}
-</div>
-
-<!-- 实时活动流 -->
-<div class="card p-0 overflow-hidden">
-  <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center">
-    <div class="flex items-center gap-2">
-      <span class="material-icons-round text-primary">dynamic_feed</span>
-      <h3 class="font-bold text-sm uppercase tracking-wider">最近采集</h3>
-    </div>
-    <span class="text-[10px] font-bold text-emerald-500 uppercase bg-emerald-500/10 px-2 py-0.5 rounded">最新 30 条</span>
-  </div>
-  <div class="max-h-[500px] overflow-y-auto">
-    {% for item in recent_items %}
-    <div class="feed-item flex gap-4 px-6 py-3 border-b border-slate-800/50 group {% if item.status == 'cleaned' %}border-l-2 border-l-emerald-500{% elif item.status == 'failed' %}border-l-2 border-l-red-500{% endif %}">
-      <div class="shrink-0 text-[10px] font-mono font-bold text-slate-500 pt-1 w-16">{{ item.time }}</div>
-      <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-2 mb-0.5">
-          <span class="px-1.5 py-0.5 bg-{{ item.group_color }}-900/30 text-{{ item.group_color }}-400 text-[9px] font-bold rounded uppercase">{{ item.source_label }}</span>
-          {% if item.status == 'cleaned' %}
-          <span class="text-[9px] text-emerald-500 font-bold">已清洗</span>
-          {% elif item.status == 'failed' %}
-          <span class="text-[9px] text-red-500 font-bold">失败</span>
-          {% endif %}
+    <div class="p-4">
+      <!-- 汇总卡片 -->
+      <div class="grid grid-cols-3 md:grid-cols-7 gap-3 mb-4">
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">总文档数</p>
+          <p class="text-xl font-bold text-white font-mono" data-stat="total">—</p>
+          <p class="text-[10px] text-slate-600 mt-0.5" data-stat="source_count">— 个信息源</p>
         </div>
-        <p class="text-sm text-slate-400 truncate group-hover:whitespace-normal">{{ item.title or item.content_preview }}</p>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">已提取</p>
+          <p class="text-xl font-bold text-emerald-400 font-mono" data-stat="extracted">—</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-teal-400/70 uppercase font-bold mb-1">已入管线</p>
+          <p class="text-xl font-bold text-teal-400 font-mono" data-stat="et_total">—</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-blue-400/70 uppercase font-bold mb-1">A · 摘要</p>
+          <p class="text-xl font-bold text-blue-400 font-mono" data-stat="pipeline_a">—</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-emerald-400/70 uppercase font-bold mb-1">B · 提及</p>
+          <p class="text-xl font-bold text-emerald-400 font-mono" data-stat="pipeline_b">—</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+          <p class="text-[10px] text-violet-400/70 uppercase font-bold mb-1">C · KG</p>
+          <p class="text-xl font-bold text-violet-400 font-mono" data-stat="pipeline_c">—</p>
+        </div>
+        <div class="bg-slate-800/50 rounded-lg p-3 text-center border border-cyan-900/40">
+          <p class="text-[10px] text-cyan-400/70 uppercase font-bold mb-1">向量切片</p>
+          <p class="text-xl font-bold text-cyan-400 font-mono" data-stat="chunks_total">—</p>
+          <p class="text-[10px] text-slate-600 mt-0.5">text_chunks</p>
+        </div>
       </div>
-    </div>
-    {% endfor %}
-    {% if not recent_items %}
-    <div class="px-6 py-12 text-center text-slate-600">
-      <span class="material-icons-round text-4xl mb-2">inbox</span>
-      <p class="text-sm">暂无采集数据，点击上方按钮开始采集</p>
-    </div>
-    {% endif %}
-  </div>
-</div>
-
-{% elif tab == 'cleaning' %}
-<!-- ==================== 清洗管理 ==================== -->
-
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-  <!-- 批量清洗 -->
-  <div class="card">
-    <h3 class="font-bold text-white mb-4 flex items-center gap-2">
-      <span class="material-icons-round text-primary">cleaning_services</span>
-      批量清洗
-    </h3>
-    <div class="space-y-4">
-      <div>
-        <label class="text-xs text-slate-500 font-semibold block mb-1">清洗数量</label>
-        <input type="number" id="cleanLimit" value="20" min="1" max="200"
-               class="w-full bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
-      </div>
-      <label class="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
-        <input type="checkbox" id="deepAnalysis" class="accent-primary">
-        深度分析（高重要性条目）
-      </label>
-      <button onclick="runClean()" id="cleanBtn"
-              class="w-full flex items-center justify-center gap-2 py-3 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-sm transition-all">
-        <span class="material-icons-round">cleaning_services</span>
-        开始清洗
-      </button>
-    </div>
-  </div>
-
-  <!-- 其他操作 -->
-  <div class="space-y-6">
-    <div class="card">
-      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
-        <span class="material-icons-round text-amber-400">replay</span>
-        重试失败条目
-      </h3>
-      <p class="text-xs text-slate-500 mb-3">重新清洗之前失败的条目（最多20条）</p>
-      <button onclick="retryFailed()" id="retryBtn"
-              class="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-sm border border-slate-700">
-        <span class="material-icons-round">refresh</span>
-        重试失败
-      </button>
-    </div>
-    <div class="card">
-      <h3 class="font-bold text-white mb-3 flex items-center gap-2">
-        <span class="material-icons-round text-emerald-400">leaderboard</span>
-        生成 Dashboard 榜单
-      </h3>
-      <p class="text-xs text-slate-500 mb-3">清洗完成后生成榜单，供「每日概览」和「热点研究」使用</p>
-      <button onclick="genDashboard()" id="dashBtn"
-              class="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-bold text-sm border border-slate-700">
-        <span class="material-icons-round">auto_awesome</span>
-        生成榜单
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- Pipeline 运行记录 -->
-<div class="card p-0 overflow-hidden">
-  <div class="px-6 py-4 border-b border-slate-800 flex items-center gap-2">
-    <span class="material-icons-round text-primary">history</span>
-    <h3 class="font-bold text-sm uppercase tracking-wider">Pipeline 运行记录</h3>
-  </div>
-  <div class="overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-800/50">
-        <tr class="text-xs text-slate-500 uppercase">
-          <th class="px-6 py-3 text-left font-bold">时间</th>
-          <th class="px-6 py-3 text-left font-bold">类型</th>
-          <th class="px-6 py-3 text-left font-bold">状态</th>
-          <th class="px-6 py-3 text-left font-bold">处理数</th>
-          <th class="px-6 py-3 text-left font-bold">错误</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for run in pipeline_runs %}
-        <tr class="border-b border-slate-800/50 hover:bg-slate-800/20">
-          <td class="px-6 py-3 font-mono text-xs text-slate-400">{{ run.started_at[:16] if run.started_at else '-' }}</td>
-          <td class="px-6 py-3 text-slate-300">{{ run.pipeline_name or '-' }}</td>
-          <td class="px-6 py-3">
-            {% if run.status == 'completed' or run.status == 'success' %}
-            <span class="text-emerald-400 text-xs font-bold">完成</span>
-            {% elif run.status == 'running' %}
-            <span class="text-blue-400 text-xs font-bold">运行中</span>
-            {% elif run.status == 'failed' %}
-            <span class="text-red-400 text-xs font-bold">失败</span>
-            {% else %}
-            <span class="text-slate-500 text-xs font-bold">{{ run.status }}</span>
-            {% endif %}
-          </td>
-          <td class="px-6 py-3 text-slate-300">{{ run.items_processed or 0 }}</td>
-          <td class="px-6 py-3 text-xs text-red-400 truncate max-w-[200px]">{{ run.error_message or '' }}</td>
-        </tr>
+      <!-- 提取按钮 -->
+      <div class="flex flex-wrap items-center gap-3 mb-2">
+        <label class="text-xs text-slate-400">提取数量</label>
+        <input id="extractBatchSize" type="number" value="500" min="1" max="5000"
+               class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
+        <span class="text-xs text-slate-500">文件类型：</span>
+        {% for ft, label in [('txt','txt·快'), ('mixed','mixed·慢'), ('pdf','pdf·慢'), ('image','image·慢'), ('audio','audio·慢'), ('xlsx','xlsx·慢')] %}
+        <label class="flex items-center gap-1 cursor-pointer text-xs">
+          <input type="checkbox" class="extract-ft-check accent-teal-400" value="{{ ft }}" {% if ft == 'txt' %}checked{% endif %}>
+          <span class="{% if ft == 'txt' %}text-teal-400{% else %}text-slate-400{% endif %}">{{ label }}</span>
+        </label>
         {% endfor %}
-        {% if not pipeline_runs %}
-        <tr><td colspan="5" class="px-6 py-8 text-center text-slate-600">暂无运行记录</td></tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-</div>
+      </div>
+      {% if source_doc_stats %}
+      <div class="flex flex-wrap items-center gap-3 mb-3" id="extractSrcContainer">
+        <span class="text-xs text-slate-500">信息源：</span>
+        <label class="flex items-center gap-1 cursor-pointer text-xs">
+          <input type="checkbox" id="extractSrcAll" class="accent-amber-400" checked onchange="toggleAllSources(this)">
+          <span class="text-amber-400">全部</span>
+        </label>
+        {% for s in source_doc_stats %}
+        <label class="flex items-center gap-1 cursor-pointer text-xs">
+          <input type="checkbox" class="extract-src-check accent-amber-400" value="{{ s.source or '' }}" checked onchange="syncSrcAll()">
+          <span class="text-slate-400">{{ s.source or '(未知)' }}<span class="text-slate-600 ml-0.5">{{ s.doc_count - (s.extracted_count or 0) }}待</span></span>
+        </label>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="flex flex-wrap items-center gap-3 mb-3" id="extractSrcContainer">
+        <span class="text-xs text-slate-500">信息源：</span>
+        <label class="flex items-center gap-1 cursor-pointer text-xs">
+          <input type="checkbox" id="extractSrcAll" class="accent-amber-400" checked onchange="toggleAllSources(this)">
+          <span class="text-amber-400">全部</span>
+        </label>
+      </div>
+      {% endif %}
+      <!-- doc_type 筛选 -->
+      {% if doc_types %}
+      <div class="flex flex-wrap items-center gap-3 mb-3">
+        <span class="text-xs text-slate-500">文档类型：</span>
+        <select id="extractDocType"
+                class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-primary focus:outline-none">
+          <option value="">全部</option>
+          {% for key, label, desc in doc_types %}
+          <option value="{{ key }}">{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="flex items-center gap-3 mb-4">
+        <button onclick="runExtract()"
+                class="flex items-center gap-1.5 px-4 py-2 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-lg text-sm font-bold text-teal-400 transition">
+          <span class="material-icons-round text-base">download</span>提取 extracted_text
+        </button>
+        <button id="extractCancelBtn" onclick="cancelExtract()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 transition opacity-40" disabled>
+          <span class="material-icons-round text-sm align-middle">stop</span> 取消
+        </button>
+      </div>
+      <div id="extractStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs mb-2">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-icons-round text-teal-400 text-sm animate-spin" id="extractSpinner">refresh</span>
+          <span id="extractStatusText" class="text-slate-300">运行中...</span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+          <div id="extractProgressBar" class="bg-teal-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <div id="extractCurrent" class="text-slate-500"></div>
+        <div id="extractResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
+      </div>
+      <!-- 各信息源明细表 -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-xs" id="sourceDocTable">
+          <thead>
+            <tr class="border-b border-slate-800">
+              <th class="px-3 py-2 text-left text-slate-500 font-bold">信息源</th>
+              <th class="px-3 py-2 text-right text-slate-500 font-bold">文档数</th>
+              <th class="px-3 py-2 text-right text-slate-500 font-bold">已提取</th>
+              <th class="px-3 py-2 text-right text-amber-500/70 font-bold">待提取</th>
+              <th class="px-3 py-2 text-right text-slate-500 font-bold">最新日期</th>
+              <th class="px-3 py-2 text-left text-slate-500 font-bold">文件类型</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="6" class="px-3 py-4 text-center text-slate-600 text-xs">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-{% elif tab == 'browse' %}
-<!-- ==================== 数据浏览 ==================== -->
-
-<!-- 筛选栏 -->
-<div class="card flex flex-wrap gap-4 items-end mb-6">
-  <div>
-    <label class="text-xs text-slate-500 font-semibold block mb-1">状态</label>
-    <select id="filterStatus" onchange="applyFilter()"
-            class="bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
-      <option value="">全部</option>
-      <option value="pending" {% if filter_status == 'pending' %}selected{% endif %}>待清洗</option>
-      <option value="cleaned" {% if filter_status == 'cleaned' %}selected{% endif %}>已清洗</option>
-      <option value="failed" {% if filter_status == 'failed' %}selected{% endif %}>失败</option>
-    </select>
+      <!-- doc_type 分布 — JS 动态渲染 -->
+      <div id="docTypeDistribution" class="mt-4 hidden">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-icons-round text-violet-400 text-sm">category</span>
+          <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">文档类型分布</span>
+        </div>
+        <div id="docTypeDistributionTags" class="flex flex-wrap gap-2"></div>
+      </div>
+    </div>
   </div>
-  <div>
-    <label class="text-xs text-slate-500 font-semibold block mb-1">数据源</label>
-    <select id="filterSource" onchange="applyFilter()"
-            class="bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
-      <option value="">全部</option>
-      {% for sn in source_names %}
-      <option value="{{ sn }}" {% if filter_source == sn %}selected{% endif %}>{{ sn }}</option>
+
+<!-- 定向提取 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-violet-400 text-base">manage_search</span>
+    <h3 class="font-bold text-sm">定向提取</h3>
+    <span class="text-[10px] text-slate-500 ml-2">关键词搜索 source_documents → 选中 → 提取并推入管线</span>
+  </div>
+  <div class="p-4">
+    <!-- 搜索条件 -->
+    <div class="flex flex-wrap items-center gap-3 mb-3">
+      <input id="kwInput" type="text" placeholder="关键词，逗号分隔，如：宁德时代,比亚迪"
+             class="flex-1 min-w-48 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none">
+      <span class="text-xs text-slate-500">文件类型：</span>
+      {% for ft, label in [('txt','txt'), ('mixed','mixed'), ('pdf','pdf'), ('image','image'), ('audio','audio'), ('xlsx','xlsx')] %}
+      <label class="flex items-center gap-1 cursor-pointer text-xs">
+        <input type="checkbox" class="kw-ft-check accent-violet-400" value="{{ ft }}" checked>
+        <span class="text-slate-400">{{ label }}</span>
+      </label>
       {% endfor %}
-    </select>
-  </div>
-  <div class="flex-1 min-w-[200px]">
-    <label class="text-xs text-slate-500 font-semibold block mb-1">搜索</label>
-    <div class="flex gap-2">
-      <input type="text" id="filterQ" value="{{ filter_q }}" placeholder="搜索标题或内容..."
-             class="flex-1 bg-surface border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
-      <button onclick="applyFilter()" class="px-4 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold">
-        <span class="material-icons-round text-sm">search</span>
+      <button onclick="kwSearch()"
+              class="flex items-center gap-1.5 px-4 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg text-sm font-bold text-violet-400 transition">
+        <span class="material-icons-round text-base">search</span>搜索
       </button>
     </div>
-  </div>
-</div>
-
-<!-- 数据列表 -->
-<div class="space-y-2">
-  {% for item in browse_items %}
-  <details class="card p-0 overflow-hidden group">
-    <summary class="flex items-center gap-4 px-5 py-3 cursor-pointer hover:bg-slate-800/20">
-      {% if item.processing_status == 'pending' %}
-      <span class="material-icons-round text-amber-400 text-sm">hourglass_empty</span>
-      {% elif item.processing_status == 'cleaned' %}
-      <span class="material-icons-round text-emerald-400 text-sm">check_circle</span>
-      {% elif item.processing_status == 'failed' %}
-      <span class="material-icons-round text-red-400 text-sm">error</span>
-      {% else %}
-      <span class="material-icons-round text-blue-400 text-sm">sync</span>
-      {% endif %}
-      <span class="text-xs text-slate-500 font-mono w-20 shrink-0">{{ item.source_name }}</span>
-      <span class="text-sm text-slate-300 truncate flex-1">{{ item.title or '无标题' }}</span>
-      <span class="text-xs text-slate-600 font-mono shrink-0">{{ (item.fetched_at or '')[:16] }}</span>
-    </summary>
-    <div class="px-5 py-4 border-t border-slate-800 bg-slate-900/30 text-sm">
-      <div class="flex gap-4 text-xs text-slate-500 mb-3">
-        <span>类型: {{ item.item_type or '-' }}</span>
-        <span>状态: {{ item.processing_status }}</span>
-        {% if item.url %}<a href="{{ item.url }}" target="_blank" class="text-primary hover:underline">原文链接</a>{% endif %}
+    <!-- 搜索结果 -->
+    <div id="kwResults" class="hidden">
+      <div class="flex items-center gap-3 mb-2">
+        <span id="kwResultCount" class="text-xs text-slate-400"></span>
+        <label class="flex items-center gap-1 cursor-pointer text-xs text-slate-400">
+          <input type="checkbox" id="kwSelectAll" onchange="kwToggleAll(this)"> 全选
+        </label>
+        <button onclick="kwExtract()"
+                class="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg text-sm font-bold text-violet-400 transition">
+          <span class="material-icons-round text-base">download</span>提取选中
+        </button>
       </div>
-      <p class="text-slate-400 whitespace-pre-wrap">{{ (item.content or '')[:500] }}</p>
+      <div class="overflow-x-auto max-h-72 overflow-y-auto">
+        <table class="w-full text-xs">
+          <thead class="sticky top-0 bg-slate-900">
+            <tr class="border-b border-slate-800">
+              <th class="px-2 py-2 text-left w-6"></th>
+              <th class="px-2 py-2 text-left text-slate-500 font-bold">标题</th>
+              <th class="px-2 py-2 text-left text-slate-500 font-bold">来源</th>
+              <th class="px-2 py-2 text-left text-slate-500 font-bold">类型</th>
+              <th class="px-2 py-2 text-left text-slate-500 font-bold">状态</th>
+              <th class="px-2 py-2 text-left text-slate-500 font-bold">日期</th>
+            </tr>
+          </thead>
+          <tbody id="kwResultBody"></tbody>
+        </table>
+      </div>
     </div>
-  </details>
-  {% endfor %}
-  {% if not browse_items %}
-  <div class="card text-center py-12 text-slate-600">
-    <span class="material-icons-round text-4xl mb-2">search_off</span>
-    <p class="text-sm">暂无数据</p>
+    <!-- 提取进度 -->
+    <div id="kwExtractStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs mt-3">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-icons-round text-violet-400 text-sm animate-spin" id="kwExtractSpinner">refresh</span>
+        <span id="kwExtractStatusText" class="text-slate-300">运行中...</span>
+      </div>
+      <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+        <div id="kwExtractProgressBar" class="bg-violet-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+      </div>
+      <div id="kwExtractResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
+    </div>
   </div>
-  {% endif %}
 </div>
 
-{% endif %}
+<!-- 清洗管线手动触发 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-amber-400 text-base">auto_fix_high</span>
+    <h3 class="font-bold text-sm">清洗管线手动触发</h3>
+    <span class="text-[10px] text-slate-500 ml-2">extracted_texts → content_summaries / stock_mentions / KG</span>
+  </div>
+  <div class="p-4">
+    <div class="flex items-center gap-3 mb-4">
+      <label class="text-xs text-slate-400">处理数量</label>
+      <input id="pipelineBatchSize" type="number" value="20" min="1" max="200"
+             class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
+      <span class="text-[10px] text-slate-500">条 extracted_texts</span>
+      <div class="ml-auto flex gap-2">
+        <button id="pipelinePauseBtn" onclick="pausePipeline()" class="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-lg text-xs font-bold text-amber-400 transition opacity-40" disabled>
+          <span class="material-icons-round text-sm align-middle">pause</span> 暂停
+        </button>
+        <button id="pipelineResumeBtn" onclick="resumePipeline()" class="px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-lg text-xs font-bold text-emerald-400 transition hidden">
+          <span class="material-icons-round text-sm align-middle">play_arrow</span> 继续
+        </button>
+        <button id="pipelineCancelBtn" onclick="cancelPipeline()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 transition opacity-40" disabled>
+          <span class="material-icons-round text-sm align-middle">stop</span> 取消
+        </button>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-3 mb-4">
+      <button onclick="runPipeline('a')"
+              class="flex items-center gap-2 px-4 py-3 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 rounded-xl text-sm font-bold text-blue-400 transition">
+        <span class="material-icons-round text-base">summarize</span>
+        <div class="text-left"><div>独立提取 A</div><div class="text-[10px] font-normal text-blue-400/60">content_summaries (Claude)</div></div>
+      </button>
+      <button onclick="runPipeline('b2')"
+              class="flex items-center gap-2 px-4 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-sm font-bold text-emerald-400 transition">
+        <span class="material-icons-round text-base">trending_up</span>
+        <div class="text-left"><div>独立提取 B</div><div class="text-[10px] font-normal text-emerald-400/60">stock_mentions (DeepSeek)</div></div>
+      </button>
+      <button onclick="runPipeline('c')"
+              class="flex items-center gap-2 px-4 py-3 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-xl text-sm font-bold text-violet-400 transition">
+        <span class="material-icons-round text-base">account_tree</span>
+        <div class="text-left"><div>独立提取 C</div><div class="text-[10px] font-normal text-violet-400/60">KG 三元组 (DeepSeek)</div></div>
+      </button>
+      <button onclick="runPipeline('abc')"
+              class="flex items-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-sm font-bold text-amber-400 transition">
+        <span class="material-icons-round text-base">bolt</span>
+        <div class="text-left"><div>ABC 并发</div><div class="text-[10px] font-normal text-amber-400/60">三管线同时执行</div></div>
+      </button>
+    </div>
+    <div id="pipelineStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-icons-round text-amber-400 text-sm animate-spin" id="pipelineSpinner">refresh</span>
+        <span id="pipelineStatusText" class="text-slate-300">运行中...</span>
+        <!-- 阶段徽章 -->
+        <span id="pipelineStageLabel" class="ml-auto hidden px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-700 text-slate-300"></span>
+      </div>
+      <!-- 阶段进度条（颜色随阶段变化） -->
+      <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+        <div id="pipelineProgressBar" class="bg-amber-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+      </div>
+      <div id="pipelineCurrent" class="text-slate-500"></div>
+      <div id="pipelineResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
+    </div>
 
-<!-- Toast 通知 -->
-<div id="toast" class="toast bg-primary/90 text-white hidden"></div>
-
-<!-- 任务进度浮层 -->
-<div id="taskOverlay" class="fixed bottom-0 left-20 right-0 bg-surface-card border-t border-slate-800 p-4 z-40 hidden">
-  <div class="max-w-5xl mx-auto flex items-center gap-6">
-    <div class="flex-1">
-      <div class="flex justify-between items-end mb-2">
-        <div class="flex items-center gap-2">
-          <span class="material-icons-round text-primary text-sm animate-spin">refresh</span>
-          <p class="text-xs font-bold text-slate-300" id="taskLabel">处理中...</p>
+    <!-- 向量回填区域 -->
+    <div class="mt-4 pt-4 border-t border-slate-800">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="material-icons-round text-cyan-400 text-base">table_chart</span>
+        <span class="text-xs font-bold text-cyan-400">向量切片回填</span>
+        <span class="text-[10px] text-slate-500">存量 extracted_texts → text_chunks + Milvus</span>
+        <label class="text-xs text-slate-400 ml-auto">数量</label>
+        <input id="backfillChunksLimit" type="number" value="500" min="1" max="5000"
+               class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
+        <button onclick="runBackfillChunks()"
+                class="flex items-center gap-1.5 px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 rounded-lg text-sm font-bold text-cyan-400 transition">
+          <span class="material-icons-round text-base">hub</span>开始回填
+        </button>
+        <button id="backfillCancelBtn" onclick="cancelBackfillChunks()"
+                class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 transition opacity-40" disabled>
+          <span class="material-icons-round text-sm align-middle">stop</span> 取消
+        </button>
+      </div>
+      <div id="backfillStatus" class="hidden mt-2 bg-slate-800/60 rounded-lg p-3 text-xs">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="material-icons-round text-cyan-400 text-sm animate-spin">refresh</span>
+          <span id="backfillStatusText" class="text-slate-300">回填中...</span>
         </div>
-        <span class="text-xs font-mono font-bold text-primary" id="taskPct">0%</span>
-      </div>
-      <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-        <div class="bg-primary h-full rounded-full shadow-[0_0_10px_rgba(19,91,236,0.4)] transition-all" id="taskBar" style="width:0%"></div>
+        <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+          <div id="backfillProgressBar" class="bg-cyan-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <div id="backfillCurrent" class="text-slate-500"></div>
+        <div id="backfillResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
       </div>
     </div>
-    <div id="taskResults" class="text-xs text-slate-400 max-w-[300px] truncate"></div>
   </div>
 </div>
+
+<!-- 清洗日志 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-slate-400 text-base">receipt_long</span>
+    <h3 class="font-bold text-sm">清洗日志</h3>
+    <button onclick="loadCleaningLogs()" class="ml-auto text-[10px] text-primary hover:text-primary/80 flex items-center gap-1">
+      <span class="material-icons-round text-xs">refresh</span>刷新
+    </button>
+  </div>
+  <div id="cleaningLogsPanel" class="p-4">
+    <p class="text-xs text-slate-600 text-center py-4">点击刷新加载最近清洗记录</p>
+  </div>
+</div>
+
+<!-- 知识星球专项采集 -->
+<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="material-icons-round text-purple-400">forum</span>
+    <span class="text-sm font-semibold">知识星球采集</span>
+  </div>
+  <div class="flex flex-wrap items-end gap-4">
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">日期范围</label>
+      <div class="relative">
+        <span class="material-icons-round absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">date_range</span>
+        <input type="text" id="zsxqDateRange" readonly placeholder="选择日期范围"
+               class="pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none cursor-pointer w-56">
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">最大翻页数</label>
+      <input type="number" id="zsxqMaxPages" value="50" min="1" max="500"
+             class="w-20 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white text-center font-mono focus:border-primary focus:outline-none">
+    </div>
+    <button onclick="startZsxqFetch()" id="zsxqFetchBtn"
+            class="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold flex items-center gap-2 transition">
+      <span class="material-icons-round text-sm">download</span> 开始采集
+    </button>
+    <span id="zsxqFetchMsg" class="hidden text-xs px-3 py-2 rounded-lg"></span>
+  </div>
+  <div id="zsxqProgress" class="hidden mt-3 text-xs text-slate-400"></div>
+</div>
+
+<!-- 采集时间窗口（其他源） -->
+<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6 flex items-center gap-6">
+  <div class="flex items-center gap-3">
+    <span class="material-icons-round text-primary">schedule</span>
+    <span class="text-sm font-semibold">新闻回溯窗口</span>
+  </div>
+  <div class="flex items-center gap-2">
+    <input type="number" id="newsHours" value="{{ fetch_settings.news_hours }}" min="1" max="168"
+           class="w-20 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white text-center font-mono focus:border-primary focus:outline-none">
+    <span class="text-sm text-slate-400">小时</span>
+  </div>
+  <div class="flex items-center gap-3 ml-auto">
+    <span class="material-icons-round text-primary">vpn_key</span>
+    <span class="text-sm font-semibold">知识星球 Token</span>
+  </div>
+  <input type="password" id="zsxqCookie" value="{{ zsxq_cookie }}"
+         class="flex-1 max-w-xs bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
+         placeholder="zsxq_access_token">
+  <div class="flex items-center gap-2">
+    <span class="text-xs text-slate-400">星球IDs</span>
+    <input type="text" id="zsxqGroupIds" value="{{ zsxq_group_ids }}"
+           class="w-64 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
+           placeholder="逗号分隔，如 28885112854841,48848441254818">
+  </div>
+</div>
+
+<!-- 添加信息源 -->
+<div class="flex items-center gap-3 mb-6">
+  <div class="relative" id="addSourceWrap">
+    <button onclick="toggleAddSource()" id="addSourceBtn"
+            class="border border-dashed border-slate-700 hover:border-primary text-slate-400 hover:text-primary px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+      <span class="material-icons-round text-sm">add</span> 添加信息源
+    </button>
+    <div id="addSourceDropdown" class="hidden absolute left-0 top-full mt-1 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+      <div id="addSourceList" class="max-h-64 overflow-y-auto divide-y divide-slate-800/50">
+        <div class="p-4 text-xs text-slate-500 text-center">加载中...</div>
+      </div>
+    </div>
+  </div>
+  <button onclick="toggleCustomSourceForm()" id="customSourceBtn"
+          class="border border-dashed border-slate-700 hover:border-emerald-500 text-slate-400 hover:text-emerald-400 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+    <span class="material-icons-round text-sm">edit_note</span> 自定义添加
+  </button>
+  <span id="addDeleteMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+</div>
+
+<!-- 自定义添加表单 -->
+<div id="customSourceForm" class="hidden mb-6 bg-slate-900 border border-slate-800 rounded-xl p-5">
+  <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
+    <span class="material-icons-round text-sm text-emerald-400">edit_note</span> 自定义添加信息源
+  </h4>
+  <div class="grid grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">源标识 (key) <span class="text-rose-400">*</span></label>
+      <input type="text" id="csKey" placeholder="如 my_source（英文/下划线）"
+             class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">名称 (label) <span class="text-rose-400">*</span></label>
+      <input type="text" id="csLabel" placeholder="显示名称"
+             class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">分组</label>
+      <select id="csGroup" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+        <option value="news">新闻资讯</option>
+        <option value="report">研报数据</option>
+        <option value="community">社群舆情</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">采集器类型</label>
+      <select id="csFetcher" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+        <option value="jasper">jasper</option>
+        <option value="djyanbao">djyanbao</option>
+        <option value="fxbaogao">fxbaogao</option>
+        <option value="em_report">em_report</option>
+        <option value="zsxq">zsxq</option>
+      </select>
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs text-slate-400 mb-1">描述</label>
+      <input type="text" id="csDesc" placeholder="可选，简要描述此信息源"
+             class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+    </div>
+  </div>
+  <div class="flex items-center gap-3 mt-4">
+    <button onclick="submitCustomSource()" id="csSubmitBtn"
+            class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+      <span class="material-icons-round text-sm">add_circle</span> 添加
+    </button>
+    <button onclick="toggleCustomSourceForm()" class="text-slate-400 hover:text-white text-sm transition">取消</button>
+    <span id="csMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+  </div>
+</div>
+
+<!-- 源分组 -->
+<div class="space-y-6 mb-6">
+  {% for group in source_groups %}
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+      <span class="material-icons-round text-{{ group.color }}-400">{{ group.icon }}</span>
+      <h3 class="font-bold">{{ group.label }}</h3>
+      <span class="text-xs text-slate-500 ml-auto">{{ group.sources|selectattr("enabled")|list|length }}/{{ group.sources|length }} 已启用</span>
+    </div>
+    <div class="divide-y divide-slate-800/50">
+      {% for src in group.sources %}
+      <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-800/20 transition" id="source-row-{{ src.key }}">
+        <label class="toggle-switch">
+          <input type="checkbox" data-source="{{ src.key }}" {{ 'checked' if src.enabled }}>
+          <div class="toggle-track"></div>
+          <div class="toggle-knob"></div>
+        </label>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-white">{{ src.label }}</p>
+          <p class="text-xs text-slate-500 truncate">{{ src.desc }}</p>
+        </div>
+        {% if src.limit is not none %}
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-500 uppercase">Limit</span>
+          <input type="number" data-source-limit="{{ src.key }}" value="{{ src.limit }}" min="1" max="500"
+                 class="w-16 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-primary focus:outline-none">
+        </div>
+        {% endif %}
+        {% if src.max_pages is not none %}
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-500 uppercase">Pages</span>
+          <input type="number" data-source-pages="{{ src.key }}" value="{{ src.max_pages }}" min="1" max="50"
+                 class="w-16 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-primary focus:outline-none">
+        </div>
+        {% endif %}
+        {% if src.key == 'stock_db' %}
+        <div class="flex items-center gap-2">
+          <input type="number" id="stockdbLimit" value="500" min="1" max="5000"
+                 class="w-20 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-primary focus:outline-none">
+          <button onclick="syncStockDb()" id="syncStockDbBtn"
+                  class="flex items-center gap-1 px-3 py-1.5 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded text-xs font-bold text-teal-400 transition">
+            <span class="material-icons-round text-sm">sync</span>同步
+          </button>
+          <span id="syncStockDbResult" class="text-xs text-slate-500"></span>
+        </div>
+        {% endif %}
+        <button onclick="deleteSource('{{ src.key }}', '{{ src.label }}')" title="删除此信息源"
+                class="p-1.5 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition">
+          <span class="material-icons-round text-sm">close</span>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="flex gap-3">
+  <button onclick="saveSources()" id="saveSourcesBtn"
+          class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition">
+    <span class="material-icons-round text-sm">save</span> 保存信息源配置
+  </button>
+  <div id="sourcesMsg" class="hidden flex items-center text-xs px-4 py-2 rounded-lg"></div>
+</div>
+</div>
+<!-- snippet tooltip -->
+<div id="kwSnippetTip" class="hidden"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// ==================== 任务管理 ====================
-let currentTaskId = null;
-let pollTimer = null;
+// ==================== 异步加载云端统计 ====================
+let _currentDocType = '';
 
-function showToast(msg, type) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast ' + (type === 'error' ? 'bg-red-500/90' : 'bg-primary/90') + ' text-white show';
-  setTimeout(() => t.classList.remove('show'), 3000);
+function setDocTypeFilter(dt) {
+  _currentDocType = dt;
+  // 更新 tab 样式
+  document.querySelectorAll('.doc-type-tab').forEach(btn => {
+    const active = btn.dataset.dt === dt;
+    btn.className = active
+      ? 'doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-primary bg-primary/20 text-primary transition'
+      : 'doc-type-tab px-2.5 py-1 rounded text-xs font-bold border border-slate-700 text-slate-400 hover:border-violet-500 hover:text-violet-400 transition';
+  });
+  loadDocStats(dt);
 }
 
-function showTaskOverlay(label) {
-  const o = document.getElementById('taskOverlay');
-  o.classList.remove('hidden');
-  document.getElementById('taskLabel').textContent = label;
-  document.getElementById('taskPct').textContent = '0%';
-  document.getElementById('taskBar').style.width = '0%';
-  document.getElementById('taskResults').textContent = '';
-}
+async function loadDocStats(docType) {
+  docType = docType !== undefined ? docType : _currentDocType;
+  try {
+    const url = '/data/api/doc-stats' + (docType ? '?doc_type=' + encodeURIComponent(docType) : '');
+    const res = await fetch(url);
+    const d = await res.json();
+    if (d.error) return;
 
-function hideTaskOverlay() {
-  document.getElementById('taskOverlay').classList.add('hidden');
-}
-
-function pollTask(taskId, onDone) {
-  currentTaskId = taskId;
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(async () => {
-    try {
-      const resp = await fetch('/data/task-status/' + taskId);
-      const data = await resp.json();
-      if (data.total > 0) {
-        const pct = Math.round((data.progress / data.total) * 100);
-        document.getElementById('taskPct').textContent = pct + '%';
-        document.getElementById('taskBar').style.width = pct + '%';
-      }
-      document.getElementById('taskLabel').textContent = data.current || '处理中...';
-      if (data.results && data.results.length > 0) {
-        const last = data.results[data.results.length - 1];
-        document.getElementById('taskResults').textContent = last.ok
-          ? '✅ ' + last.source + ': ' + (last.count || '')
-          : '❌ ' + last.source + ': ' + (last.error || '');
-      }
-      if (data.status === 'done') {
-        clearInterval(pollTimer);
-        document.getElementById('taskPct').textContent = '100%';
-        document.getElementById('taskBar').style.width = '100%';
-        const ok = data.results.filter(r => r.ok).length;
-        const fail = data.results.filter(r => !r.ok).length;
-        showToast('完成: ' + ok + ' 成功, ' + fail + ' 失败', fail > 0 ? 'error' : 'success');
-        setTimeout(() => { hideTaskOverlay(); if (onDone) onDone(); }, 2000);
-      }
-    } catch (e) {
-      clearInterval(pollTimer);
-      hideTaskOverlay();
+    // 更新汇总卡片（仅全部模式更新，过滤模式不覆盖总量）
+    if (!docType) {
+      const s = d.summary;
+      const fmt = n => Number(n).toLocaleString();
+      document.querySelectorAll('[data-stat]').forEach(el => {
+        const key = el.dataset.stat;
+        if (key === 'source_count') { el.textContent = fmt(s.source_count) + ' 个信息源'; return; }
+        if (s[key] !== undefined) el.textContent = fmt(s[key]);
+      });
     }
-  }, 1500);
-}
 
-// ==================== 采集操作 ====================
-async function syncAll() {
-  showTaskOverlay('一键采集全部信息源...');
-  try {
-    const resp = await fetch('/data/sync-all', { method: 'POST' });
-    const data = await resp.json();
-    if (data.error) { showToast(data.error, 'error'); hideTaskOverlay(); return; }
-    pollTask(data.task_id, () => location.reload());
-  } catch (e) { showToast('请求失败', 'error'); hideTaskOverlay(); }
-}
+    // 更新信息源明细表
+    const tbody = document.querySelector('#sourceDocTable tbody');
+    if (tbody) {
+      if (d.source_doc_stats.length) {
+        tbody.innerHTML = d.source_doc_stats.map(r => {
+          const pending = (r.pending_count !== undefined) ? r.pending_count : (r.doc_count - (r.extracted_count || 0));
+          return `<tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+            <td class="px-3 py-2 font-mono text-primary font-bold">${r.source || '(未知)'}</td>
+            <td class="px-3 py-2 text-right text-white font-mono">${Number(r.doc_count).toLocaleString()}</td>
+            <td class="px-3 py-2 text-right">
+              <span class="text-emerald-400 font-mono">${Number(r.extracted_count||0).toLocaleString()}</span>
+              <span class="text-slate-600"> / ${Number(r.doc_count).toLocaleString()}</span>
+            </td>
+            <td class="px-3 py-2 text-right font-mono ${pending > 0 ? 'text-amber-400' : 'text-slate-600'}">${Number(pending).toLocaleString()}</td>
+            <td class="px-3 py-2 text-right text-slate-400 font-mono">${r.latest_date || '-'}</td>
+            <td class="px-3 py-2 text-slate-400">${r.file_types || '-'}</td>
+          </tr>`;
+        }).join('');
+      } else {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-slate-600 text-xs">该类型暂无数据</td></tr>`;
+      }
+      // 同时更新信息源筛选复选框
+      const srcContainer = document.getElementById('extractSrcContainer');
+      if (srcContainer) {
+        const existing = srcContainer.querySelectorAll('.extract-src-check');
+        existing.forEach(el => el.closest('label').remove());
+        d.source_doc_stats.forEach(r => {
+          const lbl = document.createElement('label');
+          lbl.className = 'flex items-center gap-1 cursor-pointer text-xs';
+          const pending = (r.pending_count !== undefined) ? r.pending_count : (r.doc_count - (r.extracted_count || 0));
+          lbl.innerHTML = `<input type="checkbox" class="extract-src-check accent-amber-400" value="${r.source||''}" checked onchange="syncSrcAll()"><span class="text-slate-400">${r.source||'(未知)'}<span class="text-slate-600 ml-0.5">${pending}待</span></span>`;
+          srcContainer.appendChild(lbl);
+        });
+      }
+    }
 
-async function syncGroup(groupKey) {
-  showTaskOverlay('同步 ' + groupKey + '...');
-  try {
-    const resp = await fetch('/data/sync-group/' + groupKey, { method: 'POST' });
-    const data = await resp.json();
-    if (data.error) { showToast(data.error, 'error'); hideTaskOverlay(); return; }
-    pollTask(data.task_id, () => location.reload());
-  } catch (e) { showToast('请求失败', 'error'); hideTaskOverlay(); }
+    // 更新文档类型分布（始终用全量数据）
+    if (!docType && d.doc_type_stats && d.doc_type_stats.length) {
+      const distEl = document.getElementById('docTypeDistribution');
+      const tagsEl = document.getElementById('docTypeDistributionTags');
+      if (distEl && tagsEl) {
+        tagsEl.innerHTML = d.doc_type_stats.map(r =>
+          `<span class="inline-flex items-center gap-1 px-2 py-1 bg-slate-800/60 border border-slate-700 rounded text-[10px] cursor-pointer hover:border-violet-500 transition" onclick="setDocTypeFilter('${r.doc_type||''}')">
+            <span class="text-violet-300 font-mono">${r.label}</span>
+            <span class="text-slate-500">${r.cnt}</span>
+          </span>`).join('');
+        distEl.classList.remove('hidden');
+      }
+    }
+  } catch(e) { console.warn('loadDocStats failed', e); }
 }
+document.addEventListener('DOMContentLoaded', () => {
+  // 初始化知识星球日期范围选择器
+  window._zsxqPicker = flatpickr('#zsxqDateRange', {
+    mode: 'range',
+    locale: 'zh',
+    dateFormat: 'Y-m-d',
+    maxDate: 'today',
+    defaultDate: [
+      new Date(Date.now() - 7 * 86400000),
+      new Date(),
+    ],
+    theme: 'dark',
+  });
 
-// ==================== 清洗操作 ====================
-async function runClean() {
-  const limit = document.getElementById('cleanLimit').value;
-  const deep = document.getElementById('deepAnalysis').checked;
-  showTaskOverlay('批量清洗...');
-  try {
-    const resp = await fetch('/data/clean?limit=' + limit + '&deep=' + deep, { method: 'POST' });
-    const data = await resp.json();
-    pollTask(data.task_id, () => location.reload());
-  } catch (e) { showToast('请求失败', 'error'); hideTaskOverlay(); }
-}
-
-async function retryFailed() {
-  showTaskOverlay('重试失败条目...');
-  try {
-    const resp = await fetch('/data/retry-failed', { method: 'POST' });
-    const data = await resp.json();
-    pollTask(data.task_id, () => location.reload());
-  } catch (e) { showToast('请求失败', 'error'); hideTaskOverlay(); }
-}
-
-async function genDashboard() {
-  showTaskOverlay('生成 Dashboard 榜单...');
-  try {
-    const resp = await fetch('/data/generate-dashboard', { method: 'POST' });
-    const data = await resp.json();
-    pollTask(data.task_id, () => location.reload());
-  } catch (e) { showToast('请求失败', 'error'); hideTaskOverlay(); }
-}
-
-// ==================== 浏览筛选 ====================
-function applyFilter() {
-  const status = document.getElementById('filterStatus')?.value || '';
-  const source = document.getElementById('filterSource')?.value || '';
-  const q = document.getElementById('filterQ')?.value || '';
-  const params = new URLSearchParams();
-  if (status) params.set('status', status);
-  if (source) params.set('source', source);
-  if (q) params.set('q', q);
-  location.href = '/data/browse?' + params.toString();
-}
-
-// Enter key for search
-document.getElementById('filterQ')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') applyFilter();
+  // 并发加载两个接口，互不阻塞
+  loadDocStats('');
+  // 恢复未完成的任务轮询（先检查任务是否仍有效）
+  async function tryResume(key, pollFn, setId) {
+    const taskId = localStorage.getItem(key);
+    if (!taskId) return;
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { localStorage.removeItem(key); return; }
+      const t = await r.json();
+      if (!t || t.error || t.status === 'done') { localStorage.removeItem(key); return; }
+      // 任务仍在运行，恢复轮询
+      if (setId) setId(taskId);
+      pollFn(taskId);
+    } catch(e) { localStorage.removeItem(key); }
+  }
+  tryResume('cleaning_extractTaskId', pollExtract, id => { _extractTaskId = id; });
+  tryResume('cleaning_pipelineTaskId', pollPipeline, id => { _pipelineTaskId = id; });
+  const savedKwExtract = localStorage.getItem('cleaning_kwExtractTaskId');
+  if (savedKwExtract) { pollKwExtract(savedKwExtract); }
 });
+
+// ==================== stock_db 同步 ====================
+async function syncStockDb() {
+  const limit = document.getElementById('stockdbLimit').value;
+  const btn = document.getElementById('syncStockDbBtn');
+  const result = document.getElementById('syncStockDbResult');
+  btn.disabled = true;
+  result.textContent = '同步中...';
+  result.className = 'text-xs text-slate-400';
+  const fd = new FormData();
+  fd.append('limit', limit);
+  try {
+    const res = await fetch('/data/api/sync-stockdb', {method:'POST', body:fd});
+    const d = await res.json();
+    if (d.error) { result.textContent = '失败: ' + d.error; result.className = 'text-xs text-red-400'; btn.disabled = false; return; }
+    // poll
+    const poll = setInterval(async () => {
+      const r = await fetch('/data/task-status/' + d.task_id);
+      const t = await r.json();
+      result.textContent = '同步中 ' + (t.current || '');
+      if (t.status === 'done') {
+        clearInterval(poll);
+        btn.disabled = false;
+        const msg = (t.results||[]).map(r => r.count || r.error).join(' ');
+        result.textContent = msg;
+        result.className = 'text-xs text-emerald-400';
+        loadDocStats(_currentDocType);
+      }
+    }, 1000);
+  } catch(e) { result.textContent = '请求失败'; result.className = 'text-xs text-red-400'; btn.disabled = false; }
+}
+
+// ==================== 定向提取 ====================
+async function kwSearch() {
+  const kw = document.getElementById('kwInput').value.trim();
+  if (!kw) return;
+  const fts = [...document.querySelectorAll('.kw-ft-check:checked')].map(c => c.value).join(',');
+  const fd = new FormData();
+  fd.append('keywords', kw);
+  fd.append('file_types', fts);
+  const res = await fetch('/data/api/keyword-search', {method:'POST', body:fd});
+  const data = await res.json();
+  if (data.error) { alert('搜索失败: ' + data.error); return; }
+  renderKwResults(data.items);
+}
+
+function renderKwResults(items) {
+  const statusColors = {pending:'text-slate-400', done:'text-emerald-400', failed:'text-red-400', skipped:'text-amber-400'};
+  const ftColors = {txt:'text-slate-300', pdf:'text-red-400', image:'text-sky-400', mixed:'text-violet-400', audio:'text-amber-400', xlsx:'text-emerald-400', xls:'text-emerald-400'};
+  const tbody = document.getElementById('kwResultBody');
+  tbody.innerHTML = items.map(r => `
+    <tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+      <td class="px-2 py-1.5"><input type="checkbox" class="kw-item-check accent-violet-400" value="${r.id}"></td>
+      <td class="px-2 py-1.5 max-w-xs truncate text-white kw-title-cell" data-snippet="${escHtml(r.snippet)}" data-title="${escHtml(r.title)}">${r.title || '(无标题)'}</td>
+      <td class="px-2 py-1.5 text-slate-400 font-mono">${r.source}</td>
+      <td class="px-2 py-1.5 ${ftColors[r.file_type] || 'text-slate-500'} font-mono">${r.file_type}</td>
+      <td class="px-2 py-1.5 ${statusColors[r.extract_status] || 'text-slate-400'}">${r.extract_status}</td>
+      <td class="px-2 py-1.5 text-slate-500 font-mono">${r.publish_date}</td>
+    </tr>`).join('');
+  document.getElementById('kwResultCount').textContent = `共 ${items.length} 条`;
+  document.getElementById('kwSelectAll').checked = false;
+  document.getElementById('kwResults').classList.remove('hidden');
+  bindSnippetTooltip();
+}
+
+function escHtml(s) {
+  return (s || '').replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,' ').replace(/\r/g,'');
+}
+
+function bindSnippetTooltip() {
+  const tip = document.getElementById('kwSnippetTip');
+  document.querySelectorAll('.kw-title-cell').forEach(td => {
+    td.addEventListener('mouseenter', e => {
+      const snippet = td.dataset.snippet;
+      if (!snippet) return;
+      tip.textContent = snippet;
+      tip.classList.remove('hidden');
+      positionTip(e);
+    });
+    td.addEventListener('mousemove', positionTip);
+    td.addEventListener('mouseleave', () => tip.classList.add('hidden'));
+  });
+}
+
+function positionTip(e) {
+  const tip = document.getElementById('kwSnippetTip');
+  const x = e.clientX + 12, y = e.clientY + 12;
+  const maxX = window.innerWidth - tip.offsetWidth - 16;
+  tip.style.left = Math.min(x, maxX) + 'px';
+  tip.style.top = y + 'px';
+}
+
+function kwToggleAll(cb) {
+  document.querySelectorAll('.kw-item-check').forEach(c => c.checked = cb.checked);
+}
+
+async function kwExtract() {
+  const ids = [...document.querySelectorAll('.kw-item-check:checked')].map(c => c.value);
+  if (!ids.length) { alert('请先勾选要提取的文档'); return; }
+  const fd = new FormData();
+  fd.append('doc_ids', ids.join(','));
+  const res = await fetch('/data/api/targeted-extract', {method:'POST', body:fd});
+  const data = await res.json();
+  if (data.error) { alert('提取失败: ' + data.error); return; }
+  localStorage.setItem('cleaning_kwExtractTaskId', data.task_id);
+  pollKwExtract(data.task_id);
+}
+
+function pollKwExtract(taskId) {
+  const statusEl = document.getElementById('kwExtractStatus');
+  const textEl = document.getElementById('kwExtractStatusText');
+  const barEl = document.getElementById('kwExtractProgressBar');
+  const resultEl = document.getElementById('kwExtractResult');
+  const spinnerEl = document.getElementById('kwExtractSpinner');
+  statusEl.classList.remove('hidden');
+  resultEl.classList.add('hidden');
+
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { clearInterval(poll); statusEl.classList.add('hidden'); localStorage.removeItem('cleaning_kwExtractTaskId'); return; }
+      const t = await r.json();
+      if (t.error) { clearInterval(poll); statusEl.classList.add('hidden'); localStorage.removeItem('cleaning_kwExtractTaskId'); return; }
+    const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+    barEl.style.width = pct + '%';
+    textEl.textContent = t.current || '运行中...';
+    if (t.status === 'done') {
+      clearInterval(poll);
+      spinnerEl.classList.remove('animate-spin');
+      textEl.textContent = '完成';
+      resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
+      resultEl.classList.remove('hidden');
+      localStorage.removeItem('cleaning_kwExtractTaskId');
+    }
+    } catch(e) { clearInterval(poll); localStorage.removeItem('cleaning_kwExtractTaskId'); }
+  }, 1000);
+}
+
+// ==================== 提取 ====================
+let _extractTaskId = null;
+
+async function runExtract() {
+  const limit = document.getElementById('extractBatchSize').value;
+  const fts = [...document.querySelectorAll('.extract-ft-check:checked')].map(c => c.value).join(',');
+  const fd = new FormData();
+  fd.append('limit', limit);
+  if (fts) fd.append('file_type', fts);
+  try {
+    const res = await fetch('/data/api/extract-batch', {method:'POST', body:fd});
+    const data = await res.json();
+    if (data.error) { alert('提取失败: ' + data.error); return; }
+    _extractTaskId = data.task_id;
+    localStorage.setItem('cleaning_extractTaskId', data.task_id);
+    document.getElementById('extractCancelBtn').disabled = false;
+    document.getElementById('extractCancelBtn').classList.remove('opacity-40');
+    pollExtract(data.task_id);
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+function pollExtract(taskId) {
+  const statusEl = document.getElementById('extractStatus');
+  const textEl = document.getElementById('extractStatusText');
+  const barEl = document.getElementById('extractProgressBar');
+  const currentEl = document.getElementById('extractCurrent');
+  const resultEl = document.getElementById('extractResult');
+  const spinnerEl = document.getElementById('extractSpinner');
+  statusEl.classList.remove('hidden');
+  resultEl.classList.add('hidden');
+  document.getElementById('extractCancelBtn').disabled = false;
+  document.getElementById('extractCancelBtn').classList.remove('opacity-40');
+
+  const startTime = Date.now();
+  const TIMEOUT_MS = 10 * 60 * 1000; // 10分钟超时
+
+  function stopPoll(msg) {
+    clearInterval(poll);
+    spinnerEl.classList.remove('animate-spin');
+    textEl.textContent = msg || '已停止';
+    document.getElementById('extractCancelBtn').disabled = true;
+    document.getElementById('extractCancelBtn').classList.add('opacity-40');
+    _extractTaskId = null;
+    localStorage.removeItem('cleaning_extractTaskId');
+  }
+
+  const poll = setInterval(async () => {
+    if (Date.now() - startTime > TIMEOUT_MS) { stopPoll('超时，请重新提取'); return; }
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { stopPoll('任务已失效'); statusEl.classList.add('hidden'); return; }
+      const t = await r.json();
+      if (t.error) { stopPoll('任务出错'); statusEl.classList.add('hidden'); return; }
+      const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+      barEl.style.width = pct + '%';
+      textEl.textContent = t.current || '运行中...';
+      currentEl.textContent = `${t.progress || 0}/${t.total || '?'}`;
+      if (t.status === 'done') {
+        spinnerEl.classList.remove('animate-spin');
+        textEl.textContent = '完成';
+        resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
+        resultEl.classList.remove('hidden');
+        stopPoll();
+        loadDocStats(_currentDocType);
+      }
+    } catch(e) { stopPoll('网络错误'); }
+  }, 1000);
+}
+
+async function cancelExtract() {
+  if (!_extractTaskId) return;
+  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_extractTaskId})});
+}
+
+// ==================== 清洗管线 ====================
+let _pipelineTaskId = null;
+
+async function runPipeline(type) {
+  const limit = document.getElementById('pipelineBatchSize').value;
+  const fd = new FormData();
+  fd.append('pipeline', type);
+  fd.append('limit', limit);
+  try {
+    const res = await fetch('/data/api/run-pipeline', {method:'POST', body:fd});
+    if (!res.ok) { alert('管线启动失败: HTTP ' + res.status); return; }
+    const data = await res.json();
+    if (data.error) { alert('管线启动失败: ' + data.error); return; }
+    _pipelineTaskId = data.task_id;
+    localStorage.setItem('cleaning_pipelineTaskId', data.task_id);
+    document.getElementById('pipelinePauseBtn').disabled = false;
+    document.getElementById('pipelinePauseBtn').classList.remove('opacity-40');
+    document.getElementById('pipelineCancelBtn').disabled = false;
+    document.getElementById('pipelineCancelBtn').classList.remove('opacity-40');
+    pollPipeline(data.task_id);
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+function pollPipeline(taskId) {
+  const statusEl = document.getElementById('pipelineStatus');
+  const textEl = document.getElementById('pipelineStatusText');
+  const barEl = document.getElementById('pipelineProgressBar');
+  const currentEl = document.getElementById('pipelineCurrent');
+  const resultEl = document.getElementById('pipelineResult');
+  const spinnerEl = document.getElementById('pipelineSpinner');
+  statusEl.classList.remove('hidden');
+  resultEl.classList.add('hidden');
+  document.getElementById('pipelinePauseBtn').disabled = false;
+  document.getElementById('pipelinePauseBtn').classList.remove('opacity-40');
+  document.getElementById('pipelineCancelBtn').disabled = false;
+  document.getElementById('pipelineCancelBtn').classList.remove('opacity-40');
+
+  const startTime = Date.now();
+  const TIMEOUT_MS = 30 * 60 * 1000; // 30分钟超时
+
+  function stopPoll(msg) {
+    clearInterval(poll);
+    spinnerEl.classList.remove('animate-spin');
+    textEl.textContent = msg || '已停止';
+    document.getElementById('pipelinePauseBtn').disabled = true;
+    document.getElementById('pipelinePauseBtn').classList.add('opacity-40');
+    document.getElementById('pipelineCancelBtn').disabled = true;
+    document.getElementById('pipelineCancelBtn').classList.add('opacity-40');
+    document.getElementById('pipelineResumeBtn').classList.add('hidden');
+    _pipelineTaskId = null;
+    localStorage.removeItem('cleaning_pipelineTaskId');
+  }
+
+  const poll = setInterval(async () => {
+    if (Date.now() - startTime > TIMEOUT_MS) { stopPoll('超时，请重新启动'); return; }
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { stopPoll('任务已失效'); statusEl.classList.add('hidden'); return; }
+      const t = await r.json();
+      if (t.error) { stopPoll('任务出错'); statusEl.classList.add('hidden'); return; }
+      const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+      barEl.style.width = pct + '%';
+      textEl.textContent = t.current || '运行中...';
+      currentEl.textContent = `${t.progress || 0}/${t.total || '?'}`;
+
+      // ── 阶段标签检测 ──
+      const stageLabel = document.getElementById('pipelineStageLabel');
+      if (stageLabel) {
+        const cur = (t.current || '').toLowerCase();
+        let stageText = '', stageColor = 'bg-slate-700 text-slate-300';
+        if (cur.includes('语义清洗') || cur.startsWith('s ') || cur.includes('semantic')) {
+          stageText = 'S · 语义清洗'; stageColor = 'bg-indigo-900/60 text-indigo-300';
+          barEl.className = 'bg-indigo-400 h-1.5 rounded-full transition-all';
+        } else if (cur.includes('切片') || cur.includes('chunk')) {
+          stageText = 'CHUNK · 向量切片'; stageColor = 'bg-cyan-900/60 text-cyan-300';
+          barEl.className = 'bg-cyan-400 h-1.5 rounded-full transition-all';
+        } else if (cur.includes('a=') || cur.includes('摘要') || cur.includes('summary')) {
+          stageText = 'A · 摘要'; stageColor = 'bg-blue-900/60 text-blue-300';
+          barEl.className = 'bg-blue-400 h-1.5 rounded-full transition-all';
+        } else if (cur.includes('b') || cur.includes('提及') || cur.includes('mention')) {
+          stageText = 'B · 提及'; stageColor = 'bg-emerald-900/60 text-emerald-300';
+          barEl.className = 'bg-emerald-400 h-1.5 rounded-full transition-all';
+        } else if (cur.includes('c') || cur.includes('kg') || cur.includes('三元')) {
+          stageText = 'C · KG'; stageColor = 'bg-violet-900/60 text-violet-300';
+          barEl.className = 'bg-violet-400 h-1.5 rounded-full transition-all';
+        } else if (t.status === 'running') {
+          stageText = '处理中'; stageColor = 'bg-amber-900/60 text-amber-300';
+          barEl.className = 'bg-amber-400 h-1.5 rounded-full transition-all';
+        }
+        if (stageText) {
+          stageLabel.textContent = stageText;
+          stageLabel.className = `ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold ${stageColor}`;
+          stageLabel.classList.remove('hidden');
+        }
+      }
+
+      if (t.status === 'done') {
+        spinnerEl.classList.remove('animate-spin');
+        textEl.textContent = '完成';
+        if (stageLabel) stageLabel.classList.add('hidden');
+        barEl.className = 'bg-emerald-400 h-1.5 rounded-full transition-all';
+        barEl.style.width = '100%';
+        resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
+        resultEl.classList.remove('hidden');
+        stopPoll();
+        loadDocStats(_currentDocType);
+      }
+    } catch(e) { stopPoll('网络错误'); }
+  }, 1000);
+}
+
+async function pausePipeline() {
+  if (!_pipelineTaskId) return;
+  const task = await (await fetch('/data/task-status/' + _pipelineTaskId)).json();
+  // Set paused flag via a lightweight endpoint — we piggyback on cancel-task pattern
+  // For now, we just track locally and the backend checks task["paused"]
+  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({task_id:_pipelineTaskId})}).catch(()=>{});
+  // Actually we need a pause endpoint. Let's use a simpler approach:
+  // We'll set a flag on the task object. But since we don't have a pause endpoint,
+  // let's just cancel for now.
+  document.getElementById('pipelinePauseBtn').classList.add('hidden');
+  document.getElementById('pipelineResumeBtn').classList.remove('hidden');
+}
+
+async function resumePipeline() {
+  // After cancel, resume isn't possible with current backend. Show message.
+  document.getElementById('pipelineResumeBtn').classList.add('hidden');
+  document.getElementById('pipelinePauseBtn').classList.remove('hidden');
+  alert('管线已取消，请重新启动');
+}
+
+async function cancelPipeline() {
+  if (!_pipelineTaskId) return;
+  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_pipelineTaskId})});
+}
+
+// ==================== 向量切片回填 ====================
+let _backfillTaskId = null;
+
+async function runBackfillChunks() {
+  const limit = document.getElementById('backfillChunksLimit').value;
+  const fd = new FormData();
+  fd.append('limit', limit);
+  try {
+    const res = await fetch('/data/api/backfill-chunks', {method:'POST', body:fd});
+    if (!res.ok) { alert('回填启动失败: HTTP ' + res.status); return; }
+    const data = await res.json();
+    if (data.error) { alert('回填启动失败: ' + data.error); return; }
+    _backfillTaskId = data.task_id;
+    const cancelBtn = document.getElementById('backfillCancelBtn');
+    cancelBtn.disabled = false;
+    cancelBtn.classList.remove('opacity-40');
+    pollBackfillChunks(data.task_id);
+  } catch(e) {
+    alert('请求失败: ' + e.message);
+  }
+}
+
+function pollBackfillChunks(taskId) {
+  const statusEl = document.getElementById('backfillStatus');
+  const textEl = document.getElementById('backfillStatusText');
+  const barEl = document.getElementById('backfillProgressBar');
+  const currentEl = document.getElementById('backfillCurrent');
+  const resultEl = document.getElementById('backfillResult');
+  statusEl.classList.remove('hidden');
+  resultEl.classList.add('hidden');
+
+  const startTime = Date.now();
+  const TIMEOUT_MS = 60 * 60 * 1000; // 1小时超时（大批量可能较慢）
+
+  function stopPoll(msg) {
+    clearInterval(poll);
+    textEl.textContent = msg || '已停止';
+    const cancelBtn = document.getElementById('backfillCancelBtn');
+    cancelBtn.disabled = true;
+    cancelBtn.classList.add('opacity-40');
+    _backfillTaskId = null;
+  }
+
+  const poll = setInterval(async () => {
+    if (Date.now() - startTime > TIMEOUT_MS) { stopPoll('超时，请重新启动'); return; }
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { stopPoll('任务已失效'); return; }
+      const t = await r.json();
+      if (t.error) { stopPoll('任务出错'); return; }
+      const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+      barEl.style.width = pct + '%';
+      textEl.textContent = t.current || '回填中...';
+      currentEl.textContent = `${t.progress || 0}/${t.total || '?'}`;
+      if (t.status === 'done') {
+        barEl.style.width = '100%';
+        textEl.textContent = '完成';
+        resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
+        resultEl.classList.remove('hidden');
+        stopPoll();
+        loadDocStats(_currentDocType); // 刷新向量切片卡片
+      }
+    } catch(e) { stopPoll('网络错误'); }
+  }, 2000); // 回填较慢，2秒一次就够
+}
+
+async function cancelBackfillChunks() {
+  if (!_backfillTaskId) return;
+  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_backfillTaskId})});
+}
+
+// ==================== 清洗日志 ====================
+async function loadCleaningLogs() {
+  const panel = document.getElementById('cleaningLogsPanel');
+  panel.innerHTML = '<p class="text-xs text-slate-500 text-center py-2">加载中...</p>';
+  try {
+    const res = await fetch('/data/api/cleaning-logs');
+    const data = await res.json();
+    const logs = data.logs || [];
+    if (!logs.length) { panel.innerHTML = '<p class="text-xs text-slate-600 text-center py-4">暂无记录</p>'; return; }
+    if (data.source === 'memory') {
+      panel.innerHTML = logs.map(l => `
+        <div class="flex items-center gap-3 py-2 border-b border-slate-800/40 text-xs">
+          <span class="font-mono text-slate-500">${l.task_id}</span>
+          <span class="${l.status==='done'?'text-emerald-400':'text-amber-400'}">${l.status}</span>
+          <span class="text-slate-400">${l.current || ''}</span>
+          <span class="text-slate-500 ml-auto">${(l.results||[]).map(r=>r.count||r.error||'').join(' ')}</span>
+        </div>`).join('');
+    } else {
+      panel.innerHTML = `<table class="w-full text-xs"><thead><tr class="border-b border-slate-800">
+        <th class="px-2 py-1 text-left text-slate-500">ID</th>
+        <th class="px-2 py-1 text-left text-slate-500">管线</th>
+        <th class="px-2 py-1 text-left text-slate-500">状态</th>
+        <th class="px-2 py-1 text-right text-slate-500">总数</th>
+        <th class="px-2 py-1 text-right text-slate-500">成功</th>
+        <th class="px-2 py-1 text-right text-slate-500">失败</th>
+        <th class="px-2 py-1 text-left text-slate-500">开始</th>
+        </tr></thead><tbody>` + logs.map(l => `<tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+          <td class="px-2 py-1 text-slate-500 font-mono">${l.id}</td>
+          <td class="px-2 py-1 text-primary font-bold">${l.pipeline||'-'}</td>
+          <td class="px-2 py-1 ${l.status==='done'?'text-emerald-400':'text-amber-400'}">${l.status}</td>
+          <td class="px-2 py-1 text-right text-white font-mono">${l.total_count||0}</td>
+          <td class="px-2 py-1 text-right text-emerald-400 font-mono">${l.success_count||0}</td>
+          <td class="px-2 py-1 text-right text-red-400 font-mono">${l.fail_count||0}</td>
+          <td class="px-2 py-1 text-slate-400">${l.started_at||'-'}</td>
+        </tr>`).join('') + '</tbody></table>';
+    }
+  } catch(e) { panel.innerHTML = '<p class="text-xs text-red-400 text-center py-4">加载失败</p>'; }
+}
+
+// ==================== 信息源管理 ====================
+function toggleAllSources(cb) {
+  document.querySelectorAll('.extract-src-check').forEach(c => c.checked = cb.checked);
+}
+
+function syncSrcAll() {
+  const all = document.querySelectorAll('.extract-src-check');
+  const checked = document.querySelectorAll('.extract-src-check:checked');
+  const allCb = document.getElementById('extractSrcAll');
+  if (allCb) allCb.checked = all.length === checked.length;
+}
+
+let _addSourceOpen = false;
+async function toggleAddSource() {
+  const dd = document.getElementById('addSourceDropdown');
+  _addSourceOpen = !_addSourceOpen;
+  if (_addSourceOpen) {
+    dd.classList.remove('hidden');
+    const list = document.getElementById('addSourceList');
+    list.innerHTML = '<div class="p-4 text-xs text-slate-500 text-center">加载中...</div>';
+    const res = await fetch('/data/api/available-sources');
+    const data = await res.json();
+    const sources = data.sources || [];
+    if (!sources.length) { list.innerHTML = '<div class="p-4 text-xs text-slate-500 text-center">没有可添加的信息源</div>'; return; }
+    list.innerHTML = sources.map(s => `
+      <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-800/40 cursor-pointer transition" onclick="addSource('${s.key}')">
+        <div class="flex-1"><p class="text-sm font-semibold text-white">${s.label}</p><p class="text-xs text-slate-500">${s.desc || s.key}</p></div>
+        <span class="material-icons-round text-sm text-primary">add_circle</span>
+      </div>`).join('');
+  } else {
+    dd.classList.add('hidden');
+  }
+}
+
+// 点击外部关闭
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('addSourceWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('addSourceDropdown').classList.add('hidden');
+    _addSourceOpen = false;
+  }
+});
+
+async function addSource(key) {
+  const res = await fetch('/data/api/add-source', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+  const data = await res.json();
+  const msgEl = document.getElementById('addDeleteMsg');
+  if (data.error) {
+    msgEl.textContent = data.error; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400';
+  } else {
+    msgEl.textContent = '已添加'; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400';
+    setTimeout(() => location.reload(), 500);
+  }
+  msgEl.classList.remove('hidden');
+}
+
+async function deleteSource(key, label) {
+  if (!confirm(`确定删除信息源「${label}」？`)) return;
+  const res = await fetch('/data/api/delete-source', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key})});
+  const data = await res.json();
+  const msgEl = document.getElementById('addDeleteMsg');
+  if (data.error) {
+    msgEl.textContent = data.error; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400';
+  } else {
+    msgEl.textContent = '已删除'; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400';
+    const row = document.getElementById('source-row-' + key);
+    if (row) row.remove();
+  }
+  msgEl.classList.remove('hidden');
+}
+
+async function startZsxqFetch() {
+  const btn = document.getElementById('zsxqFetchBtn');
+  const msgEl = document.getElementById('zsxqFetchMsg');
+  const progressEl = document.getElementById('zsxqProgress');
+  const maxPages = parseInt(document.getElementById('zsxqMaxPages').value) || 50;
+
+  const dates = window._zsxqPicker ? window._zsxqPicker.selectedDates : [];
+  if (dates.length < 2) {
+    msgEl.textContent = '请选择日期范围';
+    msgEl.className = 'text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400';
+    msgEl.classList.remove('hidden');
+    return;
+  }
+  const fmt = d => d.toISOString().slice(0, 10);
+  const startDate = fmt(dates[0]);
+  const endDate = fmt(dates[1]);
+
+  btn.disabled = true;
+  msgEl.classList.add('hidden');
+  progressEl.textContent = '采集中...';
+  progressEl.classList.remove('hidden');
+
+  try {
+    const res = await fetch('/data/api/fetch-zsxq', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({start_date: startDate, end_date: endDate, max_pages: maxPages}),
+    });
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+
+    const taskId = d.task_id;
+    const poll = setInterval(async () => {
+      const r = await fetch('/data/task-status/' + taskId);
+      const t = await r.json();
+      const res = (t.results || [])[0] || {};
+      const fetched = res.fetched || 0;
+      const saved = res.count || 0;
+      const skipped = res.skipped || 0;
+      if (t.status === 'done') {
+        progressEl.textContent = `完成 — 拉取 ${fetched} 条，新增 ${saved} 条，跳过(已存在) ${skipped} 条`;
+        clearInterval(poll);
+        btn.disabled = false;
+        msgEl.textContent = `新增 ${saved} 条 / 共拉取 ${fetched} 条`;
+        msgEl.className = 'text-xs px-3 py-2 rounded-lg bg-emerald-500/10 text-emerald-400';
+        msgEl.classList.remove('hidden');
+      } else {
+        progressEl.textContent = `采集中... ${t.current || ''}`;
+      }
+    }, 2000);
+  } catch(e) {
+    progressEl.classList.add('hidden');
+    btn.disabled = false;
+    msgEl.textContent = '失败: ' + e.message;
+    msgEl.className = 'text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400';
+    msgEl.classList.remove('hidden');
+  }
+}
+
+async function saveSources() {
+  const btn = document.getElementById('saveSourcesBtn');
+  const msgEl = document.getElementById('sourcesMsg');
+  btn.disabled = true;
+  const sources = {};
+  document.querySelectorAll('[data-source]').forEach(cb => {
+    const key = cb.dataset.source;
+    sources[key] = {enabled: cb.checked};
+    const limitEl = document.querySelector(`[data-source-limit="${key}"]`);
+    if (limitEl) sources[key].limit = parseInt(limitEl.value) || null;
+    const pagesEl = document.querySelector(`[data-source-pages="${key}"]`);
+    if (pagesEl) sources[key].max_pages = parseInt(pagesEl.value) || null;
+  });
+  const body = {
+    sources,
+    news_hours: parseInt(document.getElementById('newsHours').value) || 24,
+    zsxq_cookie: document.getElementById('zsxqCookie').value,
+    zsxq_group_ids: document.getElementById('zsxqGroupIds').value,
+  };
+  try {
+    const res = await fetch('/data/api/save-sources', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const data = await res.json();
+    if (data.error) {
+      msgEl.textContent = '保存失败: ' + data.error; msgEl.className = 'flex items-center text-xs px-4 py-2 rounded-lg bg-red-500/10 text-red-400';
+    } else {
+      msgEl.textContent = '已保存'; msgEl.className = 'flex items-center text-xs px-4 py-2 rounded-lg bg-emerald-500/10 text-emerald-400';
+    }
+  } catch(e) {
+    msgEl.textContent = '请求失败'; msgEl.className = 'flex items-center text-xs px-4 py-2 rounded-lg bg-red-500/10 text-red-400';
+  }
+  msgEl.classList.remove('hidden');
+  btn.disabled = false;
+  setTimeout(() => msgEl.classList.add('hidden'), 3000);
+}
+
+let _customFormOpen = false;
+function toggleCustomSourceForm() {
+  _customFormOpen = !_customFormOpen;
+  document.getElementById('customSourceForm').classList.toggle('hidden', !_customFormOpen);
+}
+
+async function submitCustomSource() {
+  const key = document.getElementById('csKey').value.trim();
+  const label = document.getElementById('csLabel').value.trim();
+  const group = document.getElementById('csGroup').value;
+  const fetcher_type = document.getElementById('csFetcher').value;
+  const desc = document.getElementById('csDesc').value.trim();
+  const msgEl = document.getElementById('csMsg');
+  if (!key || !label) { msgEl.textContent = 'key 和名称必填'; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400'; msgEl.classList.remove('hidden'); return; }
+  const res = await fetch('/data/api/add-custom-source', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({key, label, group, desc, fetcher_type})});
+  const data = await res.json();
+  if (data.error) {
+    msgEl.textContent = data.error; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400';
+  } else {
+    msgEl.textContent = '已添加'; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400';
+    setTimeout(() => location.reload(), 500);
+  }
+  msgEl.classList.remove('hidden');
+}
 </script>
 {% endblock %}
