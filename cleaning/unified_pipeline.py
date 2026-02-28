@@ -437,16 +437,16 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
     chunks_count = 0
     try:
         from retrieval.chunker import chunk_and_index
-        # 查询文档元数据
+        # 查询文档元数据（含 doc_type）
         meta_rows = execute_cloud_query(
-            """SELECT sd.file_type, sd.title, et.publish_time
+            """SELECT sd.file_type, sd.title, sd.doc_type, et.publish_time
                FROM extracted_texts et
                LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
                WHERE et.id = %s""",
             [extracted_text_id],
         )
         meta = meta_rows[0] if meta_rows else {}
-        doc_type_hint = ""
+        doc_type_hint = meta.get("doc_type") or ""
         file_type_hint = meta.get("file_type") or ""
         publish_time_hint = meta.get("publish_time")
         title_hint = meta.get("title") or ""
