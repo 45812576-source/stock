@@ -71,16 +71,29 @@ def hybrid_search(
                                 et_score_map.get(c.extracted_text_id, 0.0), c.score
                             )
 
+                    from retrieval.quality import get_summary_chunk_quality_boost, time_decay
+                    import json as _json
                     for row in summary_rows:
                         base_score = et_score_map.get(row["extracted_text_id"], 0.5)
+                        doc_type = row.get("doc_type") or ""
+                        pt = str(row.get("publish_time") or "")
+                        # 取 content_summary_id（存在 metadata_json 里）
+                        cs_id = 0
+                        try:
+                            meta = _json.loads(row.get("metadata_json") or "{}")
+                            cs_id = int(meta.get("content_summary_id") or 0)
+                        except Exception:
+                            pass
+                        sq_boost = get_summary_chunk_quality_boost(cs_id) if cs_id else 1.0
+                        score = base_score * 1.2 * sq_boost * time_decay(pt, doc_type)
                         chunks.append(ChunkResult(
                             chunk_id=row["id"],
                             text=row["chunk_text"],
-                            score=base_score * 1.2,  # 摘要加权 1.2x
+                            score=score,
                             extracted_text_id=row["extracted_text_id"],
-                            doc_type=row.get("doc_type") or "",
+                            doc_type=doc_type,
                             file_type="summary",
-                            publish_time=str(row.get("publish_time") or ""),
+                            publish_time=pt,
                             source_doc_title="",
                         ))
 
