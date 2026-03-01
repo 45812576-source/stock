@@ -490,6 +490,14 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
             except Exception as e:
                 logger.error(f"管线异常 id={extracted_text_id} pipeline={key}: {e}")
 
+    # 摘要 chunk：族2文档的 content_summaries 展开写向量库
+    if results.get("summary_id"):
+        try:
+            from retrieval.summary_chunker import index_summary_chunk
+            index_summary_chunk(results["summary_id"])
+        except Exception as e:
+            logger.warning(f"摘要 chunk 写入失败 id={extracted_text_id}: {e}")
+
     return results
 
 
