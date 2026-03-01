@@ -42,6 +42,42 @@ def hybrid_search(
     chunks = semantic_search(query, top_k=top_k, filters=filters)
     result.chunks = chunks
 
+    # 合并摘要 chunks（summary_chunks collection，摘要加权 1.2x）
+    try:
+        from retrieval.embedding import embed_query as _embed_query
+        from retrieval.summary_chunker import search_summary_chunks
+        from retrieval.chunker import get_chunks_by_ids
+
+        query_vec = _embed_query(query)
+        summary_hits = search_summary_chunks(query_vec, top_k=5)
+
+        if summary_hits:
+            s_chunk_ids = [h["chunk_id"] for h in summary_hits]
+            s_score_map = {h["chunk_id"]: h["score"] * 1.2 for h in summary_hits}
+            s_rows = get_chunks_by_ids(s_chunk_ids)
+            s_row_map = {r["id"]: r for r in s_rows}
+
+            from retrieval.models import ChunkResult
+            for cid in s_chunk_ids:
+                row = s_row_map.get(cid)
+                if not row:
+                    continue
+                chunks.append(ChunkResult(
+                    chunk_id=cid,
+                    text=row["chunk_text"],
+                    score=s_score_map.get(cid, 0.0),
+                    extracted_text_id=row["extracted_text_id"],
+                    doc_type=row.get("doc_type") or "",
+                    file_type="summary",
+                    publish_time=str(row.get("publish_time") or ""),
+                    source_doc_title=row.get("source_doc_title") or "",
+                ))
+
+            chunks.sort(key=lambda c: c.score, reverse=True)
+            result.chunks = chunks
+    except Exception as e:
+        logger.warning(f"summary_chunks 合并失败: {e}")
+
     # KG 查询
     kg_result = None
     entity_name = _extract_entity(query, context)
@@ -110,21 +146,26 @@ def _merge_context(
     chunks: list[ChunkResult],
     max_chars: int = 4000,
 ) -> str:
-    """分区序列化：KG 结构 40% + 向量 chunks 50% + KG 佐证 10%"""
+    """分区序列化：KG 结构 40% + 向量 chunks 50% + KG 佐证 10%
+
+    quality 影响：
+    - chunks 已在 L1 按 quality-adjusted score 降序排列
+    - KG nodes 中 rejected 实体对应关系被过滤
+    - evidence_chunks 按 quality-adjusted score 降序排列
+    """
     sections = []
-    budget = max_chars
 
     kg_budget = int(max_chars * 0.40)
     chunk_budget = int(max_chars * 0.50)
     evidence_budget = int(max_chars * 0.10)
 
-    # 区域1: KG 结构信息
+    # 区域1: KG 结构信息（过滤 rejected 关系后的文本）
     if kg_result and kg_result.text:
-        kg_text = kg_result.text[:kg_budget]
+        kg_text = _filter_rejected_from_kg_text(kg_result)
+        kg_text = kg_text[:kg_budget]
         sections.append(kg_text)
-        budget -= len(kg_text)
 
-    # 区域2: 向量检索原文 chunks
+    # 区域2: 向量检索原文 chunks（已由 L1 按 quality-adjusted score 排序）
     if chunks:
         sections.append("\n=== 相关原文 ===")
         used = 0
@@ -135,11 +176,13 @@ def _merge_context(
             sections.append(line)
             used += len(line)
 
-    # 区域3: KG 关系原文佐证
+    # 区域3: KG 关系原文佐证（按 quality-adjusted score 降序）
     if kg_result and kg_result.evidence_chunks:
+        sorted_evidence = sorted(kg_result.evidence_chunks, key=lambda ec: ec.score, reverse=True)
+        # 过滤 score 极低的（rejected 实体的 chunks score=0.3，不完全排除但降序排在后面）
         sections.append("\n=== 关系佐证 ===")
         used = 0
-        for ec in kg_result.evidence_chunks[:3]:
+        for ec in sorted_evidence[:3]:
             if used >= evidence_budget:
                 break
             title = ec.source_doc_title or "来源文档"
@@ -148,3 +191,34 @@ def _merge_context(
             used += len(line)
 
     return "\n".join(sections)
+
+
+def _filter_rejected_from_kg_text(kg_result: KGResult) -> str:
+    """从 KG 节点列表中过滤掉 rejected 实体，重建文本摘要
+
+    若 kg_result.text 是字符串（来自 kg_query），直接返回（无法过滤），
+    若 kg_result.nodes 包含 review_status 字段则做过滤。
+    """
+    text = kg_result.text or ""
+    if not kg_result.nodes:
+        return text
+
+    # 如果 nodes 携带了 review_status，过滤掉 rejected 的
+    try:
+        approved_nodes = [n for n in kg_result.nodes if n.get("review_status") != "rejected"]
+        if len(approved_nodes) == len(kg_result.nodes):
+            return text  # 无 rejected，直接返回原文
+
+        # 有 rejected 节点时，从文本中移除对应实体名（简单前缀标记过滤）
+        rejected_names = {n.get("entity_name", "") for n in kg_result.nodes
+                          if n.get("review_status") == "rejected" and n.get("entity_name")}
+        if not rejected_names:
+            return text
+        lines = text.split("\n")
+        filtered = [
+            line for line in lines
+            if not any(rname in line for rname in rejected_names)
+        ]
+        return "\n".join(filtered)
+    except Exception:
+        return text
