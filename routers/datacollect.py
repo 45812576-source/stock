@@ -4,8 +4,9 @@ import logging
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import List
 
-from fastapi import APIRouter, Request, BackgroundTasks, Form
+from fastapi import APIRouter, Request, BackgroundTasks, Form, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -78,7 +79,7 @@ def _get_source_doc_summary():
         "pipeline_a":  "SELECT COUNT(DISTINCT extracted_text_id) as n FROM content_summaries",
         "pipeline_b":  "SELECT COUNT(DISTINCT extracted_text_id) as n FROM stock_mentions",
         "pipeline_c":  "SELECT COUNT(*) as n FROM extracted_texts WHERE kg_status='done'",
-        "doc_stats":   "SELECT source, COUNT(*) as doc_count, SUM(CASE WHEN extract_status='done' THEN 1 ELSE 0 END) as extracted_count FROM source_documents GROUP BY source",
+        "doc_stats":   "SELECT source, COUNT(*) as doc_count, SUM(CASE WHEN extract_status IN ('extracted','ready_to_pipe','done') THEN 1 ELSE 0 END) as extracted_count FROM source_documents GROUP BY source",
     }
     results = {}
     try:
@@ -990,7 +991,7 @@ def get_doc_stats(doc_type: str = ""):
         params = [doc_type] if doc_type else []
         source_doc_stats = execute_cloud_query(
             f"""SELECT source, COUNT(*) as doc_count,
-                      SUM(CASE WHEN extract_status='done' THEN 1 ELSE 0 END) as extracted_count,
+                      SUM(CASE WHEN extract_status IN ('extracted','ready_to_pipe','done') THEN 1 ELSE 0 END) as extracted_count,
                       SUM(CASE WHEN extract_status='pending' THEN 1 ELSE 0 END) as pending_count,
                       MAX(publish_date) as latest_date,
                       GROUP_CONCAT(DISTINCT file_type ORDER BY file_type SEPARATOR '/') as file_types
@@ -1537,6 +1538,7 @@ def api_backfill_chunks(limit: int = Form(500)):
 
 
 
+@router.post("/api/manual-add-doc", response_class=JSONResponse)
 async def api_manual_add_doc(request: Request):
     """手动录入 source_document，直接写云端"""
     body = await request.json()
@@ -1569,3 +1571,801 @@ async def api_manual_add_doc(request: Request):
     except Exception as e:
         logger.error(f"manual_add_doc error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ==================== 提取审核台 API ====================
+
+@router.get("/review", response_class=HTMLResponse)
+def data_review(request: Request):
+    """提取审核台页面"""
+    from config.doc_types import DOC_TYPES
+    from utils.db_utils import execute_cloud_query
+    # 从数据库读取实际存在的 doc_type，作为下拉选项
+    try:
+        rows = execute_cloud_query(
+            "SELECT doc_type, COUNT(*) as cnt FROM source_documents "
+            "WHERE doc_type IS NOT NULL AND doc_type != '' "
+            "GROUP BY doc_type ORDER BY cnt DESC"
+        ) or []
+        # 构建标签映射（精细类型用中文，粗类型直接用英文）
+        label_map = {k: l for k, l, _ in DOC_TYPES}
+        actual_doc_types = [
+            (r["doc_type"], label_map.get(r["doc_type"], r["doc_type"]), r["cnt"])
+            for r in rows
+        ]
+    except Exception:
+        actual_doc_types = [(k, l, 0) for k, l, _ in DOC_TYPES]
+    return templates.TemplateResponse("data_review.html", {
+        "request": request,
+        "active_page": "data",
+        "doc_types": actual_doc_types,
+    })
+
+
+@router.get("/api/review-list", response_class=JSONResponse)
+def api_review_list(
+    file_type: str = "",
+    source: str = "",
+    status: str = "",
+    doc_type: str = "",
+    q: str = "",
+    limit: int = 50,
+    offset: int = 0,
+):
+    """提取审核台文档列表"""
+    from utils.db_utils import execute_cloud_query
+
+    conditions = []
+    params = []
+
+    # 默认排除 txt（txt 自动入管线，不需要人工审核）
+    if not file_type:
+        conditions.append("file_type != 'txt'")
+    else:
+        conditions.append("file_type = %s")
+        params.append(file_type)
+
+    if status:
+        conditions.append("extract_status = %s")
+        params.append(status)
+
+    if source:
+        conditions.append("source = %s")
+        params.append(source)
+
+    if doc_type:
+        conditions.append("doc_type = %s")
+        params.append(doc_type)
+
+    if q:
+        conditions.append("(title LIKE %s OR text_content LIKE %s)")
+        params.extend([f"%{q}%", f"%{q}%"])
+
+    where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+    sql = f"""SELECT id, title, file_type, doc_type, source, extract_status,
+                     oss_url, text_content, publish_date, created_at, extracted_text
+              FROM source_documents{where}
+              ORDER BY id DESC LIMIT %s OFFSET %s"""
+    params.extend([limit, offset])
+
+    count_sql = f"SELECT COUNT(*) as n FROM source_documents{where}"
+    count_params = params[:-2]  # exclude limit/offset
+
+    try:
+        rows = execute_cloud_query(sql, params) or []
+        cnt_rows = execute_cloud_query(count_sql, count_params) or [{"n": 0}]
+        total = cnt_rows[0]["n"]
+        items = []
+        for r in rows:
+            d = dict(r)
+            d["publish_date"] = str(d["publish_date"]) if d.get("publish_date") else ""
+            d["created_at"] = str(d["created_at"])[:16] if d.get("created_at") else ""
+            items.append(d)
+        return {"items": items, "total": total}
+    except Exception as e:
+        logger.error(f"review_list error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/upload-file", response_class=JSONResponse)
+async def api_upload_file(
+    file: UploadFile,
+    title: str = Form(""),
+    doc_type: str = Form("auto"),
+    source: str = Form("upload"),
+    publish_date: str = Form(""),
+):
+    """上传文件并即时提取"""
+    import time
+    from utils.db_utils import execute_cloud_query, execute_cloud_insert
+
+    # 推断 file_type
+    suffix = Path(file.filename or "").suffix.lower()
+    ft_map = {
+        ".pdf": "pdf",
+        ".png": "image", ".jpg": "image", ".jpeg": "image", ".gif": "image",
+        ".mp3": "mp3", ".wav": "audio", ".m4a": "audio",
+        ".xlsx": "xlsx", ".xls": "xlsx",
+        ".txt": "txt",
+    }
+    file_type = ft_map.get(suffix, "txt")
+
+    # 保存文件
+    uploads_dir = Path(__file__).parent.parent / "static" / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    ts = int(time.time() * 1000)
+    safe_name = f"{ts}_{Path(file.filename or 'file').name}"
+    save_path = uploads_dir / safe_name
+    content = await file.read()
+    save_path.write_bytes(content)
+    preview_url = f"/static/uploads/{safe_name}"
+
+    # 写入 source_documents
+    text_content = content.decode("utf-8", errors="replace") if file_type == "txt" else ""
+    doc_title = title.strip() or Path(file.filename or "").stem or "(上传文件)"
+
+    pd_val = publish_date.strip() or None
+
+    try:
+        execute_cloud_insert(
+            """INSERT INTO source_documents
+               (doc_type, file_type, title, source, oss_url, text_content, publish_date, extract_status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, 'pending')""",
+            [doc_type if doc_type != "auto" else "other",
+             file_type, doc_title, source, preview_url, text_content, pd_val],
+        )
+        rows = execute_cloud_query(
+            "SELECT LAST_INSERT_ID() as id"
+        )
+        doc_id = rows[0]["id"] if rows else None
+    except Exception as e:
+        return JSONResponse({"error": f"写入数据库失败: {e}"}, status_code=500)
+
+    # 提取
+    extracted_text = ""
+    auto_pushed = False
+    needs_reextract = False
+    try:
+        row = execute_cloud_query(
+            "SELECT id, doc_type, file_type, title, text_content, oss_url FROM source_documents WHERE id=%s",
+            [doc_id],
+        )
+        if row:
+            extracted_text, needs_reextract = _do_extract_and_save(row[0])
+
+        # txt 自动入管线
+        if file_type == "txt" and doc_id:
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+            push_to_extracted_texts_by_ids([doc_id])
+            auto_pushed = True
+    except Exception as e:
+        logger.error(f"upload_file extract error: {e}")
+
+    return {
+        "doc_id": doc_id,
+        "file_type": file_type,
+        "title": doc_title,
+        "extracted_text": extracted_text,
+        "preview_url": preview_url,
+        "auto_pushed": auto_pushed,
+        "needs_reextract": needs_reextract,
+    }
+
+
+def _do_extract_and_save(row: dict) -> tuple:
+    """提取+清洗单条文档并回写云端，返回 (extracted_text, needs_reextract)
+
+    needs_reextract=True 表示有 OCR 碎片图表需要人工上传截图二次提取
+    """
+    from ingestion.source_extractor import _extract_single_with_meta, _semantic_clean
+    from config.doc_types import classify_doc_type
+    from utils.db_utils import execute_cloud_insert
+
+    text, needs_understanding = _extract_single_with_meta(row)
+    if text and len(text.strip()) >= 20:
+        text = _semantic_clean(text, row["file_type"], row["id"], needs_understanding)
+    new_doc_type = classify_doc_type(row.get("title") or "", (text or "")[:200])
+
+    # needs_reextract: 扫描件PDF或纯OCR图片，含碎片图表需要人工确认
+    needs_reextract = needs_understanding and row.get("file_type") in ("pdf", "image", "mixed")
+
+    execute_cloud_insert(
+        "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
+        [text, new_doc_type, row["id"]],
+    )
+    return text or "", needs_reextract
+
+
+@router.post("/api/extract-preview", response_class=JSONResponse)
+async def api_extract_preview(request: Request):
+    """批量提取预览（不入管线），返回提取结果供对照审核"""
+    from utils.db_utils import execute_cloud_query
+
+    body = await request.json()
+    doc_ids = [int(x) for x in (body.get("doc_ids") or []) if str(x).isdigit()]
+    if not doc_ids:
+        return JSONResponse({"error": "doc_ids 不能为空"}, status_code=400)
+
+    placeholders = ",".join(["%s"] * len(doc_ids))
+    rows = execute_cloud_query(
+        f"""SELECT id, doc_type, file_type, title, text_content, oss_url, extracted_text, extract_status
+            FROM source_documents WHERE id IN ({placeholders})""",
+        doc_ids,
+    ) or []
+
+    def _resolve_oss_url(d):
+        """mp3/audio 的播放 URL 存在 text_content，其他类型用 oss_url"""
+        if d.get("file_type") in ("mp3", "audio"):
+            return d.get("text_content") or d.get("oss_url") or ""
+        return d.get("oss_url") or ""
+
+    results = []
+    for row in rows:
+        d = dict(row)
+        if d.get("extract_status") in ("extracted", "ready_to_pipe", "done") and d.get("extracted_text"):
+            # 已提取，直接返回
+            results.append({
+                "id": d["id"],
+                "title": d.get("title") or "",
+                "file_type": d.get("file_type") or "",
+                "doc_type": d.get("doc_type") or "",
+                "oss_url": _resolve_oss_url(d),
+                "extracted_text": d.get("extracted_text") or "",
+                "needs_reextract": False,
+            })
+        else:
+            # 未提取，执行提取+清洗
+            try:
+                extracted, needs_reextract = _do_extract_and_save(d)
+                from config.doc_types import classify_doc_type
+                detected_type = classify_doc_type(d.get("title") or "", extracted[:200])
+                results.append({
+                    "id": d["id"],
+                    "title": d.get("title") or "",
+                    "file_type": d.get("file_type") or "",
+                    "doc_type": detected_type,
+                    "oss_url": _resolve_oss_url(d),
+                    "extracted_text": extracted,
+                    "needs_reextract": needs_reextract,
+                })
+            except Exception as e:
+                results.append({
+                    "id": d["id"],
+                    "title": d.get("title") or "",
+                    "file_type": d.get("file_type") or "",
+                    "doc_type": d.get("doc_type") or "",
+                    "oss_url": _resolve_oss_url(d),
+                    "extracted_text": "",
+                    "needs_reextract": False,
+                    "error": str(e),
+                })
+
+    return {"items": results}
+
+
+@router.post("/api/approve-docs", response_class=JSONResponse)
+async def api_approve_docs(request: Request):
+    """保存编辑后的提取文本，更新状态为 extracted（不自动入管线）"""
+    from utils.db_utils import execute_cloud_insert
+
+    body = await request.json()
+    docs = body.get("docs") or []
+    if not docs:
+        return JSONResponse({"error": "docs 不能为空"}, status_code=400)
+
+    saved = skipped = failed = 0
+
+    for doc in docs:
+        doc_id = doc.get("id")
+        if not doc_id:
+            skipped += 1
+            continue
+        edited_text = doc.get("extracted_text")
+        try:
+            if edited_text is not None:
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extracted_text=%s, extract_status='extracted' WHERE id=%s",
+                    [edited_text, doc_id],
+                )
+            else:
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status='extracted' WHERE id=%s",
+                    [doc_id],
+                )
+            saved += 1
+        except Exception as e:
+            logger.error(f"approve_docs update id={doc_id}: {e}")
+            failed += 1
+
+    return {"saved": saved, "skipped": skipped, "failed": failed}
+
+
+@router.get("/api/proxy-file")
+async def api_proxy_file(url: str):
+    """代理 OSS 文件，强制 Content-Disposition: inline，让浏览器内联渲染而非下载"""
+    import httpx
+    from fastapi.responses import StreamingResponse
+    from urllib.parse import urlparse
+    if not url:
+        return JSONResponse({"error": "url 不能为空"}, status_code=400)
+    try:
+        # 知识星球域名需要带 cookie + 特定请求头才能访问文件
+        cookies = {}
+        extra_headers = {}
+        host = urlparse(url).hostname or ""
+        if "zsxq.com" in host or "zqimg.com" in host:
+            from utils.sys_config import get_config
+            from config import ZSXQ_COOKIE
+            token = get_config("zsxq_cookie") or os.environ.get("ZSXQ_COOKIE", "") or ZSXQ_COOKIE
+            if token:
+                cookies["zsxq_access_token"] = token
+            extra_headers = {
+                "origin": "https://wx.zsxq.com",
+                "referer": "https://wx.zsxq.com/",
+                "user-agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/144.0.0.0 Safari/537.36"
+                ),
+            }
+
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True, cookies=cookies, headers=extra_headers) as client:
+            resp = await client.get(url)
+        content_type = resp.headers.get("content-type", "application/octet-stream")
+        headers = {
+            "Content-Disposition": "inline",
+            "Content-Type": content_type,
+            "Cache-Control": "no-cache",
+        }
+        return StreamingResponse(iter([resp.content]), media_type=content_type, headers=headers)
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/reject-docs", response_class=JSONResponse)
+async def api_reject_docs(request: Request):
+    """丢弃文档（标记为 rejected）"""
+    from utils.db_utils import execute_cloud_insert
+
+    body = await request.json()
+    doc_ids = [int(x) for x in (body.get("doc_ids") or []) if str(x).isdigit()]
+    if not doc_ids:
+        return JSONResponse({"error": "doc_ids 不能为空"}, status_code=400)
+
+    placeholders = ",".join(["%s"] * len(doc_ids))
+    try:
+        execute_cloud_insert(
+            f"UPDATE source_documents SET extract_status='rejected' WHERE id IN ({placeholders})",
+            doc_ids,
+        )
+        return {"ok": True, "rejected": len(doc_ids)}
+    except Exception as e:
+        logger.error(f"reject_docs error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/upload-chart-images", response_class=JSONResponse)
+async def api_upload_chart_images(
+    files: List[UploadFile] = [],
+    doc_id: int = Form(0),
+):
+    """上传图表截图 → Qwen 视觉模型理解 → 返回结构化描述文本
+
+    用于扫描件 PDF / 纯 OCR 图片的二次提取：
+    用户选取碎片图表区域截图上传，Qwen 理解后替换原 extracted_text 中的碎片文字
+    """
+    import base64
+    from pathlib import Path
+
+    if not files:
+        return JSONResponse({"error": "请上传至少一张图片"}, status_code=400)
+
+    # 保存图片到 static/uploads/ 并收集路径
+    static_dir = Path(__file__).resolve().parent.parent / "static" / "uploads"
+    static_dir.mkdir(parents=True, exist_ok=True)
+
+    saved_paths = []
+    for f in files:
+        data = await f.read()
+        if not data:
+            continue
+        import time
+        fname = f"{int(time.time()*1000)}_{f.filename}"
+        fpath = static_dir / fname
+        fpath.write_bytes(data)
+        saved_paths.append(str(fpath))
+
+    if not saved_paths:
+        return JSONResponse({"error": "无有效图片"}, status_code=400)
+
+    # 调用 Qwen 视觉模型理解
+    try:
+        from utils.model_router import call_model_vision
+
+        # 获取文档标题用于 context
+        title = ""
+        if doc_id:
+            rows = execute_cloud_query(
+                "SELECT title FROM source_documents WHERE id = %s", [doc_id]
+            )
+            title = rows[0]["title"] if rows else ""
+
+        prompt = (
+            f"这是从一份金融文档「{title or '研报'}」中截取的图表截图（共{len(saved_paths)}张）。"
+            "请详细描述每张图表中的所有内容，包括：图表类型、数据标签、关键数字、趋势方向等。"
+            "如果包含表格，请用 Markdown 表格格式输出。"
+            "用结构清晰的中文回复。"
+        )
+        vision_text = call_model_vision("vision", prompt, saved_paths,
+                                        max_tokens=4096, timeout=120)
+        return {
+            "ok": True,
+            "vision_text": vision_text or "",
+            "image_count": len(saved_paths),
+        }
+    except Exception as e:
+        logger.error(f"upload-chart-images Qwen 失败: {e}")
+        return JSONResponse({"error": f"Qwen 理解失败: {e}"}, status_code=500)
+    finally:
+        # 清理临时图片
+        import os
+        for p in saved_paths:
+            try:
+                os.unlink(p)
+            except OSError:
+                pass
+
+
+# ==================== Source Documents 状态流转 API ====================
+
+# 状态颜色映射
+STATUS_COLORS = {
+    "failed": "red",
+    "pending": "gray",
+    "extracted": "yellow",
+    "ready_to_pipe": "blue",
+    "processing": "purple",
+    "done": "green",
+    "rejected": "red",
+    "url_expired": "orange",
+    "skipped": "gray",
+    "cleaning": "indigo",
+    "remix": "cyan",
+}
+
+STATUS_LABELS = {
+    "failed": "提取失败",
+    "pending": "待提取",
+    "extracted": "已提取",
+    "ready_to_pipe": "待入管线",
+    "processing": "管线处理中",
+    "done": "已完成",
+    "rejected": "已丢弃",
+    "url_expired": "链接失效",
+    "skipped": "已跳过",
+    "cleaning": "清洗中",
+    "remix": "已混编",
+}
+
+
+@router.get("/api/source-documents/{doc_id}/detail", response_class=JSONResponse)
+async def api_get_source_document_detail(doc_id: int):
+    """获取单条文档详情（含 oss_url + extracted_text，不触发提取）"""
+    from utils.db_utils import execute_cloud_query
+    rows = execute_cloud_query(
+        """SELECT id, doc_type, file_type, title, source, oss_url, text_content,
+                  extracted_text, extract_status, publish_date, created_at
+           FROM source_documents WHERE id = %s""",
+        [doc_id],
+    )
+    if not rows:
+        return JSONResponse({"error": "not found"}, status_code=404)
+    r = rows[0]
+    ft = r.get("file_type") or ""
+    oss_url = r.get("oss_url") or ""
+    # audio: 播放链接在 text_content
+    if ft in ("mp3", "audio"):
+        oss_url = r.get("text_content") or oss_url
+    return {
+        "id": str(r["id"]),  # 字符串，避免 JS Number 精度丢失
+        "title": r.get("title") or "",
+        "file_type": ft,
+        "doc_type": r.get("doc_type") or "",
+        "source": r.get("source") or "",
+        "oss_url": oss_url,
+        "text_content": r.get("text_content") or "",
+        "extracted_text": r.get("extracted_text") or "",
+        "extract_status": r.get("extract_status") or "pending",
+        "publish_date": str(r.get("publish_date") or "")[:10],
+        "created_at": str(r.get("created_at") or "")[:16],
+    }
+
+
+@router.get("/api/source-documents", response_class=JSONResponse)
+async def api_get_source_documents(
+    page: int = 1,
+    page_size: int = 20,
+    status: str = "",
+    source: str = "",
+    doc_type: str = "",
+    file_type: str = "",
+    search: str = "",
+):
+    """获取 source_documents 列表（分页 + 筛选）
+
+    状态流转：failed → pending → extracted → ready_to_pipe → processing → done
+    """
+    from utils.db_utils import execute_cloud_query
+
+    # 构建查询条件
+    conditions = []
+    params = []
+
+    if status:
+        conditions.append("extract_status = %s")
+        params.append(status)
+
+    if source:
+        conditions.append("source = %s")
+        params.append(source)
+
+    if doc_type:
+        conditions.append("doc_type = %s")
+        params.append(doc_type)
+
+    if file_type:
+        conditions.append("file_type = %s")
+        params.append(file_type)
+
+    if search:
+        conditions.append("(title LIKE %s OR text_content LIKE %s)")
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    where_clause = " AND ".join(conditions) if conditions else "1=1"
+
+    # 查询总数
+    count_sql = f"SELECT COUNT(*) as total FROM source_documents WHERE {where_clause}"
+    total_rows = execute_cloud_query(count_sql, params)
+    total = total_rows[0]["total"] if total_rows else 0
+
+    # 分页查询
+    offset = (page - 1) * page_size
+    data_sql = f"""
+        SELECT id, doc_type, file_type, title, author, source, publish_date,
+               extract_status, reviewed_at, reviewed_by, review_notes,
+               created_at, updated_at
+        FROM source_documents
+        WHERE {where_clause}
+        ORDER BY created_at DESC
+        LIMIT %s OFFSET %s
+    """
+    rows = execute_cloud_query(data_sql, params + [page_size, offset])
+
+    # 格式化结果
+    items = []
+    for r in rows or []:
+        items.append({
+            "id": str(r["id"]),  # 字符串，避免 JS Number 精度丢失
+            "doc_type": r.get("doc_type") or "",
+            "file_type": r.get("file_type") or "",
+            "title": r.get("title") or "",
+            "author": r.get("author") or "",
+            "source": r.get("source") or "",
+            "publish_date": str(r.get("publish_date") or "")[:10],
+            "extract_status": r.get("extract_status") or "pending",
+            "status_label": STATUS_LABELS.get(r.get("extract_status"), r.get("extract_status", "")),
+            "status_color": STATUS_COLORS.get(r.get("extract_status"), "gray"),
+            "reviewed_at": str(r.get("reviewed_at") or "")[:16] if r.get("reviewed_at") else "",
+            "reviewed_by": r.get("reviewed_by") or "",
+            "review_notes": r.get("review_notes") or "",
+            "created_at": str(r.get("created_at") or "")[:16],
+        })
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+        "items": items,
+    }
+
+
+@router.get("/api/source-documents/stats", response_class=JSONResponse)
+async def api_get_source_documents_stats():
+    """获取 source_documents 状态统计"""
+    from utils.db_utils import execute_cloud_query
+
+    sql = """
+        SELECT extract_status, COUNT(*) as cnt
+        FROM source_documents
+        GROUP BY extract_status
+    """
+    rows = execute_cloud_query(sql)
+
+    stats = {
+        "total": 0,
+        "failed": 0,
+        "pending": 0,
+        "extracted": 0,
+        "ready_to_pipe": 0,
+        "processing": 0,
+        "done": 0,
+        "rejected": 0,
+        "remix": 0,
+    }
+
+    for r in rows or []:
+        status = r.get("extract_status") or "pending"
+        cnt = r.get("cnt", 0)
+        stats["total"] += cnt
+        if status in stats:
+            stats[status] = cnt
+
+    return stats
+
+
+@router.post("/api/source-documents/review", response_class=JSONResponse)
+async def api_review_source_documents(request: Request):
+    """批量审核文档
+
+    审核后状态从 extracted 变为 ready_to_pipe
+    """
+    from utils.db_utils import execute_cloud_insert
+
+    body = await request.json()
+    doc_ids = body.get("doc_ids", [])
+    review_notes = body.get("review_notes", "")
+    reviewer = body.get("reviewer", "admin")
+
+    if not doc_ids:
+        return JSONResponse({"error": "doc_ids 不能为空"}, status_code=400)
+
+    placeholders = ",".join(["%s"] * len(doc_ids))
+    try:
+        execute_cloud_insert(
+            f"""
+            UPDATE source_documents
+            SET extract_status = 'ready_to_pipe',
+                reviewed_at = NOW(),
+                reviewed_by = %s,
+                review_notes = %s
+            WHERE id IN ({placeholders}) AND extract_status = 'extracted'
+            """,
+            [reviewer, review_notes] + doc_ids,
+        )
+        return {"ok": True, "reviewed": len(doc_ids)}
+    except Exception as e:
+        logger.error(f"review_source_documents error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/remix-save", response_class=JSONResponse)
+async def api_remix_save(request: Request):
+    """保存 Remix 编辑结果，将文档状态置为 remix
+
+    body: { doc_id: int, extracted_text: str }
+    """
+    from utils.db_utils import execute_cloud_insert
+
+    body = await request.json()
+    doc_id = body.get("doc_id")
+    extracted_text = body.get("extracted_text", "")
+
+    if not doc_id:
+        return JSONResponse({"error": "doc_id 不能为空"}, status_code=400)
+
+    try:
+        execute_cloud_insert(
+            "UPDATE source_documents SET extracted_text=%s, extract_status='remix' WHERE id=%s",
+            [extracted_text, doc_id],
+        )
+        return {"ok": True}
+    except Exception as e:
+        logger.error(f"remix-save error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/source-documents/pipe", response_class=JSONResponse)
+async def api_pipe_source_documents(request: Request, background_tasks: BackgroundTasks):
+    """执行管线处理
+
+    将 ready_to_pipe 状态的文档推入 extracted_texts 并启动清洗管线
+    """
+    from utils.db_utils import execute_cloud_insert
+    from ingestion.source_extractor import push_to_extracted_texts_by_ids
+
+    body = await request.json()
+    doc_ids = body.get("doc_ids", [])
+
+    if not doc_ids:
+        # 如果未指定 ID，处理所有 ready_to_pipe / remix 状态的文档
+        from utils.db_utils import execute_cloud_query
+        rows = execute_cloud_query(
+            "SELECT id FROM source_documents WHERE extract_status IN ('ready_to_pipe', 'remix') LIMIT 100"
+        )
+        doc_ids = [r["id"] for r in rows or []]
+
+    if not doc_ids:
+        return {"pushed": 0, "message": "没有待处理的文档"}
+
+    # 更新状态为 processing
+    placeholders = ",".join(["%s"] * len(doc_ids))
+    try:
+        execute_cloud_insert(
+            f"UPDATE source_documents SET extract_status = 'processing' WHERE id IN ({placeholders})",
+            doc_ids,
+        )
+    except Exception as e:
+        logger.error(f"更新状态为 processing 失败: {e}")
+
+    # 推入 extracted_texts
+    try:
+        result = push_to_extracted_texts_by_ids(doc_ids)
+        pushed = result.get("pushed", 0)
+        skipped = result.get("skipped", 0)
+        failed = result.get("failed", 0)
+
+        # 更新成功的文档状态为 done
+        if pushed > 0:
+            execute_cloud_insert(
+                f"""
+                UPDATE source_documents SET extract_status = 'done'
+                WHERE id IN ({placeholders}) AND extract_status = 'processing'
+                """,
+                doc_ids,
+            )
+
+        return {
+            "pushed": pushed,
+            "skipped": skipped,
+            "failed": failed,
+            "message": f"成功推入 {pushed} 条，跳过 {skipped} 条，失败 {failed} 条",
+        }
+    except Exception as e:
+        logger.error(f"pipe_source_documents error: {e}")
+        # 回滚状态
+        execute_cloud_insert(
+            f"UPDATE source_documents SET extract_status = 'ready_to_pipe' WHERE id IN ({placeholders})",
+            doc_ids,
+        )
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/source-documents/retry", response_class=JSONResponse)
+async def api_retry_source_documents(request: Request):
+    """重试失败的文档
+
+    将 failed 状态重置为 pending，重新触发提取
+    """
+    from utils.db_utils import execute_cloud_insert
+
+    body = await request.json()
+    doc_ids = body.get("doc_ids", [])
+
+    if not doc_ids:
+        return JSONResponse({"error": "doc_ids 不能为空"}, status_code=400)
+
+    placeholders = ",".join(["%s"] * len(doc_ids))
+    try:
+        execute_cloud_insert(
+            f"UPDATE source_documents SET extract_status = 'pending' WHERE id IN ({placeholders}) AND extract_status = 'failed'",
+            doc_ids,
+        )
+        return {"ok": True, "retried": len(doc_ids)}
+    except Exception as e:
+        logger.error(f"retry_source_documents error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/backfill-summary-chunks")
+async def backfill_summary_chunks(
+    batch_size: int = 100,
+    dry_run: bool = False,
+):
+    """回填族2摘要 chunk（research_report/strategy_report/roadshow_notes/feature_news）"""
+    try:
+        from retrieval.summary_chunker import backfill_family2
+        result = backfill_family2(batch_size=batch_size, dry_run=dry_run)
+        return {"status": "ok", "result": result}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
