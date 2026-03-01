@@ -64,6 +64,17 @@ def semantic_search(
             source_doc_title=row.get("source_doc_title") or "",
         ))
 
+    # 应用 KG 审核质量 boost，重新排序
+    try:
+        from retrieval.quality import get_chunk_quality_boost, time_decay
+        boosts = get_chunk_quality_boost(chunk_ids)
+        for r in results:
+            r.score *= boosts.get(r.chunk_id, 1.0)
+            r.score *= time_decay(r.publish_time, r.doc_type)  # P1: 时效性衰减
+        results.sort(key=lambda r: r.score, reverse=True)
+    except Exception as e:
+        logger.warning(f"quality boost 应用失败: {e}")
+
     return results
 
 
