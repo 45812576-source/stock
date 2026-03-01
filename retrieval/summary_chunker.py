@@ -376,7 +376,11 @@ def index_summary_chunk(content_summary_id: int) -> bool:
         logger.info(f"content_summary_id={content_summary_id} 展开文本过短（<20字），跳过")
         return False
 
-    extracted_text_id = int(cs.get("extracted_text_id") or 0)
+    extracted_text_id = cs.get("extracted_text_id")
+    if not extracted_text_id:
+        logger.warning(f"content_summary_id={content_summary_id} has NULL extracted_text_id, skipping")
+        return False
+    extracted_text_id = int(extracted_text_id)
     doc_type = (cs.get("doc_type") or "")[:50]
     publish_time = str(cs.get("publish_time") or "")[:20]
     chunk_index = SUMMARY_CHUNK_INDEX_OFFSET + content_summary_id
@@ -501,9 +505,10 @@ def backfill_family2(batch_size: int = 100, dry_run: bool = False) -> dict:
 
     Args:
         batch_size: 每批查询和处理的数量（keyset 分页，内存安全）
-        dry_run: True 时只统计不写入
+        dry_run: True 时只扫描不写入。dry_run 模式下 skip 表示"扫描但未写入的条数"，ok 恒为 0
     Returns:
         {"total": int, "ok": int, "skip": int, "fail": int}
+        dry_run 时: ok=0, skip=扫描条数, fail=0
     """
     stats = {"total": 0, "ok": 0, "skip": 0, "fail": 0}
     last_id = 0
@@ -520,8 +525,8 @@ def backfill_family2(batch_size: int = 100, dry_run: bool = False) -> dict:
             cs_id = row["id"]
             stats["total"] += 1
             if dry_run:
-                logger.info(f"[dry_run] 会处理 cs_id={cs_id}")
-                stats["ok"] += 1
+                logger.info(f"[dry_run] 会扫描 cs_id={cs_id}")
+                stats["skip"] += 1
                 continue
             try:
                 result = index_summary_chunk(cs_id)

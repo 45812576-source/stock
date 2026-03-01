@@ -42,39 +42,50 @@ def hybrid_search(
     chunks = semantic_search(query, top_k=top_k, filters=filters)
     result.chunks = chunks
 
-    # 合并摘要 chunks（summary_chunks collection，摘要加权 1.2x）
+    # 合并摘要 chunks（基于原文 chunk 的 extracted_text_id，查对应 summary chunk）
     try:
-        from retrieval.embedding import embed_query as _embed_query
-        from retrieval.summary_chunker import search_summary_chunks
-        from retrieval.chunker import get_chunks_by_ids
-
-        query_vec = _embed_query(query)
-        summary_hits = search_summary_chunks(query_vec, top_k=5)
-
-        if summary_hits:
-            s_chunk_ids = [h["chunk_id"] for h in summary_hits]
-            s_score_map = {h["chunk_id"]: h["score"] * 1.2 for h in summary_hits}
-            s_rows = get_chunks_by_ids(s_chunk_ids)
-            s_row_map = {r["id"]: r for r in s_rows}
-
+        if chunks:
+            from retrieval.chunker import get_chunks_by_ids
             from retrieval.models import ChunkResult
-            for cid in s_chunk_ids:
-                row = s_row_map.get(cid)
-                if not row:
-                    continue
-                chunks.append(ChunkResult(
-                    chunk_id=cid,
-                    text=row["chunk_text"],
-                    score=s_score_map.get(cid, 0.0),
-                    extracted_text_id=row["extracted_text_id"],
-                    doc_type=row.get("doc_type") or "",
-                    file_type="summary",
-                    publish_time=str(row.get("publish_time") or ""),
-                    source_doc_title=row.get("source_doc_title") or "",
-                ))
 
-            chunks.sort(key=lambda c: c.score, reverse=True)
-            result.chunks = chunks
+            # 取命中的 extracted_text_id（去重，取前10）
+            hit_et_ids = list(dict.fromkeys(
+                c.extracted_text_id for c in chunks if c.extracted_text_id
+            ))[:10]
+
+            if hit_et_ids:
+                from utils.db_utils import execute_query
+                placeholders = ",".join(["%s"] * len(hit_et_ids))
+                summary_rows = execute_query(
+                    f"SELECT id, extracted_text_id, chunk_text, doc_type, publish_time "
+                    f"FROM text_chunks "
+                    f"WHERE extracted_text_id IN ({placeholders}) AND chunk_type='summary'",
+                    hit_et_ids,
+                )
+                if summary_rows:
+                    # 找到对应原文 chunk 的最高分，给摘要 chunk 打分
+                    et_score_map = {}
+                    for c in chunks:
+                        if c.extracted_text_id:
+                            et_score_map[c.extracted_text_id] = max(
+                                et_score_map.get(c.extracted_text_id, 0.0), c.score
+                            )
+
+                    for row in summary_rows:
+                        base_score = et_score_map.get(row["extracted_text_id"], 0.5)
+                        chunks.append(ChunkResult(
+                            chunk_id=row["id"],
+                            text=row["chunk_text"],
+                            score=base_score * 1.2,  # 摘要加权 1.2x
+                            extracted_text_id=row["extracted_text_id"],
+                            doc_type=row.get("doc_type") or "",
+                            file_type="summary",
+                            publish_time=str(row.get("publish_time") or ""),
+                            source_doc_title="",
+                        ))
+
+                    chunks.sort(key=lambda c: c.score, reverse=True)
+                    result.chunks = chunks
     except Exception as e:
         logger.warning(f"summary_chunks 合并失败: {e}")
 
