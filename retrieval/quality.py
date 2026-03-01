@@ -162,6 +162,73 @@ def is_relationship_rejected(relationship_id: int) -> bool:
         return False
 
 
+# ── P1: 时效性衰减 ────────────────────────────────────────────────────────────
+
+HALF_LIFE_BY_DOC_TYPE: dict[str, int] = {
+    "flash_news":        7,
+    "market_commentary": 7,
+    "social_post":       14,
+    "chat_record":       14,
+    "feature_news":      30,
+    "research_report":   45,
+    "strategy_report":   30,
+    "roadshow_notes":    30,
+    "announcement":      60,
+    "financial_report":  90,
+    "policy_doc":        90,
+    "data_release":      30,
+}
+DEFAULT_HALF_LIFE = 30
+
+
+def time_decay(publish_time_str: str, doc_type: str = "") -> float:
+    """指数衰减系数：发布后 half_life_days 天衰减到 0.5
+
+    - 今天发布 → 1.0
+    - half_life_days 天前 → 0.5
+    - 无日期 → 0.5（中间值）
+
+    Args:
+        publish_time_str: "YYYY-MM-DD" 或 "YYYY-MM-DD HH:MM:SS"
+        doc_type: 文档类型，用于选取半衰期
+    Returns:
+        0.0 ~ 1.0 之间的衰减系数
+    """
+    if not publish_time_str or len(str(publish_time_str)) < 10:
+        return 0.5
+    try:
+        pub_date = datetime.strptime(str(publish_time_str)[:10], "%Y-%m-%d")
+        days_ago = (datetime.now() - pub_date).days
+        if days_ago < 0:
+            days_ago = 0
+        half_life = HALF_LIFE_BY_DOC_TYPE.get(doc_type, DEFAULT_HALF_LIFE)
+        return math.pow(0.5, days_ago / half_life)
+    except Exception:
+        return 0.5
+
+
+# ── P2: 摘要 chunk 质量系数 ───────────────────────────────────────────────────
+
+def get_summary_chunk_quality_boost(content_summary_id: int) -> float:
+    """获取摘要 chunk 的质量系数（基于 content_summaries.review_status）
+
+    复用 BOOST_MAP：approved→1.2, unreviewed→1.0, rejected→0.3
+    """
+    try:
+        from utils.db_utils import execute_cloud_query
+        rows = execute_cloud_query(
+            "SELECT review_status FROM content_summaries WHERE id = %s",
+            [content_summary_id],
+        )
+        if not rows:
+            return 1.0
+        status = rows[0]["review_status"] or "unreviewed"
+        return BOOST_MAP.get(status, 1.0)
+    except Exception as e:
+        logger.warning(f"get_summary_chunk_quality_boost 失败 cs_id={content_summary_id}: {e}")
+        return 1.0
+
+
 # 按 doc_type 使用不同半衰期（天）
 HALF_LIFE_BY_DOC_TYPE: dict[str, int] = {
     "flash_news":        7,
