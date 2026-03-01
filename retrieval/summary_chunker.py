@@ -497,38 +497,32 @@ def search_summary_chunks(query_embedding: list[float], top_k: int = 5) -> list[
 
 
 def backfill_family2(batch_size: int = 100, dry_run: bool = False) -> dict:
-    """批量回填族2 content_summaries 到 summary_chunks
+    """回填：对所有族2 content_summaries 生成摘要 chunk
 
     Args:
-        batch_size: 分批迭代时每批处理的条数上限。注意：查询 family=2 的 id 列表是一次
-                    性全量加载到内存（无分页游标），batch_size 仅控制内存中逐批迭代写入
-                    的步长，不影响初始查询的数据量。如记录数极多，可考虑改为游标分页查询。
+        batch_size: 每批查询和处理的数量（keyset 分页，内存安全）
         dry_run: True 时只统计不写入
     Returns:
         {"total": int, "ok": int, "skip": int, "fail": int}
     """
     stats = {"total": 0, "ok": 0, "skip": 0, "fail": 0}
+    last_id = 0
 
-    # 查云端所有 family=2 的 content_summaries id
-    try:
+    while True:
         id_rows = execute_cloud_query(
-            "SELECT id FROM content_summaries WHERE family = 2 ORDER BY id",
+            "SELECT id FROM content_summaries WHERE family=2 AND id>%s ORDER BY id LIMIT %s",
+            [last_id, batch_size],
         )
-    except Exception as e:
-        logger.error(f"查询 family=2 content_summaries 失败: {e}")
-        return stats
+        if not id_rows:
+            break
 
-    all_ids = [row["id"] for row in id_rows]
-    stats["total"] = len(all_ids)
-    logger.info(f"backfill_family2: 共 {stats['total']} 条族2摘要，dry_run={dry_run}")
-
-    if dry_run:
-        logger.info("dry_run=True，跳过实际写入")
-        return stats
-
-    for i in range(0, len(all_ids), batch_size):
-        batch = all_ids[i: i + batch_size]
-        for cs_id in batch:
+        for row in id_rows:
+            cs_id = row["id"]
+            stats["total"] += 1
+            if dry_run:
+                logger.info(f"[dry_run] 会处理 cs_id={cs_id}")
+                stats["ok"] += 1
+                continue
             try:
                 result = index_summary_chunk(cs_id)
                 if result:
@@ -536,13 +530,11 @@ def backfill_family2(batch_size: int = 100, dry_run: bool = False) -> dict:
                 else:
                     stats["skip"] += 1
             except Exception as e:
-                logger.warning(f"index_summary_chunk({cs_id}) 异常: {e}")
+                logger.error(f"backfill 失败 cs_id={cs_id}: {e}")
                 stats["fail"] += 1
 
-        logger.info(
-            f"backfill_family2 进度: {min(i + batch_size, len(all_ids))}/{stats['total']} "
-            f"ok={stats['ok']} skip={stats['skip']} fail={stats['fail']}"
-        )
+        last_id = id_rows[-1]["id"]
+        logger.info(f"backfill 进度: total={stats['total']} ok={stats['ok']} skip={stats['skip']} fail={stats['fail']}")
 
     logger.info(f"backfill_family2 完成: {stats}")
     return stats
