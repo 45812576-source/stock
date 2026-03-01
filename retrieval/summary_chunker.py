@@ -16,18 +16,29 @@ SUMMARY_COLLECTION_NAME = "summary_chunks"
 SUMMARY_CHUNK_INDEX_OFFSET = 100000
 
 _summary_connection_alias = "default"
-_summary_connected = False
 
 
 def _ensure_connected():
-    """确保已连接 Milvus（复用 default alias）"""
-    global _summary_connected
-    if _summary_connected:
-        return
+    """确保已连接 Milvus（复用 default alias）。
+
+    使用 connections.has_connection() 检查是否已有连接，避免与 vector_store.py
+    共用同一 alias="default" 时重复 connect 导致冲突。
+    老版本 pymilvus 若不支持 has_connection，降级为 try/except。
+    """
     from pymilvus import connections
+    try:
+        if connections.has_connection("default"):
+            return
+    except AttributeError:
+        # pymilvus 老版本不支持 has_connection，尝试直接连接，已连接时幂等
+        try:
+            connections.connect(alias=_summary_connection_alias, host=MILVUS_HOST, port=MILVUS_PORT)
+            logger.info(f"summary_chunker Milvus 已连接（降级路径）: {MILVUS_HOST}:{MILVUS_PORT}")
+        except Exception:
+            pass
+        return
     connections.connect(alias=_summary_connection_alias, host=MILVUS_HOST, port=MILVUS_PORT)
-    _summary_connected = True
-    logger.info(f"Milvus 已连接（summary_chunker）: {MILVUS_HOST}:{MILVUS_PORT}")
+    logger.info(f"summary_chunker Milvus 已连接: {MILVUS_HOST}:{MILVUS_PORT}")
 
 
 def _parse_type_fields(type_fields) -> dict:
@@ -371,8 +382,9 @@ def index_summary_chunk(content_summary_id: int) -> bool:
     chunk_index = SUMMARY_CHUNK_INDEX_OFFSET + content_summary_id
 
     # 写本地 MySQL text_chunks（ON DUPLICATE KEY UPDATE）
+    # PyMySQL 在 ON DUPLICATE KEY UPDATE 命中已有行时返回 0，需要 fallback 查询
     try:
-        execute_insert(
+        chunk_db_id = execute_insert(
             """
             INSERT INTO text_chunks
                 (extracted_text_id, chunk_index, chunk_text, chunk_type, doc_type, publish_time)
@@ -389,19 +401,20 @@ def index_summary_chunk(content_summary_id: int) -> bool:
         logger.warning(f"写 text_chunks 失败 content_summary_id={content_summary_id}: {e}")
         return False
 
-    # 查询刚写入的 text_chunks.id（用作 Milvus primary key）
-    try:
-        id_rows = execute_query(
+    # ON DUPLICATE KEY UPDATE 时 execute_insert 返回 0，需要回查真实 id
+    if not chunk_db_id:
+        existing = execute_query(
             "SELECT id FROM text_chunks WHERE extracted_text_id=%s AND chunk_index=%s",
             [extracted_text_id, chunk_index],
         )
-        if not id_rows:
-            logger.warning(f"写入后查不到 text_chunks.id，content_summary_id={content_summary_id}")
-            return False
-        chunk_db_id = int(id_rows[0]["id"])
-    except Exception as e:
-        logger.warning(f"查询 text_chunks.id 失败 content_summary_id={content_summary_id}: {e}")
+        if existing:
+            chunk_db_id = existing[0]["id"]
+
+    if not chunk_db_id:
+        logger.error(f"写 text_chunks 失败 cs_id={content_summary_id}")
         return False
+
+    chunk_db_id = int(chunk_db_id)
 
     # 生成 embedding
     try:
@@ -415,17 +428,20 @@ def index_summary_chunk(content_summary_id: int) -> bool:
         return False
 
     # 写 Milvus summary_chunks
+    # 使用字典格式显式指定字段，避免位置匹配错位
     try:
         col = ensure_summary_collection()
-        data = [
-            [chunk_db_id],
-            [embedding],
-            [content_summary_id],
-            [extracted_text_id],
-            [doc_type],
-            [publish_time],
-        ]
-        col.upsert(data)
+        pt_str = str(cs.get("publish_time") or "")[:20]
+        col.upsert([
+            {
+                "id": chunk_db_id,
+                "embedding": embedding,
+                "content_summary_id": content_summary_id,
+                "extracted_text_id": extracted_text_id,
+                "doc_type": (doc_type or "")[:50],
+                "publish_time": pt_str,
+            }
+        ])
         logger.debug(f"Milvus upsert summary_chunk: content_summary_id={content_summary_id}, chunk_db_id={chunk_db_id}")
     except Exception as e:
         logger.warning(f"Milvus 写入失败 content_summary_id={content_summary_id}: {e}")
@@ -484,7 +500,9 @@ def backfill_family2(batch_size: int = 100, dry_run: bool = False) -> dict:
     """批量回填族2 content_summaries 到 summary_chunks
 
     Args:
-        batch_size: 每批查询数量
+        batch_size: 分批迭代时每批处理的条数上限。注意：查询 family=2 的 id 列表是一次
+                    性全量加载到内存（无分页游标），batch_size 仅控制内存中逐批迭代写入
+                    的步长，不影响初始查询的数据量。如记录数极多，可考虑改为游标分页查询。
         dry_run: True 时只统计不写入
     Returns:
         {"total": int, "ok": int, "skip": int, "fail": int}
