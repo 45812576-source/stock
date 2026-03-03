@@ -383,13 +383,14 @@ def _link_relationship_to_chunks(
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 
 def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True,
-                   on_status=None, rerun_a=False) -> dict:
-    """对单条 extracted_text 先做语义清洗(S)，再并发执行三条管线(A/B2/C)
+                   need_d=True, on_status=None, rerun_a=False) -> dict:
+    """对单条 extracted_text 先做语义清洗(S)，再并发执行三条管线(A/B2/C)，串行执行管线D
 
     on_status(stage, msg): 可选回调，用于向调用方汇报当前阶段
     rerun_a: 为 True 时清除旧 content_summaries 记录并重跑 Pipeline A
+    need_d: 为 True 时对研报/行业分析类文档执行 Pipeline D 行业指标抽取
     Returns:
-        {"summary_id": int|None, "mentions": int, "kg_rels": int, "semantic_cleaned": bool, "chunks": int}
+        {"summary_id": int|None, "mentions": int, "kg_rels": int, "semantic_cleaned": bool, "chunks": int, "indicators": int}
     """
     # 重跑：清除该 extracted_text 的旧摘要记录，重置 summary_status
     if rerun_a:
@@ -500,32 +501,33 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
 
     # ★ Pipeline D: 行业指标结构化抽取
     indicators_count = 0
-    try:
-        title_d = ""
-        meta_d = execute_cloud_query(
-            """SELECT sd.doc_type, sd.title
-               FROM extracted_texts et
-               LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
-               WHERE et.id = %s""",
-            [extracted_text_id],
-        )
-        if meta_d:
-            title_d = meta_d[0].get("title") or ""
-            doc_type_raw = meta_d[0].get("doc_type") or ""
-        else:
-            doc_type_raw = ""
+    if need_d:
+        try:
+            title_d = ""
+            meta_d = execute_cloud_query(
+                """SELECT sd.doc_type, sd.title
+                   FROM extracted_texts et
+                   LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
+                   WHERE et.id = %s""",
+                [extracted_text_id],
+            )
+            if meta_d:
+                title_d = meta_d[0].get("title") or ""
+                doc_type_raw = meta_d[0].get("doc_type") or ""
+            else:
+                doc_type_raw = ""
 
-        from config.doc_types import classify_doc_type, FAMILY_MAP
-        doc_type_d = classify_doc_type(title_d, full_text[:200]) if not doc_type_raw else doc_type_raw
-        family_d = FAMILY_MAP.get(doc_type_d, 4)
+            from config.doc_types import classify_doc_type, FAMILY_MAP
+            doc_type_d = classify_doc_type(title_d, full_text[:200]) if not doc_type_raw else doc_type_raw
+            family_d = FAMILY_MAP.get(doc_type_d, 4)
 
-        if family_d == 2:  # 研报/策略/路演/深度特稿
-            from cleaning.industry_indicator_extractor import run_pipeline_d
-            if on_status:
-                on_status("D", f"行业指标抽取(精细) id={extracted_text_id}")
-            indicators_count = run_pipeline_d(extracted_text_id, full_text or "")
-    except Exception as e:
-        logger.warning(f"[D] 行业指标抽取跳过 id={extracted_text_id}: {e}")
+            if family_d == 2:  # 研报/策略/路演/深度特稿
+                from cleaning.industry_indicator_extractor import run_pipeline_d
+                if on_status:
+                    on_status("D", f"行业指标抽取(精细) id={extracted_text_id}")
+                indicators_count = run_pipeline_d(extracted_text_id, full_text or "")
+        except Exception as e:
+            logger.warning(f"[D] 行业指标抽取跳过 id={extracted_text_id}: {e}")
 
     results["indicators"] = indicators_count
 

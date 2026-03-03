@@ -2,6 +2,7 @@
 import json
 import logging
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import List
@@ -296,6 +297,23 @@ def _get_recent_items(limit=30):
 # ==================== 后台任务管理 ====================
 # 简单的内存任务状态（单进程足够）
 _bg_tasks = {}
+
+# ── 轻量 TTL 缓存（用于 source_documents 云端查询，避免每次翻页都打云端）────
+_sd_cache: dict = {}
+_SD_CACHE_TTL = 60  # seconds
+
+def _sd_cache_get(key: str):
+    entry = _sd_cache.get(key)
+    if entry and time.time() - entry["ts"] < _SD_CACHE_TTL:
+        return entry["data"]
+    return None
+
+def _sd_cache_set(key: str, data):
+    _sd_cache[key] = {"data": data, "ts": time.time()}
+
+def _sd_cache_invalidate():
+    """写操作后清空整个 source_documents 缓存"""
+    _sd_cache.clear()
 
 
 def _get_task_status(task_id):
@@ -1307,7 +1325,7 @@ def api_push_to_pipeline(limit: int = Form(500)):
 
 @router.post("/api/run-pipeline", response_class=JSONResponse)
 def api_run_pipeline(
-                     pipeline: str = Form("abc"), limit: int = Form(20)):
+                     pipeline: str = Form("abc"), limit: int = Form(200)):
     """触发清洗管线 a/b2/c/abc"""
     task_id = f"pipeline_{pipeline}_{int(datetime.now().timestamp())}"
     _bg_tasks[task_id] = {
@@ -1322,9 +1340,10 @@ def api_run_pipeline(
             from utils.db_utils import execute_cloud_query
             from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
 
-            need_a = pipeline in ("a", "abc")
-            need_b = pipeline in ("b2", "abc")
-            need_c = pipeline in ("c", "abc")
+            need_a = pipeline in ("a", "abc", "abcd")
+            need_b = pipeline in ("b2", "abc", "abcd")
+            need_c = pipeline in ("c", "abc", "abcd")
+            need_d = pipeline in ("d", "abcd")
 
             # 构建 WHERE 条件，只查该管线需要处理的记录
             conditions = []
@@ -1334,15 +1353,20 @@ def api_run_pipeline(
                 conditions.append("(et.mentions_status IS NULL OR et.mentions_status != 'done')")
             if need_c:
                 conditions.append("(et.kg_status IS NULL OR et.kg_status != 'done')")
+            if need_d:
+                # D 管线没有独立状态列，按 family=2 文档类型过滤（research_report/strategy_report/roadshow_notes/feature_news）
+                conditions.append("sd.doc_type IN ('research_report','strategy_report','roadshow_notes','feature_news')")
             where = " OR ".join(conditions) if conditions else "1=0"
 
             pending = execute_cloud_query(
                 f"""SELECT DISTINCT et.id,
                           (cs.id IS NULL) as need_a,
                           (et.mentions_status IS NULL OR et.mentions_status != 'done') as need_b,
-                          (et.kg_status IS NULL OR et.kg_status != 'done') as need_c
+                          (et.kg_status IS NULL OR et.kg_status != 'done') as need_c,
+                          1 as need_d
                    FROM extracted_texts et
                    LEFT JOIN content_summaries cs ON et.id = cs.extracted_text_id
+                   LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
                    WHERE {where}
                    ORDER BY et.id
                    LIMIT %s""",
@@ -1353,7 +1377,7 @@ def api_run_pipeline(
             task["total"] = total
             task["current"] = f"待处理 {total} 条"
             ok, fail = 0, 0
-            total_a, total_b2, total_c, total_chunks = 0, 0, 0, 0
+            total_a, total_b2, total_c, total_chunks, total_d = 0, 0, 0, 0, 0
 
             def should_cancel():
                 while task.get("paused"):
@@ -1368,6 +1392,7 @@ def api_run_pipeline(
                     need_a=need_a and bool(row["need_a"]),
                     need_b=need_b and bool(row["need_b"]),
                     need_c=need_c and bool(row["need_c"]),
+                    need_d=need_d and bool(row.get("need_d", 1)),
                     on_status=_on_status,
                 ), row
 
@@ -1387,6 +1412,7 @@ def api_run_pipeline(
                         total_b2 += r.get("mentions", 0)
                         total_c += r.get("kg_rels", 0)
                         total_chunks += r.get("chunks", 0)
+                        total_d += r.get("indicators", 0)
                         ok += 1
                     except Exception as e2:
                         fail += 1
@@ -1396,7 +1422,7 @@ def api_run_pipeline(
 
             task["results"].append({
                 "source": f"管线{pipeline.upper()}", "ok": True,
-                "count": f"成功{ok}, 失败{fail}, A={total_a}, B={total_b2}, C={total_c}, 切片={total_chunks}",
+                "count": f"成功{ok}, 失败{fail}, A={total_a}, B={total_b2}, C={total_c}, D={total_d}, 切片={total_chunks}",
             })
         except Exception as e:
             logger.error(f"run_pipeline {pipeline} error: {e}")
@@ -1419,13 +1445,15 @@ def api_active_tasks():
         pct = min(int(progress / total * 100), 99) if total else 0
         # 从 task_id 前缀推断任务类型标签
         label = "任务"
-        if tid.startswith("extract_"):         label = "文本提取"
+        if tid.startswith("batch_extract_"):    label = "批量提取入管线"
+        elif tid.startswith("extract_"):       label = "文本提取"
         elif tid.startswith("pipeline_"):      label = "清洗管线"
         elif tid.startswith("push_pipeline_"): label = "推入管线"
         elif tid.startswith("clean_"):         label = "批量清洗"
         elif tid.startswith("sync_"):          label = "数据同步"
         elif tid.startswith("import_"):        label = "导入SQL"
         elif tid.startswith("backfill_chunks_"): label = "向量回填"
+        elif tid.startswith("backfill_summary_"): label = "摘要回填"
         tasks.append({
             "task_id": tid,
             "label": label,
@@ -1580,21 +1608,24 @@ def data_review(request: Request):
     """提取审核台页面"""
     from config.doc_types import DOC_TYPES
     from utils.db_utils import execute_cloud_query
-    # 从数据库读取实际存在的 doc_type，作为下拉选项
-    try:
-        rows = execute_cloud_query(
-            "SELECT doc_type, COUNT(*) as cnt FROM source_documents "
-            "WHERE doc_type IS NOT NULL AND doc_type != '' "
-            "GROUP BY doc_type ORDER BY cnt DESC"
-        ) or []
-        # 构建标签映射（精细类型用中文，粗类型直接用英文）
-        label_map = {k: l for k, l, _ in DOC_TYPES}
-        actual_doc_types = [
-            (r["doc_type"], label_map.get(r["doc_type"], r["doc_type"]), r["cnt"])
-            for r in rows
-        ]
-    except Exception:
-        actual_doc_types = [(k, l, 0) for k, l, _ in DOC_TYPES]
+    # 从数据库读取实际存在的 doc_type，作为下拉选项（60s 缓存）
+    cache_key = "review_doc_types"
+    actual_doc_types = _sd_cache_get(cache_key)
+    if actual_doc_types is None:
+        try:
+            rows = execute_cloud_query(
+                "SELECT doc_type, COUNT(*) as cnt FROM source_documents "
+                "WHERE doc_type IS NOT NULL AND doc_type != '' "
+                "GROUP BY doc_type ORDER BY cnt DESC"
+            ) or []
+            label_map = {k: l for k, l, _ in DOC_TYPES}
+            actual_doc_types = [
+                (r["doc_type"], label_map.get(r["doc_type"], r["doc_type"]), r["cnt"])
+                for r in rows
+            ]
+        except Exception:
+            actual_doc_types = [(k, l, 0) for k, l, _ in DOC_TYPES]
+        _sd_cache_set(cache_key, actual_doc_types)
     return templates.TemplateResponse("data_review.html", {
         "request": request,
         "active_page": "data",
@@ -1778,7 +1809,7 @@ def _do_extract_and_save(row: dict) -> tuple:
 
 @router.post("/api/extract-preview", response_class=JSONResponse)
 async def api_extract_preview(request: Request):
-    """批量提取预览（不入管线），返回提取结果供对照审核"""
+    """批量提取预览（不入管线）— 异步任务模式，返回 task_id 供前端轮询"""
     from utils.db_utils import execute_cloud_query
 
     body = await request.json()
@@ -1786,61 +1817,216 @@ async def api_extract_preview(request: Request):
     if not doc_ids:
         return JSONResponse({"error": "doc_ids 不能为空"}, status_code=400)
 
-    placeholders = ",".join(["%s"] * len(doc_ids))
-    rows = execute_cloud_query(
-        f"""SELECT id, doc_type, file_type, title, text_content, oss_url, extracted_text, extract_status
-            FROM source_documents WHERE id IN ({placeholders})""",
-        doc_ids,
-    ) or []
+    task_id = f"extract_{int(datetime.now().timestamp()*1000)}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": len(doc_ids),
+        "current": f"准备提取 {len(doc_ids)} 个文档",
+        "label": "批量提取",
+        "items": None,  # 完成后存结果
+    }
 
     def _resolve_oss_url(d):
-        """mp3/audio 的播放 URL 存在 text_content，其他类型用 oss_url"""
         if d.get("file_type") in ("mp3", "audio"):
             return d.get("text_content") or d.get("oss_url") or ""
         return d.get("oss_url") or ""
 
-    results = []
-    for row in rows:
-        d = dict(row)
-        if d.get("extract_status") in ("extracted", "ready_to_pipe", "done") and d.get("extracted_text"):
-            # 已提取，直接返回
-            results.append({
-                "id": d["id"],
-                "title": d.get("title") or "",
-                "file_type": d.get("file_type") or "",
-                "doc_type": d.get("doc_type") or "",
-                "oss_url": _resolve_oss_url(d),
-                "extracted_text": d.get("extracted_text") or "",
-                "needs_reextract": False,
-            })
-        else:
-            # 未提取，执行提取+清洗
-            try:
-                extracted, needs_reextract = _do_extract_and_save(d)
-                from config.doc_types import classify_doc_type
-                detected_type = classify_doc_type(d.get("title") or "", extracted[:200])
-                results.append({
-                    "id": d["id"],
-                    "title": d.get("title") or "",
-                    "file_type": d.get("file_type") or "",
-                    "doc_type": detected_type,
-                    "oss_url": _resolve_oss_url(d),
-                    "extracted_text": extracted,
-                    "needs_reextract": needs_reextract,
-                })
-            except Exception as e:
+    def _run():
+        task = _bg_tasks[task_id]
+        placeholders = ",".join(["%s"] * len(doc_ids))
+        rows = execute_cloud_query(
+            f"""SELECT id, doc_type, file_type, title, text_content, oss_url, extracted_text, extract_status
+                FROM source_documents WHERE id IN ({placeholders})""",
+            doc_ids,
+        ) or []
+
+        results = []
+        for i, row in enumerate(rows):
+            d = dict(row)
+            short_title = (d.get("title") or "")[:30]
+            task["current"] = f"[{i+1}/{len(rows)}] {short_title}"
+            if d.get("extract_status") in ("extracted", "ready_to_pipe", "done") and d.get("extracted_text"):
                 results.append({
                     "id": d["id"],
                     "title": d.get("title") or "",
                     "file_type": d.get("file_type") or "",
                     "doc_type": d.get("doc_type") or "",
                     "oss_url": _resolve_oss_url(d),
-                    "extracted_text": "",
+                    "extracted_text": d.get("extracted_text") or "",
                     "needs_reextract": False,
-                    "error": str(e),
                 })
+            else:
+                try:
+                    extracted, needs_reextract = _do_extract_and_save(d)
+                    from config.doc_types import classify_doc_type
+                    detected_type = classify_doc_type(d.get("title") or "", extracted[:200])
+                    results.append({
+                        "id": d["id"],
+                        "title": d.get("title") or "",
+                        "file_type": d.get("file_type") or "",
+                        "doc_type": detected_type,
+                        "oss_url": _resolve_oss_url(d),
+                        "extracted_text": extracted,
+                        "needs_reextract": needs_reextract,
+                    })
+                except Exception as e:
+                    results.append({
+                        "id": d["id"],
+                        "title": d.get("title") or "",
+                        "file_type": d.get("file_type") or "",
+                        "doc_type": d.get("doc_type") or "",
+                        "oss_url": _resolve_oss_url(d),
+                        "extracted_text": "",
+                        "needs_reextract": False,
+                        "error": str(e),
+                    })
+            task["progress"] = i + 1
 
-    return {"items": results}
+        task["items"] = results
+        task["status"] = "done"
+        task["current"] = f"完成，共 {len(results)} 个文档"
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "total": len(doc_ids)}
+
+
+@router.post("/api/batch-extract-by-filter", response_class=JSONResponse)
+async def api_batch_extract_by_filter(request: Request):
+    """按筛选条件批量提取 + 推入管线（后台任务，返回 task_id）"""
+    body = await request.json()
+    file_type = body.get("file_type", "")
+    source    = body.get("source", "")
+    status    = body.get("status", "pending")
+    doc_type  = body.get("doc_type", "")
+    q         = body.get("q", "")
+    limit     = min(int(body.get("limit", 100)), 5000)
+
+    # 立即创建任务，total 稍后由线程回填
+    task_id = f"batch_extract_{int(datetime.now().timestamp()*1000)}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 1,
+        "label": "批量提取入管线",
+        "current": "查询文档列表...",
+        "items": None,
+    }
+
+    def _run():
+        from utils.db_utils import execute_cloud_query
+        task = _bg_tasks[task_id]
+
+        # 构建查询条件（在线程内执行，不阻塞事件循环）
+        conditions = ["1=1"]
+        params: list = []
+        if file_type:
+            conditions.append("file_type = %s"); params.append(file_type)
+        if source:
+            conditions.append("source = %s"); params.append(source)
+        if status:
+            conditions.append("extract_status = %s"); params.append(status)
+        else:
+            conditions.append("extract_status IN ('pending','failed')")
+        if doc_type:
+            conditions.append("doc_type = %s"); params.append(doc_type)
+        if q:
+            conditions.append("title LIKE %s"); params.append(f"%{q}%")
+        where = " AND ".join(conditions)
+
+        rows = execute_cloud_query(
+            f"SELECT id FROM source_documents WHERE {where} ORDER BY id LIMIT %s",
+            params + [limit],
+        ) or []
+        doc_ids = [r["id"] for r in rows]
+
+        if not doc_ids:
+            task["status"] = "done"
+            task["current"] = "没有符合条件的文档"
+            task["total"] = 0
+            return
+
+        task["total"] = len(doc_ids)
+        task["current"] = f"准备提取 {len(doc_ids)} 个文档"
+
+        # 查完整字段
+        placeholders = ",".join(["%s"] * len(doc_ids))
+        all_rows = execute_cloud_query(
+            f"SELECT id, doc_type, file_type, title, text_content, oss_url, extracted_text, extract_status "
+            f"FROM source_documents WHERE id IN ({placeholders})",
+            doc_ids,
+        ) or []
+
+        extracted_ids = []
+        failed_ids = []
+        from utils.db_utils import execute_cloud_query
+
+        for i, row in enumerate(all_rows):
+            d = dict(row)
+            short_title = (d.get("title") or "")[:30]
+            task["current"] = f"[{i+1}/{len(all_rows)}] {short_title}"
+            try:
+                _do_extract_and_save(d)
+                extracted_ids.append(d["id"])
+            except Exception as e:
+                logger.warning(f"batch_extract id={d['id']} failed: {e}")
+                failed_ids.append(d["id"])
+            task["progress"] = i + 1
+
+        # 推入管线
+        pushed = skipped = push_failed = 0
+        if extracted_ids:
+            task["current"] = f"推入管线 {len(extracted_ids)} 条..."
+            try:
+                from ingestion.source_extractor import push_to_extracted_texts_by_ids
+                result = push_to_extracted_texts_by_ids(extracted_ids)
+                pushed = result.get("pushed", 0)
+                skipped = result.get("skipped", 0)
+                push_failed = result.get("failed", 0)
+            except Exception as e:
+                logger.error(f"batch_extract push failed: {e}")
+
+        task["status"] = "done"
+        task["current"] = f"完成：提取{len(extracted_ids)} 推入{pushed} 跳过{skipped} 失败{len(failed_ids)}"
+        task["items"] = {
+            "extracted": len(extracted_ids), "pushed": pushed,
+            "skipped": skipped, "failed": len(failed_ids), "push_failed": push_failed,
+        }
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "total": limit}
+
+
+@router.get("/api/extract-preview-result", response_class=JSONResponse)
+def api_extract_preview_result(task_id: str):
+    """取回批量提取任务的结果 items"""
+    task = _bg_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    return {
+        "status": task.get("status"),
+        "progress": task.get("progress", 0),
+        "total": task.get("total", 0),
+        "items": task.get("items") or [],
+    }
+
+
+@router.post("/api/ai-clean-text", response_class=JSONResponse)
+async def api_ai_clean_text(request: Request):
+    """对指定文本手动触发 DeepSeek 语义整理（仅用于 txt 类型人工审核时）"""
+    import asyncio
+    body = await request.json()
+    doc_id = body.get("doc_id")
+    text = body.get("text", "").strip()
+    if not text:
+        return JSONResponse({"error": "text 不能为空"}, status_code=400)
+
+    loop = asyncio.get_event_loop()
+    try:
+        from ingestion.source_extractor import _semantic_clean
+        cleaned = await loop.run_in_executor(
+            None, lambda: _semantic_clean(text, "txt", doc_id, needs_understanding=True)
+        )
+        return {"cleaned": cleaned}
+    except Exception as e:
+        logger.error(f"ai_clean_text error doc_id={doc_id}: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 
 @router.post("/api/approve-docs", response_class=JSONResponse)
@@ -1877,6 +2063,7 @@ async def api_approve_docs(request: Request):
             logger.error(f"approve_docs update id={doc_id}: {e}")
             failed += 1
 
+    _sd_cache_invalidate()
     return {"saved": saved, "skipped": skipped, "failed": failed}
 
 
@@ -1884,6 +2071,7 @@ async def api_approve_docs(request: Request):
 async def api_proxy_file(url: str):
     """代理 OSS 文件，强制 Content-Disposition: inline，让浏览器内联渲染而非下载"""
     import httpx
+    import os
     from fastapi.responses import StreamingResponse
     from urllib.parse import urlparse
     if not url:
@@ -1938,6 +2126,7 @@ async def api_reject_docs(request: Request):
             f"UPDATE source_documents SET extract_status='rejected' WHERE id IN ({placeholders})",
             doc_ids,
         )
+        _sd_cache_invalidate()
         return {"ok": True, "rejected": len(doc_ids)}
     except Exception as e:
         logger.error(f"reject_docs error: {e}")
@@ -2090,12 +2279,54 @@ async def api_get_source_documents(
     doc_type: str = "",
     file_type: str = "",
     search: str = "",
+    doc_id: str = "",
 ):
     """获取 source_documents 列表（分页 + 筛选）
 
     状态流转：failed → pending → extracted → ready_to_pipe → processing → done
     """
     from utils.db_utils import execute_cloud_query
+
+    # 单条查询快捷路径
+    if doc_id:
+        rows = execute_cloud_query(
+            """SELECT id, doc_type, file_type, title, author, source, publish_date,
+                       extract_status, reviewed_at, reviewed_by, review_notes,
+                       created_at, updated_at, oss_url,
+                       LEFT(extracted_text, 5000) AS extracted_text,
+                       LEFT(text_content, 5000) AS text_content
+                FROM source_documents WHERE id = %s""",
+            [int(doc_id)],
+        )
+        if not rows:
+            return {"total": 0, "page": 1, "page_size": 1, "total_pages": 0, "items": []}
+        r = rows[0]
+        item = {
+            "id": str(r["id"]),
+            "doc_type": r.get("doc_type") or "",
+            "file_type": r.get("file_type") or "",
+            "title": r.get("title") or "",
+            "author": r.get("author") or "",
+            "source": r.get("source") or "",
+            "publish_date": str(r.get("publish_date") or "")[:10],
+            "extract_status": r.get("extract_status") or "pending",
+            "status_label": STATUS_LABELS.get(r.get("extract_status"), r.get("extract_status", "")),
+            "status_color": STATUS_COLORS.get(r.get("extract_status"), "gray"),
+            "reviewed_at": str(r.get("reviewed_at") or "")[:16] if r.get("reviewed_at") else "",
+            "reviewed_by": r.get("reviewed_by") or "",
+            "review_notes": r.get("review_notes") or "",
+            "created_at": str(r.get("created_at") or "")[:16],
+            "oss_url": r.get("oss_url") or "",
+            "extracted_text": r.get("extracted_text") or "",
+            "text_content": r.get("text_content") or "",
+        }
+        return {"total": 1, "page": 1, "page_size": 1, "total_pages": 1, "items": [item]}
+
+    # 缓存：key = 所有筛选参数的组合（含翻页）
+    cache_key = f"sd_list:{page}:{page_size}:{status}:{source}:{doc_type}:{file_type}:{search}"
+    cached = _sd_cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     # 构建查询条件
     conditions = []
@@ -2133,7 +2364,9 @@ async def api_get_source_documents(
     data_sql = f"""
         SELECT id, doc_type, file_type, title, author, source, publish_date,
                extract_status, reviewed_at, reviewed_by, review_notes,
-               created_at, updated_at
+               created_at, updated_at, oss_url,
+               IF(file_type IN ('mp3','audio'), extracted_text, LEFT(extracted_text, 5000)) AS extracted_text,
+               LEFT(text_content, 5000) AS text_content
         FROM source_documents
         WHERE {where_clause}
         ORDER BY created_at DESC
@@ -2159,21 +2392,31 @@ async def api_get_source_documents(
             "reviewed_by": r.get("reviewed_by") or "",
             "review_notes": r.get("review_notes") or "",
             "created_at": str(r.get("created_at") or "")[:16],
+            "oss_url": r.get("oss_url") or "",
+            "extracted_text": r.get("extracted_text") or "",
+            "text_content": r.get("text_content") or "",
         })
 
-    return {
+    result = {
         "total": total,
         "page": page,
         "page_size": page_size,
         "total_pages": (total + page_size - 1) // page_size,
         "items": items,
     }
+    _sd_cache_set(cache_key, result)
+    return result
 
 
 @router.get("/api/source-documents/stats", response_class=JSONResponse)
 async def api_get_source_documents_stats():
     """获取 source_documents 状态统计"""
     from utils.db_utils import execute_cloud_query
+
+    cache_key = "sd_stats"
+    cached = _sd_cache_get(cache_key)
+    if cached is not None:
+        return cached
 
     sql = """
         SELECT extract_status, COUNT(*) as cnt
@@ -2201,6 +2444,7 @@ async def api_get_source_documents_stats():
         if status in stats:
             stats[status] = cnt
 
+    _sd_cache_set(cache_key, stats)
     return stats
 
 
@@ -2233,6 +2477,7 @@ async def api_review_source_documents(request: Request):
             """,
             [reviewer, review_notes] + doc_ids,
         )
+        _sd_cache_invalidate()
         return {"ok": True, "reviewed": len(doc_ids)}
     except Exception as e:
         logger.error(f"review_source_documents error: {e}")
@@ -2259,6 +2504,7 @@ async def api_remix_save(request: Request):
             "UPDATE source_documents SET extracted_text=%s, extract_status='remix' WHERE id=%s",
             [extracted_text, doc_id],
         )
+        _sd_cache_invalidate()
         return {"ok": True}
     except Exception as e:
         logger.error(f"remix-save error: {e}")
@@ -2267,19 +2513,17 @@ async def api_remix_save(request: Request):
 
 @router.post("/api/source-documents/pipe", response_class=JSONResponse)
 async def api_pipe_source_documents(request: Request, background_tasks: BackgroundTasks):
-    """执行管线处理
+    """执行管线处理 — 异步任务模式，返回 task_id
 
     将 ready_to_pipe 状态的文档推入 extracted_texts 并启动清洗管线
     """
-    from utils.db_utils import execute_cloud_insert
+    from utils.db_utils import execute_cloud_insert, execute_cloud_query
     from ingestion.source_extractor import push_to_extracted_texts_by_ids
 
     body = await request.json()
     doc_ids = body.get("doc_ids", [])
 
     if not doc_ids:
-        # 如果未指定 ID，处理所有 ready_to_pipe / remix 状态的文档
-        from utils.db_utils import execute_cloud_query
         rows = execute_cloud_query(
             "SELECT id FROM source_documents WHERE extract_status IN ('ready_to_pipe', 'remix') LIMIT 100"
         )
@@ -2288,47 +2532,56 @@ async def api_pipe_source_documents(request: Request, background_tasks: Backgrou
     if not doc_ids:
         return {"pushed": 0, "message": "没有待处理的文档"}
 
-    # 更新状态为 processing
-    placeholders = ",".join(["%s"] * len(doc_ids))
-    try:
-        execute_cloud_insert(
-            f"UPDATE source_documents SET extract_status = 'processing' WHERE id IN ({placeholders})",
-            doc_ids,
-        )
-    except Exception as e:
-        logger.error(f"更新状态为 processing 失败: {e}")
+    task_id = f"pipe_{int(datetime.now().timestamp()*1000)}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": len(doc_ids),
+        "current": f"准备推入 {len(doc_ids)} 个文档",
+        "label": "批量入管线",
+    }
 
-    # 推入 extracted_texts
-    try:
-        result = push_to_extracted_texts_by_ids(doc_ids)
-        pushed = result.get("pushed", 0)
-        skipped = result.get("skipped", 0)
-        failed = result.get("failed", 0)
-
-        # 更新成功的文档状态为 done
-        if pushed > 0:
+    def _run():
+        task = _bg_tasks[task_id]
+        placeholders = ",".join(["%s"] * len(doc_ids))
+        try:
             execute_cloud_insert(
-                f"""
-                UPDATE source_documents SET extract_status = 'done'
-                WHERE id IN ({placeholders}) AND extract_status = 'processing'
-                """,
+                f"UPDATE source_documents SET extract_status = 'processing' WHERE id IN ({placeholders})",
                 doc_ids,
             )
+        except Exception as e:
+            logger.error(f"更新状态为 processing 失败: {e}")
 
-        return {
-            "pushed": pushed,
-            "skipped": skipped,
-            "failed": failed,
-            "message": f"成功推入 {pushed} 条，跳过 {skipped} 条，失败 {failed} 条",
-        }
-    except Exception as e:
-        logger.error(f"pipe_source_documents error: {e}")
-        # 回滚状态
-        execute_cloud_insert(
-            f"UPDATE source_documents SET extract_status = 'ready_to_pipe' WHERE id IN ({placeholders})",
-            doc_ids,
-        )
-        return JSONResponse({"error": str(e)}, status_code=500)
+        try:
+            task["current"] = "推入 extracted_texts..."
+            result = push_to_extracted_texts_by_ids(doc_ids)
+            pushed = result.get("pushed", 0)
+            skipped = result.get("skipped", 0)
+            failed = result.get("failed", 0)
+
+            if pushed > 0:
+                execute_cloud_insert(
+                    f"UPDATE source_documents SET extract_status = 'done' WHERE id IN ({placeholders}) AND extract_status = 'processing'",
+                    doc_ids,
+                )
+
+            _sd_cache_invalidate()
+            task["progress"] = len(doc_ids)
+            task["status"] = "done"
+            task["current"] = f"完成：推入{pushed} 跳过{skipped} 失败{failed}"
+            task["results"] = [{"source": "批量入管线", "ok": True,
+                                 "count": f"推入{pushed} 跳过{skipped} 失败{failed}"}]
+        except Exception as e:
+            logger.error(f"pipe_source_documents error: {e}")
+            execute_cloud_insert(
+                f"UPDATE source_documents SET extract_status = 'ready_to_pipe' WHERE id IN ({placeholders})",
+                doc_ids,
+            )
+            _sd_cache_invalidate()
+            task["status"] = "done"
+            task["current"] = f"失败: {e}"
+            task["results"] = [{"source": "批量入管线", "ok": False, "error": str(e)}]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "total": len(doc_ids)}
 
 
 @router.post("/api/source-documents/retry", response_class=JSONResponse)
@@ -2358,14 +2611,76 @@ async def api_retry_source_documents(request: Request):
 
 
 @router.post("/api/backfill-summary-chunks")
-async def backfill_summary_chunks(
-    batch_size: int = 100,
-    dry_run: bool = False,
-):
-    """回填族2摘要 chunk（research_report/strategy_report/roadshow_notes/feature_news）"""
-    try:
-        from retrieval.summary_chunker import backfill_family2
-        result = backfill_family2(batch_size=batch_size, dry_run=dry_run)
-        return {"status": "ok", "result": result}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+def api_backfill_summary_chunks(batch_size: int = Form(100), dry_run: bool = Form(False)):
+    """触发族2摘要 chunk 异步回填（research_report/strategy_report/roadshow_notes/feature_news）"""
+    task_id = f"backfill_summary_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 0,
+        "current": "初始化摘要回填", "results": [],
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from utils.db_utils import execute_cloud_query
+            from retrieval.summary_chunker import index_summary_chunk
+
+            from retrieval.summary_chunker import SUMMARY_CHUNK_INDEX_OFFSET
+            # 查未回填的 family=2 摘要：本地 text_chunks 中无对应 summary 行
+            # chunk_index = SUMMARY_CHUNK_INDEX_OFFSET + cs.id，chunk_type='summary'
+            id_rows = execute_cloud_query(
+                """SELECT cs.id FROM content_summaries cs
+                   WHERE cs.family = 2
+                   ORDER BY cs.id
+                   LIMIT %s""",
+                [batch_size],
+            ) or []
+            # 过滤掉已写入本地的
+            from utils.db_utils import execute_query as local_q
+            if id_rows:
+                existing_indices = {
+                    r["chunk_index"]
+                    for r in (local_q(
+                        f"SELECT chunk_index FROM text_chunks WHERE chunk_type='summary' AND chunk_index >= {SUMMARY_CHUNK_INDEX_OFFSET}"
+                    ) or [])
+                }
+                id_rows = [r for r in id_rows if (SUMMARY_CHUNK_INDEX_OFFSET + r["id"]) not in existing_indices]
+
+            total = len(id_rows)
+            task["total"] = total if total > 0 else 1
+            task["current"] = f"待处理 {total} 条"
+
+            done = ok = skip = fail = 0
+
+            for row in id_rows:
+                if task.get("cancelled"):
+                    break
+                cs_id = row["id"]
+                try:
+                    if dry_run:
+                        skip += 1
+                    else:
+                        result = index_summary_chunk(cs_id)
+                        if result:
+                            ok += 1
+                        else:
+                            skip += 1
+                except Exception as e:
+                    logger.error(f"summary chunk backfill cs_id={cs_id}: {e}")
+                    fail += 1
+                done += 1
+                task["progress"] = done
+                task["current"] = f"进度 {done}/{total} | 写入:{ok} 跳过:{skip} 失败:{fail}"
+
+            task["results"].append({
+                "source": "摘要回填", "ok": True,
+                "count": f"处理{done}条 写入{ok} 跳过{skip} 失败{fail}",
+            })
+        except Exception as e:
+            logger.error(f"backfill_summary_chunks error: {e}")
+            task["results"].append({"source": "摘要回填", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id}

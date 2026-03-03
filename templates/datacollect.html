@@ -2,40 +2,38 @@
 {% block title %}数据管理{% endblock %}
 
 {% block extra_styles %}
+.tab-btn { padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab-btn.active { color: #135bec; border-bottom-color: #135bec; }
+.tab-btn:not(.active) { color: #64748b; }
+.tab-btn:not(.active):hover { color: #94a3b8; }
 .toggle-switch { position:relative; display:inline-flex; align-items:center; cursor:pointer; }
 .toggle-switch input { position:absolute; opacity:0; width:0; height:0; }
 .toggle-track { width:36px; height:20px; background:#334155; border-radius:9999px; transition:background .2s; }
 .toggle-switch input:checked + .toggle-track { background:#135bec; }
 .toggle-knob { position:absolute; left:2px; top:2px; width:16px; height:16px; background:#fff; border-radius:9999px; transition:transform .2s; }
 .toggle-switch input:checked ~ .toggle-knob { transform:translateX(16px); }
-#kwSnippetTip { position:fixed; z-index:9999; max-width:360px; background:#1e293b; border:1px solid #334155; border-radius:8px; padding:10px 12px; font-size:12px; line-height:1.6; color:#cbd5e1; white-space:pre-wrap; word-break:break-all; pointer-events:none; box-shadow:0 4px 20px rgba(0,0,0,.5); }
-/* flatpickr 暗色覆盖 */
-.flatpickr-calendar { background:#1a2233; border:1px solid #2d3748; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.5); font-family:'Manrope',sans-serif; }
-.flatpickr-months, .flatpickr-weekdays { background:#1a2233; }
-.flatpickr-month { color:#e2e8f0; }
-.flatpickr-current-month input.cur-year, .flatpickr-current-month .flatpickr-monthDropdown-months { color:#e2e8f0; background:transparent; }
-span.flatpickr-weekday { color:#64748b; }
-.flatpickr-day { color:#cbd5e1; border-radius:6px; }
-.flatpickr-day:hover { background:#2d3748; border-color:#2d3748; }
-.flatpickr-day.selected, .flatpickr-day.startRange, .flatpickr-day.endRange { background:#135bec; border-color:#135bec; color:#fff; }
-.flatpickr-day.inRange { background:#135bec22; border-color:transparent; box-shadow:-5px 0 0 #135bec22, 5px 0 0 #135bec22; }
-.flatpickr-day.today { border-color:#135bec; }
-.flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover { color:#334155; }
-.flatpickr-prev-month, .flatpickr-next-month { color:#64748b !important; fill:#64748b !important; }
-.flatpickr-prev-month:hover, .flatpickr-next-month:hover { color:#e2e8f0 !important; fill:#e2e8f0 !important; }
 {% endblock %}
 
 {% block content %}
 <!-- 页面标题 + Tab 导航 -->
-<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
   <div>
     <h1 class="text-2xl font-extrabold tracking-tight">数据管理</h1>
     <p class="text-sm text-slate-500 mt-1">信息源管理 · 文档提取 · 清洗管线</p>
   </div>
-  <div class="flex gap-1 bg-slate-800/50 rounded-lg p-1">
-    <a href="/data/cleaning" class="px-4 py-1.5 rounded-md text-sm font-bold bg-primary/15 text-primary">采集清洗</a>
-    <a href="/data/input" class="px-4 py-1.5 rounded-md text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-700/50 transition">手动录入</a>
-  </div>
+</div>
+
+<!-- Tab 导航 -->
+<div class="flex items-center gap-1 border-b border-slate-800 mb-6">
+  <a href="/data/cleaning" class="tab-btn active">
+    <span class="material-icons-round text-sm align-middle mr-1">cloud_sync</span>采集清洗
+  </a>
+  <a href="/data/review" class="tab-btn">
+    <span class="material-icons-round text-sm align-middle mr-1">rule</span>提取审核
+  </a>
+  <a href="/search" class="tab-btn">
+    <span class="material-icons-round text-sm align-middle mr-1">table_chart</span>Chunk 检索
+  </a>
 </div>
 
 <div>
@@ -85,75 +83,6 @@ span.flatpickr-weekday { color:#64748b; }
           <p class="text-[10px] text-slate-600 mt-0.5">text_chunks</p>
         </div>
       </div>
-      <!-- 提取按钮 -->
-      <div class="flex flex-wrap items-center gap-3 mb-2">
-        <label class="text-xs text-slate-400">提取数量</label>
-        <input id="extractBatchSize" type="number" value="500" min="1" max="5000"
-               class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
-        <span class="text-xs text-slate-500">文件类型：</span>
-        {% for ft, label in [('txt','txt·快'), ('mixed','mixed·慢'), ('pdf','pdf·慢'), ('image','image·慢'), ('audio','audio·慢'), ('xlsx','xlsx·慢')] %}
-        <label class="flex items-center gap-1 cursor-pointer text-xs">
-          <input type="checkbox" class="extract-ft-check accent-teal-400" value="{{ ft }}" {% if ft == 'txt' %}checked{% endif %}>
-          <span class="{% if ft == 'txt' %}text-teal-400{% else %}text-slate-400{% endif %}">{{ label }}</span>
-        </label>
-        {% endfor %}
-      </div>
-      {% if source_doc_stats %}
-      <div class="flex flex-wrap items-center gap-3 mb-3" id="extractSrcContainer">
-        <span class="text-xs text-slate-500">信息源：</span>
-        <label class="flex items-center gap-1 cursor-pointer text-xs">
-          <input type="checkbox" id="extractSrcAll" class="accent-amber-400" checked onchange="toggleAllSources(this)">
-          <span class="text-amber-400">全部</span>
-        </label>
-        {% for s in source_doc_stats %}
-        <label class="flex items-center gap-1 cursor-pointer text-xs">
-          <input type="checkbox" class="extract-src-check accent-amber-400" value="{{ s.source or '' }}" checked onchange="syncSrcAll()">
-          <span class="text-slate-400">{{ s.source or '(未知)' }}<span class="text-slate-600 ml-0.5">{{ s.doc_count - (s.extracted_count or 0) }}待</span></span>
-        </label>
-        {% endfor %}
-      </div>
-      {% else %}
-      <div class="flex flex-wrap items-center gap-3 mb-3" id="extractSrcContainer">
-        <span class="text-xs text-slate-500">信息源：</span>
-        <label class="flex items-center gap-1 cursor-pointer text-xs">
-          <input type="checkbox" id="extractSrcAll" class="accent-amber-400" checked onchange="toggleAllSources(this)">
-          <span class="text-amber-400">全部</span>
-        </label>
-      </div>
-      {% endif %}
-      <!-- doc_type 筛选 -->
-      {% if doc_types %}
-      <div class="flex flex-wrap items-center gap-3 mb-3">
-        <span class="text-xs text-slate-500">文档类型：</span>
-        <select id="extractDocType"
-                class="bg-slate-800 border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-primary focus:outline-none">
-          <option value="">全部</option>
-          {% for key, label, desc in doc_types %}
-          <option value="{{ key }}">{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      {% endif %}
-      <div class="flex items-center gap-3 mb-4">
-        <button onclick="runExtract()"
-                class="flex items-center gap-1.5 px-4 py-2 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 rounded-lg text-sm font-bold text-teal-400 transition">
-          <span class="material-icons-round text-base">download</span>提取 extracted_text
-        </button>
-        <button id="extractCancelBtn" onclick="cancelExtract()" class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 transition opacity-40" disabled>
-          <span class="material-icons-round text-sm align-middle">stop</span> 取消
-        </button>
-      </div>
-      <div id="extractStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs mb-2">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="material-icons-round text-teal-400 text-sm animate-spin" id="extractSpinner">refresh</span>
-          <span id="extractStatusText" class="text-slate-300">运行中...</span>
-        </div>
-        <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
-          <div id="extractProgressBar" class="bg-teal-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
-        </div>
-        <div id="extractCurrent" class="text-slate-500"></div>
-        <div id="extractResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
-      </div>
       <!-- 各信息源明细表 -->
       <div class="overflow-x-auto">
         <table class="w-full text-xs" id="sourceDocTable">
@@ -184,68 +113,53 @@ span.flatpickr-weekday { color:#64748b; }
     </div>
   </div>
 
-<!-- 定向提取 -->
+<!-- Source Documents 状态流转 -->
 <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
-  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
-    <span class="material-icons-round text-violet-400 text-base">manage_search</span>
-    <h3 class="font-bold text-sm">定向提取</h3>
-    <span class="text-[10px] text-slate-500 ml-2">关键词搜索 source_documents → 选中 → 提取并推入管线</span>
+  <div class="p-3 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-blue-400 text-base">schema</span>
+    <h3 class="font-bold text-sm">Source Documents 状态流转</h3>
+    <span class="text-[10px] text-slate-500 ml-2">pending → extracted → ready_to_pipe → processing → done</span>
+    <button onclick="loadSourceDocumentsStats()" class="ml-auto text-slate-600 hover:text-slate-300 transition" title="刷新">
+      <span class="material-icons-round text-sm">refresh</span>
+    </button>
   </div>
   <div class="p-4">
-    <!-- 搜索条件 -->
-    <div class="flex flex-wrap items-center gap-3 mb-3">
-      <input id="kwInput" type="text" placeholder="关键词，逗号分隔，如：宁德时代,比亚迪"
-             class="flex-1 min-w-48 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-slate-600 focus:border-violet-500 focus:outline-none">
-      <span class="text-xs text-slate-500">文件类型：</span>
-      {% for ft, label in [('txt','txt'), ('mixed','mixed'), ('pdf','pdf'), ('image','image'), ('audio','audio'), ('xlsx','xlsx')] %}
-      <label class="flex items-center gap-1 cursor-pointer text-xs">
-        <input type="checkbox" class="kw-ft-check accent-violet-400" value="{{ ft }}" checked>
-        <span class="text-slate-400">{{ label }}</span>
-      </label>
-      {% endfor %}
-      <button onclick="kwSearch()"
-              class="flex items-center gap-1.5 px-4 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg text-sm font-bold text-violet-400 transition">
-        <span class="material-icons-round text-base">search</span>搜索
-      </button>
-    </div>
-    <!-- 搜索结果 -->
-    <div id="kwResults" class="hidden">
-      <div class="flex items-center gap-3 mb-2">
-        <span id="kwResultCount" class="text-xs text-slate-400"></span>
-        <label class="flex items-center gap-1 cursor-pointer text-xs text-slate-400">
-          <input type="checkbox" id="kwSelectAll" onchange="kwToggleAll(this)"> 全选
-        </label>
-        <button onclick="kwExtract()"
-                class="ml-auto flex items-center gap-1.5 px-4 py-1.5 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg text-sm font-bold text-violet-400 transition">
-          <span class="material-icons-round text-base">download</span>提取选中
-        </button>
+    <div class="flex flex-wrap gap-3" id="sdStatusStats">
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-slate-400">failed</span>
+        <span class="font-mono text-red-400 font-bold" data-stat="failed">—</span>
       </div>
-      <div class="overflow-x-auto max-h-72 overflow-y-auto">
-        <table class="w-full text-xs">
-          <thead class="sticky top-0 bg-slate-900">
-            <tr class="border-b border-slate-800">
-              <th class="px-2 py-2 text-left w-6"></th>
-              <th class="px-2 py-2 text-left text-slate-500 font-bold">标题</th>
-              <th class="px-2 py-2 text-left text-slate-500 font-bold">来源</th>
-              <th class="px-2 py-2 text-left text-slate-500 font-bold">类型</th>
-              <th class="px-2 py-2 text-left text-slate-500 font-bold">状态</th>
-              <th class="px-2 py-2 text-left text-slate-500 font-bold">日期</th>
-            </tr>
-          </thead>
-          <tbody id="kwResultBody"></tbody>
-        </table>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-slate-500"></span>
+        <span class="text-slate-400">pending</span>
+        <span class="font-mono text-slate-300 font-bold" data-stat="pending">—</span>
       </div>
-    </div>
-    <!-- 提取进度 -->
-    <div id="kwExtractStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs mt-3">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="material-icons-round text-violet-400 text-sm animate-spin" id="kwExtractSpinner">refresh</span>
-        <span id="kwExtractStatusText" class="text-slate-300">运行中...</span>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+        <span class="text-slate-400">extracted</span>
+        <span class="font-mono text-yellow-400 font-bold" data-stat="extracted">—</span>
       </div>
-      <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
-        <div id="kwExtractProgressBar" class="bg-violet-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+        <span class="text-slate-400">ready_to_pipe</span>
+        <span class="font-mono text-blue-400 font-bold" data-stat="ready_to_pipe">—</span>
       </div>
-      <div id="kwExtractResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+        <span class="text-slate-400">processing</span>
+        <span class="font-mono text-purple-400 font-bold" data-stat="processing">—</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-slate-400">done</span>
+        <span class="font-mono text-emerald-400 font-bold" data-stat="done">—</span>
+      </div>
+      <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800/50 rounded text-xs">
+        <span class="w-2 h-2 rounded-full bg-slate-700"></span>
+        <span class="text-slate-400">rejected</span>
+        <span class="font-mono text-slate-500 font-bold" data-stat="rejected">—</span>
+      </div>
     </div>
   </div>
 </div>
@@ -260,7 +174,7 @@ span.flatpickr-weekday { color:#64748b; }
   <div class="p-4">
     <div class="flex items-center gap-3 mb-4">
       <label class="text-xs text-slate-400">处理数量</label>
-      <input id="pipelineBatchSize" type="number" value="20" min="1" max="200"
+      <input id="pipelineBatchSize" type="number" value="200" min="1" max="9999"
              class="w-24 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
       <span class="text-[10px] text-slate-500">条 extracted_texts</span>
       <div class="ml-auto flex gap-2">
@@ -291,10 +205,15 @@ span.flatpickr-weekday { color:#64748b; }
         <span class="material-icons-round text-base">account_tree</span>
         <div class="text-left"><div>独立提取 C</div><div class="text-[10px] font-normal text-violet-400/60">KG 三元组 (DeepSeek)</div></div>
       </button>
-      <button onclick="runPipeline('abc')"
-              class="flex items-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-sm font-bold text-amber-400 transition">
+      <button onclick="runPipeline('d')"
+              class="flex items-center gap-2 px-4 py-3 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 rounded-xl text-sm font-bold text-rose-400 transition">
+        <span class="material-icons-round text-base">bar_chart</span>
+        <div class="text-left"><div>独立提取 D</div><div class="text-[10px] font-normal text-rose-400/60">行业指标 (Reasoner)</div></div>
+      </button>
+      <button onclick="runPipeline('abcd')"
+              class="col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-sm font-bold text-amber-400 transition">
         <span class="material-icons-round text-base">bolt</span>
-        <div class="text-left"><div>ABC 并发</div><div class="text-[10px] font-normal text-amber-400/60">三管线同时执行</div></div>
+        <div class="text-left"><div>ABCD 并发</div><div class="text-[10px] font-normal text-amber-400/60">四管线同时执行</div></div>
       </button>
     </div>
     <div id="pipelineStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs">
@@ -345,6 +264,54 @@ span.flatpickr-weekday { color:#64748b; }
   </div>
 </div>
 
+<!-- 摘要 Chunk 回填 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-violet-400 text-base">auto_stories</span>
+    <h2 class="text-sm font-bold">摘要 Chunk 回填</h2>
+    <span class="text-[10px] text-slate-500 ml-1">族2 content_summaries → text_chunks（chunk_type=summary）+ Milvus summary_chunks</span>
+  </div>
+  <div class="p-4">
+    <!-- 说明 -->
+    <div class="mb-3 px-3 py-2 bg-violet-500/5 border border-violet-500/15 rounded-lg text-[11px] text-slate-400 leading-relaxed">
+      将云端 <code class="bg-slate-800 px-1 rounded">content_summaries</code>（family=2：研报/策略/路演/特稿）
+      展开为自然语言段落，写入本地 <code class="bg-slate-800 px-1 rounded">text_chunks</code>（chunk_type=summary）并向量化到 Milvus。
+      用于增强深度研究的检索召回。
+    </div>
+    <!-- 控制行 -->
+    <div class="flex flex-wrap items-center gap-3">
+      <label class="text-xs text-slate-400">单批数量</label>
+      <input id="summaryBackfillLimit" type="number" value="200" min="1" max="2000"
+             class="w-20 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white text-center">
+      <label class="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer select-none">
+        <input id="summaryDryRun" type="checkbox"
+               class="accent-violet-400 w-3.5 h-3.5">
+        Dry-run（只扫描不写入）
+      </label>
+      <button onclick="runSummaryBackfill()"
+              class="ml-auto flex items-center gap-1.5 px-4 py-2 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-lg text-sm font-bold text-violet-400 transition">
+        <span class="material-icons-round text-base">library_books</span>开始回填
+      </button>
+      <button id="summaryBackfillCancelBtn" onclick="cancelSummaryBackfill()"
+              class="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-xs font-bold text-red-400 transition opacity-40" disabled>
+        <span class="material-icons-round text-sm align-middle">stop</span> 取消
+      </button>
+    </div>
+    <!-- 进度区 -->
+    <div id="summaryBackfillStatus" class="hidden mt-3 bg-slate-800/60 rounded-lg p-3 text-xs">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-icons-round text-violet-400 text-sm animate-spin">refresh</span>
+        <span id="summaryBackfillStatusText" class="text-slate-300">回填中...</span>
+      </div>
+      <div class="w-full bg-slate-700 rounded-full h-1.5 mb-2">
+        <div id="summaryBackfillProgressBar" class="bg-violet-400 h-1.5 rounded-full transition-all" style="width:0%"></div>
+      </div>
+      <div id="summaryBackfillCurrent" class="text-slate-500"></div>
+      <div id="summaryBackfillResult" class="hidden mt-2 text-emerald-400 font-bold"></div>
+    </div>
+  </div>
+</div>
+
 <!-- 清洗日志 -->
 <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
   <div class="p-4 border-b border-slate-800 flex items-center gap-2">
@@ -367,11 +334,17 @@ span.flatpickr-weekday { color:#64748b; }
   </div>
   <div class="flex flex-wrap items-end gap-4">
     <div>
-      <label class="block text-xs text-slate-400 mb-1">日期范围</label>
-      <div class="relative">
-        <span class="material-icons-round absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-sm pointer-events-none">date_range</span>
-        <input type="text" id="zsxqDateRange" readonly placeholder="选择日期范围"
-               class="pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700 rounded-lg text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none cursor-pointer w-56">
+      <label class="block text-xs text-slate-400 mb-1">截止日期</label>
+      <input type="date" id="zsxqEndDate"
+             class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-primary focus:outline-none">
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">往前取</label>
+      <div class="flex items-center gap-1.5">
+        <input type="number" id="zsxqDaysBack" value="7" min="1" max="365"
+               class="w-16 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white text-center font-mono focus:border-primary focus:outline-none"
+               oninput="zsxqUpdateHint()">
+        <span class="text-sm text-slate-400">天</span>
       </div>
     </div>
     <div>
@@ -385,32 +358,41 @@ span.flatpickr-weekday { color:#64748b; }
     </button>
     <span id="zsxqFetchMsg" class="hidden text-xs px-3 py-2 rounded-lg"></span>
   </div>
+  <div id="zsxqHint" class="mt-2 text-[11px] text-slate-500"></div>
   <div id="zsxqProgress" class="hidden mt-3 text-xs text-slate-400"></div>
 </div>
 
-<!-- 采集时间窗口（其他源） -->
-<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6 flex items-center gap-6">
-  <div class="flex items-center gap-3">
-    <span class="material-icons-round text-primary">schedule</span>
-    <span class="text-sm font-semibold">新闻回溯窗口</span>
-  </div>
-  <div class="flex items-center gap-2">
+<!-- 新闻回溯窗口（其他源） -->
+<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-4 flex items-center gap-4">
+  <span class="material-icons-round text-primary">schedule</span>
+  <span class="text-sm font-semibold">新闻回溯窗口</span>
+  <span class="text-xs text-slate-500">控制 jasper / 问财 / 巨潮等新闻源采集最近多久的内容</span>
+  <div class="flex items-center gap-2 ml-auto">
     <input type="number" id="newsHours" value="{{ fetch_settings.news_hours }}" min="1" max="168"
            class="w-20 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white text-center font-mono focus:border-primary focus:outline-none">
     <span class="text-sm text-slate-400">小时</span>
   </div>
-  <div class="flex items-center gap-3 ml-auto">
-    <span class="material-icons-round text-primary">vpn_key</span>
-    <span class="text-sm font-semibold">知识星球 Token</span>
+</div>
+
+<!-- 知识星球认证配置 -->
+<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6">
+  <div class="flex items-center gap-3 mb-4">
+    <span class="material-icons-round text-purple-400">vpn_key</span>
+    <span class="text-sm font-semibold">知识星球认证配置</span>
   </div>
-  <input type="password" id="zsxqCookie" value="{{ zsxq_cookie }}"
-         class="flex-1 max-w-xs bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-         placeholder="zsxq_access_token">
-  <div class="flex items-center gap-2">
-    <span class="text-xs text-slate-400">星球IDs</span>
-    <input type="text" id="zsxqGroupIds" value="{{ zsxq_group_ids }}"
-           class="w-64 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-           placeholder="逗号分隔，如 28885112854841,48848441254818">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">zsxq_access_token</label>
+      <input type="password" id="zsxqCookie" value="{{ zsxq_cookie }}"
+             class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-purple-500 focus:outline-none"
+             placeholder="粘贴 token">
+    </div>
+    <div>
+      <label class="block text-xs text-slate-400 mb-1">星球 IDs（逗号分隔）</label>
+      <input type="text" id="zsxqGroupIds" value="{{ zsxq_group_ids }}"
+             class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-purple-500 focus:outline-none"
+             placeholder="如 28885112854841,48848441254818">
+    </div>
   </div>
 </div>
 
@@ -550,7 +532,6 @@ span.flatpickr-weekday { color:#64748b; }
 </div>
 </div>
 <!-- snippet tooltip -->
-<div id="kwSnippetTip" class="hidden"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -610,19 +591,6 @@ async function loadDocStats(docType) {
       } else {
         tbody.innerHTML = `<tr><td colspan="6" class="px-3 py-4 text-center text-slate-600 text-xs">该类型暂无数据</td></tr>`;
       }
-      // 同时更新信息源筛选复选框
-      const srcContainer = document.getElementById('extractSrcContainer');
-      if (srcContainer) {
-        const existing = srcContainer.querySelectorAll('.extract-src-check');
-        existing.forEach(el => el.closest('label').remove());
-        d.source_doc_stats.forEach(r => {
-          const lbl = document.createElement('label');
-          lbl.className = 'flex items-center gap-1 cursor-pointer text-xs';
-          const pending = (r.pending_count !== undefined) ? r.pending_count : (r.doc_count - (r.extracted_count || 0));
-          lbl.innerHTML = `<input type="checkbox" class="extract-src-check accent-amber-400" value="${r.source||''}" checked onchange="syncSrcAll()"><span class="text-slate-400">${r.source||'(未知)'}<span class="text-slate-600 ml-0.5">${pending}待</span></span>`;
-          srcContainer.appendChild(lbl);
-        });
-      }
     }
 
     // 更新文档类型分布（始终用全量数据）
@@ -641,18 +609,12 @@ async function loadDocStats(docType) {
   } catch(e) { console.warn('loadDocStats failed', e); }
 }
 document.addEventListener('DOMContentLoaded', () => {
-  // 初始化知识星球日期范围选择器
-  window._zsxqPicker = flatpickr('#zsxqDateRange', {
-    mode: 'range',
-    locale: 'zh',
-    dateFormat: 'Y-m-d',
-    maxDate: 'today',
-    defaultDate: [
-      new Date(Date.now() - 7 * 86400000),
-      new Date(),
-    ],
-    theme: 'dark',
-  });
+  // 初始化知识星球截止日期默认值为今天
+  const _todayStr = new Date().toISOString().slice(0, 10);
+  document.getElementById('zsxqEndDate').value = _todayStr;
+  document.getElementById('zsxqEndDate').max = _todayStr;
+  document.getElementById('zsxqEndDate').addEventListener('change', zsxqUpdateHint);
+  zsxqUpdateHint();
 
   // 并发加载两个接口，互不阻塞
   loadDocStats('');
@@ -670,11 +632,25 @@ document.addEventListener('DOMContentLoaded', () => {
       pollFn(taskId);
     } catch(e) { localStorage.removeItem(key); }
   }
-  tryResume('cleaning_extractTaskId', pollExtract, id => { _extractTaskId = id; });
   tryResume('cleaning_pipelineTaskId', pollPipeline, id => { _pipelineTaskId = id; });
-  const savedKwExtract = localStorage.getItem('cleaning_kwExtractTaskId');
-  if (savedKwExtract) { pollKwExtract(savedKwExtract); }
+  // 加载 Source Documents 状态统计
+  loadSourceDocumentsStats();
 });
+
+// ==================== Source Documents 状态统计 ====================
+async function loadSourceDocumentsStats() {
+  try {
+    const res = await fetch('/data/api/source-documents/stats');
+    const d = await res.json();
+    if (d.error) return;
+    document.querySelectorAll('#sdStatusStats [data-stat]').forEach(el => {
+      const key = el.dataset.stat;
+      if (d[key] !== undefined) {
+        el.textContent = Number(d[key]).toLocaleString();
+      }
+    });
+  } catch(e) { console.warn('loadSourceDocumentsStats failed', e); }
+}
 
 // ==================== stock_db 同步 ====================
 async function syncStockDb() {
@@ -707,186 +683,8 @@ async function syncStockDb() {
   } catch(e) { result.textContent = '请求失败'; result.className = 'text-xs text-red-400'; btn.disabled = false; }
 }
 
-// ==================== 定向提取 ====================
-async function kwSearch() {
-  const kw = document.getElementById('kwInput').value.trim();
-  if (!kw) return;
-  const fts = [...document.querySelectorAll('.kw-ft-check:checked')].map(c => c.value).join(',');
-  const fd = new FormData();
-  fd.append('keywords', kw);
-  fd.append('file_types', fts);
-  const res = await fetch('/data/api/keyword-search', {method:'POST', body:fd});
-  const data = await res.json();
-  if (data.error) { alert('搜索失败: ' + data.error); return; }
-  renderKwResults(data.items);
-}
-
-function renderKwResults(items) {
-  const statusColors = {pending:'text-slate-400', done:'text-emerald-400', failed:'text-red-400', skipped:'text-amber-400'};
-  const ftColors = {txt:'text-slate-300', pdf:'text-red-400', image:'text-sky-400', mixed:'text-violet-400', audio:'text-amber-400', xlsx:'text-emerald-400', xls:'text-emerald-400'};
-  const tbody = document.getElementById('kwResultBody');
-  tbody.innerHTML = items.map(r => `
-    <tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
-      <td class="px-2 py-1.5"><input type="checkbox" class="kw-item-check accent-violet-400" value="${r.id}"></td>
-      <td class="px-2 py-1.5 max-w-xs truncate text-white kw-title-cell" data-snippet="${escHtml(r.snippet)}" data-title="${escHtml(r.title)}">${r.title || '(无标题)'}</td>
-      <td class="px-2 py-1.5 text-slate-400 font-mono">${r.source}</td>
-      <td class="px-2 py-1.5 ${ftColors[r.file_type] || 'text-slate-500'} font-mono">${r.file_type}</td>
-      <td class="px-2 py-1.5 ${statusColors[r.extract_status] || 'text-slate-400'}">${r.extract_status}</td>
-      <td class="px-2 py-1.5 text-slate-500 font-mono">${r.publish_date}</td>
-    </tr>`).join('');
-  document.getElementById('kwResultCount').textContent = `共 ${items.length} 条`;
-  document.getElementById('kwSelectAll').checked = false;
-  document.getElementById('kwResults').classList.remove('hidden');
-  bindSnippetTooltip();
-}
-
 function escHtml(s) {
   return (s || '').replace(/&/g,'&amp;').replace(/\x3c/g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/\n/g,' ').replace(/\r/g,'');
-}
-
-function bindSnippetTooltip() {
-  const tip = document.getElementById('kwSnippetTip');
-  document.querySelectorAll('.kw-title-cell').forEach(td => {
-    td.addEventListener('mouseenter', e => {
-      const snippet = td.dataset.snippet;
-      if (!snippet) return;
-      tip.textContent = snippet;
-      tip.classList.remove('hidden');
-      positionTip(e);
-    });
-    td.addEventListener('mousemove', positionTip);
-    td.addEventListener('mouseleave', () => tip.classList.add('hidden'));
-  });
-}
-
-function positionTip(e) {
-  const tip = document.getElementById('kwSnippetTip');
-  const x = e.clientX + 12, y = e.clientY + 12;
-  const maxX = window.innerWidth - tip.offsetWidth - 16;
-  tip.style.left = Math.min(x, maxX) + 'px';
-  tip.style.top = y + 'px';
-}
-
-function kwToggleAll(cb) {
-  document.querySelectorAll('.kw-item-check').forEach(c => c.checked = cb.checked);
-}
-
-async function kwExtract() {
-  const ids = [...document.querySelectorAll('.kw-item-check:checked')].map(c => c.value);
-  if (!ids.length) { alert('请先勾选要提取的文档'); return; }
-  const fd = new FormData();
-  fd.append('doc_ids', ids.join(','));
-  const res = await fetch('/data/api/targeted-extract', {method:'POST', body:fd});
-  const data = await res.json();
-  if (data.error) { alert('提取失败: ' + data.error); return; }
-  localStorage.setItem('cleaning_kwExtractTaskId', data.task_id);
-  pollKwExtract(data.task_id);
-}
-
-function pollKwExtract(taskId) {
-  const statusEl = document.getElementById('kwExtractStatus');
-  const textEl = document.getElementById('kwExtractStatusText');
-  const barEl = document.getElementById('kwExtractProgressBar');
-  const resultEl = document.getElementById('kwExtractResult');
-  const spinnerEl = document.getElementById('kwExtractSpinner');
-  statusEl.classList.remove('hidden');
-  resultEl.classList.add('hidden');
-
-  const poll = setInterval(async () => {
-    try {
-      const r = await fetch('/data/task-status/' + taskId);
-      if (!r.ok) { clearInterval(poll); statusEl.classList.add('hidden'); localStorage.removeItem('cleaning_kwExtractTaskId'); return; }
-      const t = await r.json();
-      if (t.error) { clearInterval(poll); statusEl.classList.add('hidden'); localStorage.removeItem('cleaning_kwExtractTaskId'); return; }
-    const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
-    barEl.style.width = pct + '%';
-    textEl.textContent = t.current || '运行中...';
-    if (t.status === 'done') {
-      clearInterval(poll);
-      spinnerEl.classList.remove('animate-spin');
-      textEl.textContent = '完成';
-      resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
-      resultEl.classList.remove('hidden');
-      localStorage.removeItem('cleaning_kwExtractTaskId');
-    }
-    } catch(e) { clearInterval(poll); localStorage.removeItem('cleaning_kwExtractTaskId'); }
-  }, 1000);
-}
-
-// ==================== 提取 ====================
-let _extractTaskId = null;
-
-async function runExtract() {
-  const limit = document.getElementById('extractBatchSize').value;
-  const fts = [...document.querySelectorAll('.extract-ft-check:checked')].map(c => c.value).join(',');
-  const fd = new FormData();
-  fd.append('limit', limit);
-  if (fts) fd.append('file_type', fts);
-  try {
-    const res = await fetch('/data/api/extract-batch', {method:'POST', body:fd});
-    const data = await res.json();
-    if (data.error) { alert('提取失败: ' + data.error); return; }
-    _extractTaskId = data.task_id;
-    localStorage.setItem('cleaning_extractTaskId', data.task_id);
-    document.getElementById('extractCancelBtn').disabled = false;
-    document.getElementById('extractCancelBtn').classList.remove('opacity-40');
-    pollExtract(data.task_id);
-  } catch(e) {
-    alert('请求失败: ' + e.message);
-  }
-}
-
-function pollExtract(taskId) {
-  const statusEl = document.getElementById('extractStatus');
-  const textEl = document.getElementById('extractStatusText');
-  const barEl = document.getElementById('extractProgressBar');
-  const currentEl = document.getElementById('extractCurrent');
-  const resultEl = document.getElementById('extractResult');
-  const spinnerEl = document.getElementById('extractSpinner');
-  statusEl.classList.remove('hidden');
-  resultEl.classList.add('hidden');
-  document.getElementById('extractCancelBtn').disabled = false;
-  document.getElementById('extractCancelBtn').classList.remove('opacity-40');
-
-  const startTime = Date.now();
-  const TIMEOUT_MS = 10 * 60 * 1000; // 10分钟超时
-
-  function stopPoll(msg) {
-    clearInterval(poll);
-    spinnerEl.classList.remove('animate-spin');
-    textEl.textContent = msg || '已停止';
-    document.getElementById('extractCancelBtn').disabled = true;
-    document.getElementById('extractCancelBtn').classList.add('opacity-40');
-    _extractTaskId = null;
-    localStorage.removeItem('cleaning_extractTaskId');
-  }
-
-  const poll = setInterval(async () => {
-    if (Date.now() - startTime > TIMEOUT_MS) { stopPoll('超时，请重新提取'); return; }
-    try {
-      const r = await fetch('/data/task-status/' + taskId);
-      if (!r.ok) { stopPoll('任务已失效'); statusEl.classList.add('hidden'); return; }
-      const t = await r.json();
-      if (t.error) { stopPoll('任务出错'); statusEl.classList.add('hidden'); return; }
-      const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
-      barEl.style.width = pct + '%';
-      textEl.textContent = t.current || '运行中...';
-      currentEl.textContent = `${t.progress || 0}/${t.total || '?'}`;
-      if (t.status === 'done') {
-        spinnerEl.classList.remove('animate-spin');
-        textEl.textContent = '完成';
-        resultEl.textContent = (t.results || []).map(r => r.source + ': ' + (r.count || r.error)).join(' | ');
-        resultEl.classList.remove('hidden');
-        stopPoll();
-        loadDocStats(_currentDocType);
-      }
-    } catch(e) { stopPoll('网络错误'); }
-  }, 1000);
-}
-
-async function cancelExtract() {
-  if (!_extractTaskId) return;
-  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_extractTaskId})});
 }
 
 // ==================== 清洗管线 ====================
@@ -976,6 +774,9 @@ function pollPipeline(taskId) {
         } else if (cur.includes('c') || cur.includes('kg') || cur.includes('三元')) {
           stageText = 'C · KG'; stageColor = 'bg-violet-900/60 text-violet-300';
           barEl.className = 'bg-violet-400 h-1.5 rounded-full transition-all';
+        } else if (cur.includes('行业指标') || cur.includes('pipeline d') || cur.includes('指标抽取')) {
+          stageText = 'D · 行业指标'; stageColor = 'bg-rose-900/60 text-rose-300';
+          barEl.className = 'bg-rose-400 h-1.5 rounded-full transition-all';
         } else if (t.status === 'running') {
           stageText = '处理中'; stageColor = 'bg-amber-900/60 text-amber-300';
           barEl.className = 'bg-amber-400 h-1.5 rounded-full transition-all';
@@ -1099,6 +900,73 @@ async function cancelBackfillChunks() {
   await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_backfillTaskId})});
 }
 
+// ==================== 摘要 Chunk 回填 ====================
+let _summaryBackfillTaskId = null;
+
+async function runSummaryBackfill() {
+  const limit = document.getElementById('summaryBackfillLimit').value;
+  const dryRun = document.getElementById('summaryDryRun').checked;
+  const fd = new FormData();
+  fd.append('batch_size', limit);
+  fd.append('dry_run', dryRun ? 'true' : 'false');
+  try {
+    const res = await fetch('/data/api/backfill-summary-chunks', {method:'POST', body:fd});
+    if (!res.ok) { alert('摘要回填启动失败: HTTP ' + res.status); return; }
+    const data = await res.json();
+    if (data.error) { alert('摘要回填启动失败: ' + data.error); return; }
+    _summaryBackfillTaskId = data.task_id;
+    const cancelBtn = document.getElementById('summaryBackfillCancelBtn');
+    cancelBtn.disabled = false;
+    cancelBtn.classList.remove('opacity-40');
+    pollSummaryBackfill(_summaryBackfillTaskId);
+  } catch(e) { alert('网络错误: ' + e); }
+}
+
+function pollSummaryBackfill(taskId) {
+  const statusEl = document.getElementById('summaryBackfillStatus');
+  const textEl   = document.getElementById('summaryBackfillStatusText');
+  const barEl    = document.getElementById('summaryBackfillProgressBar');
+  const currentEl= document.getElementById('summaryBackfillCurrent');
+  const resultEl = document.getElementById('summaryBackfillResult');
+  statusEl.classList.remove('hidden');
+  resultEl.classList.add('hidden');
+
+  function stopPoll(msg) {
+    clearInterval(poll);
+    textEl.textContent = msg || '已停止';
+    const cancelBtn = document.getElementById('summaryBackfillCancelBtn');
+    cancelBtn.disabled = true;
+    cancelBtn.classList.add('opacity-40');
+    _summaryBackfillTaskId = null;
+  }
+
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch('/data/task-status/' + taskId);
+      if (!r.ok) { stopPoll('任务已失效'); return; }
+      const t = await r.json();
+      if (!t || t.error) { stopPoll('获取状态失败'); return; }
+      const pct = t.total > 0 ? Math.round(t.progress / t.total * 100) : 0;
+      barEl.style.width = pct + '%';
+      textEl.textContent = t.current || '回填中...';
+      currentEl.textContent = `${t.progress || 0}/${t.total || '?'}`;
+      if (t.status === 'done') {
+        stopPoll('回填完成');
+        const res = t.results || [];
+        const msg = res.map(r => r.ok ? `✓ ${r.count || ''}` : `✗ ${r.error || ''}`).join(' | ');
+        resultEl.textContent = msg || '完成';
+        resultEl.classList.remove('hidden');
+        barEl.style.width = '100%';
+      }
+    } catch(e) { console.warn('摘要回填 poll error:', e); }
+  }, 2000);
+}
+
+async function cancelSummaryBackfill() {
+  if (!_summaryBackfillTaskId) return;
+  await fetch('/data/api/cancel-task', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({task_id:_summaryBackfillTaskId})});
+}
+
 // ==================== 清洗日志 ====================
 async function loadCleaningLogs() {
   const panel = document.getElementById('cleaningLogsPanel');
@@ -1139,16 +1007,6 @@ async function loadCleaningLogs() {
 }
 
 // ==================== 信息源管理 ====================
-function toggleAllSources(cb) {
-  document.querySelectorAll('.extract-src-check').forEach(c => c.checked = cb.checked);
-}
-
-function syncSrcAll() {
-  const all = document.querySelectorAll('.extract-src-check');
-  const checked = document.querySelectorAll('.extract-src-check:checked');
-  const allCb = document.getElementById('extractSrcAll');
-  if (allCb) allCb.checked = all.length === checked.length;
-}
 
 let _addSourceOpen = false;
 async function toggleAddSource() {
@@ -1209,22 +1067,50 @@ async function deleteSource(key, label) {
   msgEl.classList.remove('hidden');
 }
 
+function zsxqUpdateHint() {
+  const hint = document.getElementById('zsxqHint');
+  if (!hint) return;
+  const endVal = document.getElementById('zsxqEndDate').value;
+  const daysBack = parseInt(document.getElementById('zsxqDaysBack').value) || 7;
+  if (!endVal) { hint.textContent = ''; return; }
+
+  const endDate = new Date(endVal);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - daysBack + 1);
+  const fmt = d => d.toISOString().slice(0, 10);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today - endDate) / 86400000);
+  const skipPages = Math.ceil(diffDays * 20 / 20); // ~20条/天估算
+
+  let msg = `采集范围：${fmt(startDate)} ~ ${fmt(endDate)}（${daysBack} 天）`;
+  if (diffDays > 0) {
+    msg += `　·　截止日距今 ${diffDays} 天，预计需先翻约 ${Math.max(1, Math.round(diffDays * 20 / 20))} 页才进入目标区间，建议翻页数 ≥ ${Math.ceil(diffDays * 20 / 20) + Math.ceil(daysBack * 20 / 20) + 5}`;
+  }
+  hint.textContent = msg;
+}
+
 async function startZsxqFetch() {
   const btn = document.getElementById('zsxqFetchBtn');
   const msgEl = document.getElementById('zsxqFetchMsg');
   const progressEl = document.getElementById('zsxqProgress');
   const maxPages = parseInt(document.getElementById('zsxqMaxPages').value) || 50;
 
-  const dates = window._zsxqPicker ? window._zsxqPicker.selectedDates : [];
-  if (dates.length < 2) {
-    msgEl.textContent = '请选择日期范围';
+  const endVal = document.getElementById('zsxqEndDate').value;
+  const daysBack = parseInt(document.getElementById('zsxqDaysBack').value) || 7;
+  if (!endVal) {
+    msgEl.textContent = '请选择截止日期';
     msgEl.className = 'text-xs px-3 py-2 rounded-lg bg-red-500/10 text-red-400';
     msgEl.classList.remove('hidden');
     return;
   }
+  const endDate = new Date(endVal);
+  const startDate = new Date(endDate);
+  startDate.setDate(startDate.getDate() - daysBack + 1);
   const fmt = d => d.toISOString().slice(0, 10);
-  const startDate = fmt(dates[0]);
-  const endDate = fmt(dates[1]);
+  const startDateStr = fmt(startDate);
+  const endDateStr = fmt(endDate);
 
   btn.disabled = true;
   msgEl.classList.add('hidden');
@@ -1235,7 +1121,7 @@ async function startZsxqFetch() {
     const res = await fetch('/data/api/fetch-zsxq', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start_date: startDate, end_date: endDate, max_pages: maxPages}),
+      body: JSON.stringify({start_date: startDateStr, end_date: endDateStr, max_pages: maxPages}),
     });
     const d = await res.json();
     if (d.error) throw new Error(d.error);
