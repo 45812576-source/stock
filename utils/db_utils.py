@@ -918,3 +918,296 @@ def upsert_industry_indicator(row: dict) -> int:
         )
 
     return ex["id"]
+
+
+# ---------- 市场增量数据：按需同步 6 张缓存表 ----------
+
+def _to_ts_code(stock_code: str) -> str:
+    """将纯数字股票代码转换为 tushare ts_code 格式（000001 → 000001.SZ）。
+    规则：0/3开头 → .SZ；6开头 → .SH；否则原样。
+    """
+    code = stock_code.strip()
+    if "." in code:
+        return code
+    if code.startswith(("0", "3")):
+        return code + ".SZ"
+    if code.startswith("6"):
+        return code + ".SH"
+    return code
+
+
+def ensure_stock_extra_data(stock_code: str) -> dict:
+    """按需同步单只股票的 6 张增量表数据，本地有则跳过。
+
+    检查逻辑：只要本地该股票有任何记录就视为"已同步"，避免重复拉取。
+    对体量较大的 valuation_history 只同步近 730 天。
+
+    Returns:
+        各表同步条数字典，已有数据的表返回 -1（跳过）。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    result = {
+        "insider_trading": 0,
+        "shareholder_count": 0,
+        "institutional_holding": 0,
+        "valuation_history": 0,
+        "etf_constituent": 0,
+        "margin_trading": 0,
+    }
+
+    local = _get_conn()
+    cloud = _get_cloud_conn()
+    try:
+        with local.cursor() as lc, cloud.cursor() as cc:
+
+            # ── 1. insider_trading ───────────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM insider_trading WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['insider_trading'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,trade_date,person_name,person_role,"
+                    "direction,trade_shares,trade_price,trade_amount,hold_shares_after,relation "
+                    "FROM insider_trading WHERE stock_code=%s "
+                    "AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 730 DAY) ORDER BY trade_date",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO insider_trading
+                           (id,stock_code,stock_name,trade_date,person_name,person_role,
+                            direction,trade_shares,trade_price,trade_amount,hold_shares_after,relation)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['stock_code'], r.get('stock_name'), r['trade_date'],
+                         r.get('person_name'), r.get('person_role'), r.get('direction'),
+                         r.get('trade_shares'), r.get('trade_price'), r.get('trade_amount'),
+                         r.get('hold_shares_after'), r.get('relation')],
+                    )
+                local.commit()
+                result['insider_trading'] = len(rows)
+
+            # ── 2. shareholder_count ─────────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM shareholder_count WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['shareholder_count'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,end_date,holder_count,holder_count_change,"
+                    "change_pct,avg_share_per_holder,avg_amount_per_holder "
+                    "FROM shareholder_count WHERE stock_code=%s ORDER BY end_date DESC LIMIT 12",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO shareholder_count
+                           (id,stock_code,stock_name,end_date,holder_count,holder_count_change,
+                            change_pct,avg_share_per_holder,avg_amount_per_holder)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['stock_code'], r.get('stock_name'), r['end_date'],
+                         r.get('holder_count'), r.get('holder_count_change'),
+                         r.get('change_pct'), r.get('avg_share_per_holder'),
+                         r.get('avg_amount_per_holder')],
+                    )
+                local.commit()
+                result['shareholder_count'] = len(rows)
+
+            # ── 3. institutional_holding ─────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM institutional_holding WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['institutional_holding'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,report_date,institution_type,"
+                    "hold_shares,hold_ratio,hold_change,hold_value "
+                    "FROM institutional_holding WHERE stock_code=%s ORDER BY report_date DESC LIMIT 20",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO institutional_holding
+                           (id,stock_code,stock_name,report_date,institution_type,
+                            hold_shares,hold_ratio,hold_change,hold_value)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['stock_code'], r.get('stock_name'), r['report_date'],
+                         r.get('institution_type'), r.get('hold_shares'),
+                         r.get('hold_ratio'), r.get('hold_change'), r.get('hold_value')],
+                    )
+                local.commit()
+                result['institutional_holding'] = len(rows)
+
+            # ── 4. valuation_history ─────────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM valuation_history WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['valuation_history'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,"
+                    "dividend_yield,market_cap,circ_market_cap "
+                    "FROM valuation_history WHERE stock_code=%s "
+                    "AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 730 DAY) ORDER BY trade_date",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO valuation_history
+                           (id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,
+                            dividend_yield,market_cap,circ_market_cap)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['stock_code'], r['trade_date'],
+                         r.get('pe_ttm'), r.get('pb_mrq'), r.get('ps_ttm'),
+                         r.get('dividend_yield'), r.get('market_cap'), r.get('circ_market_cap')],
+                    )
+                local.commit()
+                result['valuation_history'] = len(rows)
+
+            # ── 5. etf_constituent ───────────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM etf_constituent WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['etf_constituent'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date "
+                    "FROM etf_constituent WHERE stock_code=%s ORDER BY report_date DESC LIMIT 100",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO etf_constituent
+                           (id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['etf_code'], r.get('etf_name'), r['stock_code'],
+                         r.get('stock_name'), r.get('weight'), r.get('shares'),
+                         r.get('amount'), r.get('report_date')],
+                    )
+                local.commit()
+                result['etf_constituent'] = len(rows)
+
+            # ── 6. margin_trading ────────────────────────────────────────────
+            lc.execute("SELECT COUNT(*) as cnt FROM margin_trading WHERE stock_code=%s", [stock_code])
+            if lc.fetchone()['cnt'] > 0:
+                result['margin_trading'] = -1
+            else:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,trade_date,margin_balance,margin_buy_amount,"
+                    "margin_repay_amount,short_balance,short_sell_volume,short_repay_volume,"
+                    "short_sell_amount,total_balance,exchange "
+                    "FROM margin_trading WHERE stock_code=%s "
+                    "AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) ORDER BY trade_date",
+                    [stock_code],
+                )
+                rows = cc.fetchall()
+                for r in rows:
+                    lc.execute(
+                        """INSERT IGNORE INTO margin_trading
+                           (id,stock_code,stock_name,trade_date,margin_balance,margin_buy_amount,
+                            margin_repay_amount,short_balance,short_sell_volume,short_repay_volume,
+                            short_sell_amount,total_balance,exchange)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['id'], r['stock_code'], r.get('stock_name'), r['trade_date'],
+                         r.get('margin_balance'), r.get('margin_buy_amount'),
+                         r.get('margin_repay_amount'), r.get('short_balance'),
+                         r.get('short_sell_volume'), r.get('short_repay_volume'),
+                         r.get('short_sell_amount'), r.get('total_balance'), r.get('exchange')],
+                    )
+                local.commit()
+                result['margin_trading'] = len(rows)
+
+    except Exception as e:
+        logger.error(f"ensure_stock_extra_data({stock_code}) 失败: {e}")
+        result['error'] = str(e)
+    finally:
+        cloud.close()
+        local.close()
+
+    return result
+
+
+def get_cyq_chips(stock_code: str, trade_date: str = None) -> list:
+    """获取指定股票指定日期筹码分布，本地有则直接返回，无则从云端 stock_db 拉取并缓存。
+
+    Args:
+        stock_code: 股票代码（如 '600519'）
+        trade_date: 日期字符串 'YYYY-MM-DD'，None 时取最新一期
+
+    Returns:
+        [{price: float, percent: float}, ...] 按 price 升序，空时返回 []
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    # 1. 若未指定日期，查本地已有最新日期
+    if trade_date is None:
+        rows = execute_query(
+            "SELECT MAX(trade_date) as max_date FROM cyq_chips_cache WHERE stock_code=%s",
+            [stock_code],
+        )
+        if rows and rows[0].get('max_date'):
+            trade_date = str(rows[0]['max_date'])
+        else:
+            # 没有任何缓存，后续直接查云端
+            trade_date = None
+
+    # 2. 查本地缓存
+    if trade_date:
+        rows = execute_query(
+            "SELECT price, percent FROM cyq_chips_cache WHERE stock_code=%s AND trade_date=%s ORDER BY price",
+            [stock_code, trade_date],
+        )
+        if rows:
+            return [{"price": float(r["price"]), "percent": float(r["percent"])} for r in rows]
+
+    # 3. 从云端 stock_db 拉取
+    ts_code = _to_ts_code(stock_code)
+    try:
+        if trade_date:
+            cloud_rows = cloud_stockdb_query(
+                "SELECT price, percent FROM cyq_chips_detail_history "
+                "WHERE (ts_code=%s OR symbol=%s) AND trade_date=%s ORDER BY price",
+                [ts_code, stock_code, trade_date],
+            )
+        else:
+            # 取最新日期的数据
+            date_rows = cloud_stockdb_query(
+                "SELECT MAX(trade_date) as max_date FROM cyq_chips_detail_history "
+                "WHERE ts_code=%s OR symbol=%s",
+                [ts_code, stock_code],
+            )
+            if not date_rows or not date_rows[0].get('max_date'):
+                return []
+            trade_date = str(date_rows[0]['max_date'])
+            cloud_rows = cloud_stockdb_query(
+                "SELECT price, percent FROM cyq_chips_detail_history "
+                "WHERE (ts_code=%s OR symbol=%s) AND trade_date=%s ORDER BY price",
+                [ts_code, stock_code, trade_date],
+            )
+    except Exception as e:
+        logger.warning(f"get_cyq_chips 云端查询失败({stock_code}/{trade_date}): {e}")
+        return []
+
+    if not cloud_rows:
+        return []
+
+    # 4. 缓存到本地
+    try:
+        local = _get_conn()
+        try:
+            with local.cursor() as lc:
+                for r in cloud_rows:
+                    lc.execute(
+                        "INSERT IGNORE INTO cyq_chips_cache "
+                        "(stock_code, trade_date, price, percent) VALUES (%s,%s,%s,%s)",
+                        [stock_code, trade_date, r.get('price'), r.get('percent')],
+                    )
+            local.commit()
+        finally:
+            local.close()
+    except Exception as e:
+        logger.warning(f"get_cyq_chips 缓存写入失败: {e}")
+
+    return [{"price": float(r["price"]), "percent": float(r.get("percent") or 0)} for r in cloud_rows]

@@ -1,0 +1,437 @@
+{# K线阶段分析 Tab — 叠加在K线图上的阶段标注 + 右侧结论面板 #}
+<div id="chart-analysis-panel" class="flex gap-4">
+
+  {# 左侧：K线图（带阶段标注） #}
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs text-slate-400">基于180天K线的17情形阶段分析</span>
+      <div class="flex items-center gap-2">
+        <span id="ca-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">未分析</span>
+        <button id="ca-refresh-btn" onclick="startChartAnalysis()"
+          class="px-3 py-1 rounded-lg text-xs bg-primary/20 text-primary hover:bg-primary/30 transition flex items-center gap-1">
+          <span class="material-icons-round" style="font-size:14px">refresh</span>重新分析
+        </button>
+      </div>
+    </div>
+    <div id="ca-kline-chart" style="height:460px"></div>
+  </div>
+
+  {# 右侧：结论面板 #}
+  <div class="w-72 flex-shrink-0 space-y-3" id="ca-conclusion-panel">
+    {# 当前阶段 #}
+    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+      <div class="text-xs text-slate-500 font-semibold mb-2">当前阶段</div>
+      <div id="ca-current-stage">
+        <div class="text-slate-500 text-xs text-center py-4">点击"重新分析"生成阶段分析</div>
+      </div>
+    </div>
+
+    {# 退出信号 #}
+    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+      <div class="text-xs text-slate-500 font-semibold mb-2">退出信号监控</div>
+      <div id="ca-exit-signals">
+        <div class="text-slate-600 text-xs">—</div>
+      </div>
+    </div>
+
+    {# 预测场景 #}
+    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+      <div class="text-xs text-slate-500 font-semibold mb-2">下一阶段预测</div>
+      <div id="ca-predictions">
+        <div class="text-slate-600 text-xs">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.ca-stage-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.72rem; font-weight: 600; }
+.ca-conf-high   { background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3); }
+.ca-conf-mid    { background: rgba(245,158,11,0.15); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+.ca-conf-low    { background: rgba(239,68,68,0.15);  color: #f87171; border: 1px solid rgba(239,68,68,0.3); }
+.ca-conf-unk    { background: rgba(100,116,139,0.15);color: #94a3b8; border: 1px solid rgba(100,116,139,0.3); }
+.ca-pred-row { display: flex; align-items: flex-start; gap: 6px; padding: 5px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+.ca-pred-row:last-child { border-bottom: none; }
+.ca-pred-prob { font-size: 0.75rem; font-weight: 700; color: #60a5fa; min-width: 36px; }
+.ca-exit-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 0.72rem; color: #94a3b8; }
+#chips-popup {
+  position: fixed; z-index: 9999;
+  background: #1e293b; border: 1px solid #334155;
+  border-radius: 10px; padding: 10px 12px;
+  min-width: 220px; max-width: 260px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  display: none;
+  pointer-events: auto;
+}
+</style>
+
+{# 筹码分布浮窗（全局，由 renderCaChart 注册的 click 事件控制） #}
+<div id="chips-popup"></div>
+
+<script>
+(function() {
+  const PHASE_COLORS = {
+    accumulation:    'rgba(59,130,246,0.15)',
+    markup:          'rgba(34,197,94,0.15)',
+    distribution:    'rgba(239,68,68,0.15)',
+    markdown:        'rgba(168,85,247,0.15)',
+    re_accumulation: 'rgba(245,158,11,0.15)',
+  };
+  const PHASE_LINE_COLORS = {
+    accumulation:    '#3b82f6',
+    markup:          '#22c55e',
+    distribution:    '#ef4444',
+    markdown:        '#a855f7',
+    re_accumulation: '#f59e0b',
+  };
+  const PHASE_MAP = {
+    1:'accumulation',2:'accumulation',3:'accumulation',
+    4:'markup',5:'markup',6:'markup',
+    7:'distribution',8:'distribution',9:'distribution',10:'distribution',
+    11:'markdown',12:'markdown',13:'markdown',14:'markdown',15:'markdown',
+    16:'re_accumulation',17:'re_accumulation',
+  };
+
+  let caAnalysisData = null;
+  let caTaskId = null;
+  let caPollTimer = null;
+
+  // 渲染阶段分析K线图
+  function renderCaChart(stages) {
+    if (typeof kdata === 'undefined' || !kdata || !kdata.length) return;
+    const dates = kdata.map(x => x.trade_date);
+    const opens = kdata.map(x => x.open);
+    const highs = kdata.map(x => x.high);
+    const lows  = kdata.map(x => x.low);
+    const closes= kdata.map(x => x.close);
+
+    // 为每根K线打上所属阶段信息
+    const stageInfo = dates.map(d => {
+      if (!stages || !stages.length) return null;
+      for (const s of stages) {
+        if (d >= s.start_date && d <= s.end_date) return s;
+      }
+      return null;
+    });
+
+    const customdata = stageInfo.map(s => {
+      if (!s) return ['—', '', '', '', ''];
+      const conf = s.computed_confidence || s.confidence || 0;
+      const confPct = Math.round(conf * 100) + '%';
+      // 校验结果摘要
+      const checks = (s.check_detail || []);
+      const passed = checks.filter(c => c.passed === true).map(c => c.name);
+      const failed = checks.filter(c => c.passed === false).map(c => c.name);
+      const checkStr = (failed.length ? '✗ ' + failed.join(' ') : '') +
+                       (passed.length ? (failed.length ? '  ✓ ' : '✓ ') + passed.join(' ') : '');
+      return [
+        `情形${s.situation_id} · ${s.name || ''}`,
+        s.summary || '',
+        s.start_date + ' → ' + s.end_date,
+        confPct,
+        checkStr,
+      ];
+    });
+
+    const traces = [{
+      type: 'candlestick', x: dates,
+      open: opens, high: highs, low: lows, close: closes,
+      increasing: { line: { color: '#ef4444' }, fillcolor: '#ef4444' },
+      decreasing: { line: { color: '#22c55e' }, fillcolor: '#22c55e' },
+      customdata: customdata,
+      hovertemplate:
+        '<b>%{x}</b><br>' +
+        'O:%{open:.2f} H:%{high:.2f} L:%{low:.2f} C:%{close:.2f}<br>' +
+        '<span style="color:#a5b4fc;font-weight:600">▌ %{customdata[0]}</span><br>' +
+        '%{customdata[1]}<br>' +
+        '<span style="color:#64748b">%{customdata[2]} · 置信度%{customdata[3]}</span><br>' +
+        '<span style="color:#475569;font-size:10px">%{customdata[4]}</span>' +
+        '<extra></extra>',
+      yaxis: 'y', showlegend: false,
+    }];
+
+    const shapes = [], annotations = [];
+
+    if (stages && stages.length) {
+      stages.forEach(stage => {
+        const phase = PHASE_MAP[stage.situation_id] || 'accumulation';
+        const bgColor = PHASE_COLORS[phase];
+        const lineColor = PHASE_LINE_COLORS[phase];
+
+        // 背景色矩形
+        shapes.push({
+          type: 'rect',
+          x0: stage.start_date, x1: stage.end_date,
+          y0: 0, y1: 1, yref: 'paper',
+          fillcolor: bgColor,
+          line: { width: 0 },
+          layer: 'below',
+        });
+
+        // 起始垂直虚线
+        shapes.push({
+          type: 'line',
+          x0: stage.start_date, x1: stage.start_date,
+          y0: 0, y1: 1, yref: 'paper',
+          line: { color: lineColor, width: 1, dash: 'dot' },
+        });
+
+        // 阶段标注（情形编号 + 名称缩写）
+        const conf = stage.computed_confidence || stage.confidence || 0;
+        const confLabel = conf >= 0.75 ? '●' : (conf >= 0.5 ? '◐' : '○');
+        annotations.push({
+          x: stage.start_date,
+          y: 1.04, yref: 'paper',
+          text: `<b>${stage.situation_id}</b> ${confLabel}`,
+          showarrow: false,
+          font: { size: 10, color: lineColor },
+          xanchor: 'left',
+          hovertext: `情形${stage.situation_id}·${stage.name || ''}<br>${stage.summary || ''}`,
+        });
+      });
+    }
+
+    const layout = {
+      paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
+      margin: { l: 60, r: 16, t: 32, b: 36 },
+      font: { color: '#94a3b8', family: 'Manrope', size: 11 },
+      xaxis: {
+        type: 'category',
+        rangeslider: { visible: false },
+        gridcolor: 'rgba(100,116,139,0.08)',
+        nticks: 12, tickfont: { size: 10 },
+      },
+      yaxis: {
+        side: 'left',
+        gridcolor: 'rgba(100,116,139,0.08)',
+        tickfont: { size: 10 },
+        autorange: true,
+      },
+      shapes, annotations,
+      showlegend: false,
+      hovermode: 'x unified',
+      hoverlabel: {
+        bgcolor: '#1e293b', bordercolor: '#334155',
+        font: { size: 11, family: 'Manrope' },
+        align: 'left',
+      },
+    };
+
+    // 筹码标记：在每个阶段末日加蓝色菱形散点
+    if (stages && stages.length) {
+      const chipsDates = stages.map(s => s.end_date).filter(d => dates.includes(d));
+      if (chipsDates.length) {
+        const chipsY = chipsDates.map(d => {
+          const idx = dates.indexOf(d);
+          return idx >= 0 ? highs[idx] * 1.01 : null;
+        });
+        traces.push({
+          type: 'scatter', mode: 'markers',
+          x: chipsDates, y: chipsY,
+          marker: { symbol: 'diamond', size: 10, color: '#3b82f6', opacity: 0.9,
+                    line: { color: '#93c5fd', width: 1 } },
+          name: '筹码分布',
+          hovertemplate: '<b>%{x}</b><br>点击查看筹码分布<extra></extra>',
+          yaxis: 'y', showlegend: false,
+          customdata: chipsDates.map(d => ({ date: d })),
+        });
+      }
+    }
+
+    Plotly.newPlot('ca-kline-chart', traces, layout, { responsive: true, displayModeBar: false });
+
+    // 筹码浮窗：hover 到菱形时异步加载筹码数据
+    const chartEl = document.getElementById('ca-kline-chart');
+    if (chartEl) {
+      chartEl.on('plotly_click', function(evtData) {
+        if (!evtData || !evtData.points || !evtData.points.length) return;
+        const pt = evtData.points[0];
+        if (pt.data && pt.data.name === '筹码分布') {
+          const date = pt.x;
+          showChipsPopup(date, pt.event);
+        }
+      });
+    }
+  }
+
+  // 筹码浮窗逻辑
+  let _chipsPopupDate = null;
+  function showChipsPopup(date, event) {
+    if (_chipsPopupDate === date) { hideChipsPopup(); return; }
+    _chipsPopupDate = date;
+    const popup = document.getElementById('chips-popup');
+    if (!popup) return;
+    popup.style.display = 'block';
+    popup.style.left = (event.pageX + 12) + 'px';
+    popup.style.top = Math.max(10, event.pageY - 120) + 'px';
+    popup.innerHTML = '<div class="text-xs text-slate-400 mb-1">加载筹码数据…</div>';
+    const stockCode = window._currentStockCode || (location.pathname.split('/')[2] || '');
+    fetch(`/stock/${stockCode}/api/chips?date=${date}`)
+      .then(r => r.json())
+      .then(data => renderChipsPopup(popup, data))
+      .catch(() => { popup.innerHTML = '<div class="text-xs text-red-400">筹码数据加载失败</div>'; });
+  }
+
+  function hideChipsPopup() {
+    _chipsPopupDate = null;
+    const p = document.getElementById('chips-popup');
+    if (p) p.style.display = 'none';
+  }
+
+  function renderChipsPopup(popup, data) {
+    const chips = data.chips || [];
+    if (!chips.length) {
+      popup.innerHTML = '<div class="text-xs text-slate-400">暂无筹码数据</div>';
+      return;
+    }
+    const maxPct = Math.max(...chips.map(c => c.percent));
+    const barW = 120;
+    const currentPrice = window._latestClose || 0;
+    const rows = chips.map(c => {
+      const w = maxPct > 0 ? Math.round(c.percent / maxPct * barW) : 0;
+      const isNear = currentPrice && Math.abs(c.price - currentPrice) / currentPrice < 0.03;
+      const barColor = isNear ? '#f59e0b' : (c.price <= (data.cost_70 || 0) ? '#22c55e' : '#3b82f6');
+      return `<div class="flex items-center gap-1 mb-px">
+        <span class="text-slate-400 w-14 text-right text-xs">${c.price.toFixed(1)}</span>
+        <div style="width:${w}px;height:4px;background:${barColor};border-radius:2px;flex-shrink:0"></div>
+        <span class="text-slate-500 text-xs">${c.percent.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+    popup.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-slate-300 font-semibold">筹码分布 ${data.date || ''}</span>
+        <button onclick="hideChipsPopup()" class="text-slate-500 hover:text-slate-300 text-xs ml-3">✕</button>
+      </div>
+      <div style="max-height:220px;overflow-y:auto">${rows}</div>
+      <div class="mt-2 pt-2 border-t border-slate-700 flex gap-3 text-xs">
+        <span class="text-green-400">70%成本: ${data.cost_70 != null ? data.cost_70.toFixed(1) : '—'}</span>
+        <span class="text-amber-400">90%成本: ${data.cost_90 != null ? data.cost_90.toFixed(1) : '—'}</span>
+      </div>`;
+  }
+
+  // 渲染右侧结论面板
+  function renderCaConclusion(data) {
+    const cur = data.current_stage || {};
+    const preds = data.predictions || [];
+    const stages = data.stages || [];
+
+    // 当前阶段
+    const phase = PHASE_MAP[cur.situation_id] || 'accumulation';
+    const lineColor = PHASE_LINE_COLORS[phase];
+    document.getElementById('ca-current-stage').innerHTML = `
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-lg font-bold" style="color:${lineColor}">情形${cur.situation_id || '—'}</span>
+        <span class="text-sm text-white font-semibold">${cur.name || '—'}</span>
+      </div>
+      <p class="text-xs text-slate-400 mb-2">${cur.summary || ''}</p>
+      <div class="text-xs text-slate-500">已持续 <span class="text-white font-semibold">${cur.days_in_stage || '—'}</span> 天</div>
+    `;
+
+    // 退出信号
+    const exits = cur.exit_conditions || [];
+    document.getElementById('ca-exit-signals').innerHTML = exits.length
+      ? exits.map(e => `<div class="ca-exit-item"><span class="material-icons-round text-amber-400" style="font-size:12px">warning</span>${e}</div>`).join('')
+      : '<div class="text-slate-600 text-xs">暂无退出信号</div>';
+
+    // 预测
+    document.getElementById('ca-predictions').innerHTML = preds.length
+      ? preds.map(p => `
+          <div class="ca-pred-row">
+            <span class="ca-pred-prob">${Math.round((p.probability||0)*100)}%</span>
+            <div>
+              <div class="text-xs text-slate-300">${p.scenario || ''}</div>
+              <div class="text-xs text-slate-500 mt-0.5">${p.entry_conditions || ''}</div>
+            </div>
+          </div>`).join('')
+      : '<div class="text-slate-600 text-xs">—</div>';
+  }
+
+  // 加载已有分析（幂等：已渲染过则直接 resize）
+  let _caLoaded = false;
+  window.loadExistingAnalysis = function() {
+    if (_caLoaded) {
+      // 已渲染过，只需 resize（从 hidden 切回来时 Plotly 需要重算尺寸）
+      const el = document.getElementById('ca-kline-chart');
+      if (el && el.data) Plotly.Plots.resize(el);
+      return;
+    }
+    fetch(`/stock/${stockCode}/api/chart-analysis/latest`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.stages && data.stages.length) {
+          caAnalysisData = data;
+          renderCaChart(data.stages);
+          renderCaConclusion(data);
+          document.getElementById('ca-status-badge').textContent = `已分析 ${data.analysis_date || ''}`;
+          document.getElementById('ca-status-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
+          _caLoaded = true;
+        } else {
+          renderCaChart([]);
+          _caLoaded = true;
+        }
+      })
+      .catch(() => { renderCaChart([]); _caLoaded = true; });
+  };
+
+  // 触发分析
+  window.startChartAnalysis = function() {
+    const btn = document.getElementById('ca-refresh-btn');
+    const badge = document.getElementById('ca-status-badge');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-round animate-spin" style="font-size:14px">refresh</span>分析中...';
+    badge.textContent = '分析中...';
+    badge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400';
+
+    fetch(`/stock/${stockCode}/api/chart-analysis`, { method: 'POST' })
+      .then(r => r.json())
+      .then(d => {
+        if (d.task_id) {
+          caTaskId = d.task_id;
+          caPollTimer = setInterval(pollAnalysisTask, 3000);
+        } else {
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
+          badge.textContent = '启动失败';
+        }
+      })
+      .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
+      });
+  };
+
+  function pollAnalysisTask() {
+    if (!caTaskId) return;
+    fetch(`/stock/${stockCode}/api/chart-analysis/${caTaskId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === 'done') {
+          clearInterval(caPollTimer);
+          const btn = document.getElementById('ca-refresh-btn');
+          btn.disabled = false;
+          btn.innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
+          if (d.result && d.result.ok) {
+            caAnalysisData = d.result;
+            _caLoaded = true;  // 标记已渲染
+            renderCaChart(d.result.stages);
+            renderCaConclusion(d.result);
+            const badge = document.getElementById('ca-status-badge');
+            badge.textContent = `已分析 ${d.result.analysis_date || ''}`;
+            badge.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
+          } else {
+            document.getElementById('ca-status-badge').textContent = '分析失败';
+            document.getElementById('ca-status-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400';
+          }
+        } else if (d.status === 'error') {
+          clearInterval(caPollTimer);
+          document.getElementById('ca-refresh-btn').disabled = false;
+          document.getElementById('ca-refresh-btn').innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
+          document.getElementById('ca-status-badge').textContent = '分析失败';
+        }
+      });
+  }
+
+  // 初始化：不在 DOMContentLoaded 时加载，改为切换到阶段分析 tab 时懒加载
+  // （由 setKlineView('analysis') 调用 loadExistingAnalysis）
+})();
+</script>

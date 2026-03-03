@@ -5,17 +5,20 @@ import time
 import threading
 import uuid
 from datetime import datetime
-from fastapi import APIRouter, Request, BackgroundTasks
+from fastapi import APIRouter, Request, BackgroundTasks, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
 from utils.db_utils import execute_query, execute_insert
+from utils.auth_deps import get_current_user, TokenData
+from utils.quota_service import check_quota, consume_quota
 from tracking.watchlist_manager import (
     add_to_watchlist, remove_from_watchlist,
     update_watch_type,
 )
 from research.report_generator import get_research_report, list_research_records
+from research.universal_db import get_sector_heat_detail
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stock", tags=["stock"])
@@ -31,6 +34,10 @@ _PROGRESS_MAP = {
     "[1/6]": 15, "[2/6]": 28, "[3/6]": 42,
     "[4/6]": 55, "[5/6]": 68, "[6/6]": 80,
     "正在综合": 90, "正在保存": 95,
+    # 单步重跑时的子步骤进度（估值4步、其他步骤通用）
+    "[4a]": 15, "[4b]": 35, "[4c]": 60, "[4d]": 85,
+    "[1]": 20, "[2]": 50, "[3]": 80,
+    "读取已有报告": 5, "重跑完成": 100,
 }
 
 def _create_research_task(stock_code, stock_name=""):
@@ -69,15 +76,19 @@ def _make_step_cb(task_id):
         "financial": "财务分析",
         "valuation": "估值分析",
         "sector_heat": "板块热度",
-        "policy_impact": "政策与行业动向",
+        "research_data": "研究数据",
     }
     def cb(step_name, result_text):
         with _tasks_lock:
             task = _research_tasks.get(task_id)
-            if task and result_text and not result_text.startswith("分析失败"):
+            # 处理 dict 或 string 两种结果类型
+            result_str = result_text if isinstance(result_text, str) else str(result_text)
+            if task and result_text and not result_str.startswith("分析失败"):
+                # 对 dict 结果进行截断处理
+                content = result_text[:3000] if isinstance(result_text, str) else str(result_text)[:3000]
                 task["step_results"][step_name] = {
                     "label": _STEP_LABELS.get(step_name, step_name),
-                    "content": result_text[:3000],  # 截断避免过大
+                    "content": content,
                 }
     return cb
 
@@ -467,8 +478,13 @@ def stock_list(request: Request):
 
 
 @router.get("/{stock_code}", response_class=HTMLResponse)
-def stock_detail(request: Request, stock_code: str):
+def stock_detail(request: Request, stock_code: str, user: TokenData = Depends(get_current_user)):
     """个股详情页"""
+    user_id = user.user_id
+
+    # 检查K线分析权限
+    can_chart, chart_msg = check_quota(user_id, 'chart_analysis')
+
     # 先检查本地是否有数据，没有则从云端同步
     from utils.db_utils import ensure_stock_data
     sync_result = ensure_stock_data(stock_code, days=250)
@@ -510,6 +526,8 @@ def stock_detail(request: Request, stock_code: str):
         "news": news,
         "capital": capital,
         "in_watchlist": in_watchlist,
+        "can_chart_analysis": can_chart,
+        "chart_analysis_msg": chart_msg,
     })
 
 
@@ -523,6 +541,12 @@ def stock_report(request: Request, stock_code: str, report_id: int):
     if not report:
         return RedirectResponse(url=f"/stock/{stock_code}", status_code=302)
 
+    # 板块热度详情（15日资金流时序）
+    try:
+        sector_heat_detail = get_sector_heat_detail(stock_code)
+    except Exception:
+        sector_heat_detail = {"company_flow_15d": [], "sub_industries": [], "investment_themes": []}
+
     return templates.TemplateResponse("stock_report.html", {
         "request": request,
         "active_page": "stock",
@@ -530,6 +554,7 @@ def stock_report(request: Request, stock_code: str, report_id: int):
         "stock_code": stock_code,
         "report": report,
         "news": news,
+        "sector_heat_detail": sector_heat_detail,
     })
 
 
@@ -608,7 +633,114 @@ def delete_report(stock_code: str, report_id: int):
 
 
 @router.post("/{stock_code}/run-research")
-def run_research(stock_code: str, background_tasks: BackgroundTasks):
+async def run_research(request: Request, stock_code: str,
+                       background_tasks: BackgroundTasks):
+    """整体重新研究（后台执行全部6步）"""
+    from research.deep_researcher import deep_research_stock
+
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=?", [stock_code])
+    stock_name = info[0]["stock_name"] if info else stock_code
+    task_id = _create_research_task(stock_code, stock_name)
+
+    def _run():
+        try:
+            result = deep_research_stock(
+                stock_code,
+                progress_callback=_make_progress_cb(task_id),
+                step_callback=_make_step_cb(task_id),
+            )
+            rid = result.get("research_id")
+            if result.get("error"):
+                _update_research_task(task_id, status="error", progress=100,
+                                     message=f"失败: {result['error']}",
+                                     finished_at=time.time(), research_id=rid)
+            else:
+                _update_research_task(task_id, status="done", progress=100,
+                                     message="研究完成", finished_at=time.time(),
+                                     research_id=rid)
+        except Exception as e:
+            logger.error(f"整体研究失败 {stock_code}: {e}")
+            _update_research_task(task_id, status="error",
+                                 message=f"异常: {e}", finished_at=time.time())
+
+    background_tasks.add_task(_run)
+    return JSONResponse({"ok": True, "task_id": task_id, "message": "研究已启动"})
+
+
+@router.post("/{stock_code}/run-research-step")
+def run_research_step(stock_code: str, background_tasks: BackgroundTasks,
+                      request: Request = None):
+    """单独重跑某个板块（后台执行）
+
+    Body JSON: {"step": "valuation", "report_id": 43}
+    """
+    import asyncio
+
+    async def _get_body():
+        if request:
+            try:
+                return await request.json()
+            except Exception:
+                return {}
+        return {}
+
+    # FastAPI 同步路由中无法直接 await，改用 BackgroundTasks 传参
+    # 通过 query params 接收
+    return JSONResponse({"error": "请使用 POST JSON body"}, status_code=400)
+
+
+@router.post("/{stock_code}/api/run-research-step")
+async def api_run_research_step(request: Request, stock_code: str,
+                                 background_tasks: BackgroundTasks):
+    """单独重跑某个板块（后台执行）
+
+    Body JSON: {"step": "valuation", "report_id": 43}
+    step 可选值: business_model, value_chain, financial, valuation, sector_heat, research_data
+    """
+    from research.deep_researcher import deep_research_stock, ALL_STEPS
+
+    body = await request.json()
+    step = body.get("step", "")
+    report_id = body.get("report_id")
+
+    if step not in ALL_STEPS:
+        return JSONResponse(
+            {"error": f"无效步骤: {step}，可选: {ALL_STEPS}"}, status_code=400
+        )
+
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=?", [stock_code])
+    stock_name = info[0]["stock_name"] if info else stock_code
+    task_id = _create_research_task(stock_code, stock_name)
+
+    def _run():
+        try:
+            result = deep_research_stock(
+                stock_code,
+                steps=[step],
+                existing_report_id=report_id,
+                progress_callback=_make_progress_cb(task_id),
+                step_callback=_make_step_cb(task_id),
+            )
+            rid = result.get("research_id")
+            if result.get("error"):
+                _update_research_task(task_id, status="error", progress=100,
+                                     message=f"失败: {result['error']}",
+                                     finished_at=time.time(), research_id=rid)
+            else:
+                _update_research_task(task_id, status="done", progress=100,
+                                     message=f"{step} 重跑完成",
+                                     finished_at=time.time(), research_id=rid)
+        except Exception as e:
+            logger.error(f"单步重跑失败 {stock_code}/{step}: {e}")
+            _update_research_task(task_id, status="error",
+                                 message=f"异常: {e}", finished_at=time.time())
+
+    background_tasks.add_task(_run)
+    return JSONResponse({"ok": True, "task_id": task_id,
+                         "message": f"正在重跑 {step} 板块"})
+
+
+
     """触发深度研究（后台执行）"""
     from research.deep_researcher import deep_research_stock
 
@@ -844,24 +976,63 @@ def api_toggle_watch(stock_code: str):
         return JSONResponse({"watched": True, "type": "interested"})
 
 
-@router.get("/{stock_code}/api/generate-tags")
-def api_generate_tags(stock_code: str):
-    """从三源聚合生成标签（行业/主题/选股）"""
-    try:
-        from tagging.stock_tag_service import get_stock_tags
-        result = get_stock_tags(stock_code)
-        core = (
-            [{"name": t, "type": "industry"} for t in result.industry_tags] +
-            [{"name": t, "type": "theme"} for t in result.theme_tags]
-        )
-        more = [
-            {"name": t.name, "type": "selection", "category": t.category, "layer": t.layer}
-            for t in result.selection_tags
-        ]
-        return JSONResponse({"core": core, "more": more})
-    except Exception as e:
-        logger.warning(f"generate-tags 失败 {stock_code}: {e}")
-        return JSONResponse({"core": [], "more": []})
+_tag_gen_tasks: dict = {}
+
+
+@router.post("/{stock_code}/api/generate-tags")
+def api_generate_tags(stock_code: str, background_tasks: BackgroundTasks):
+    """触发 L1+L2+L3 全量标签生成（后台任务）"""
+    task_id = f"tag_{stock_code}_{int(time.time())}"
+    _tag_gen_tasks[task_id] = {"status": "running", "phase": "L1", "result": None}
+
+    def _run():
+        task = _tag_gen_tasks[task_id]
+        try:
+            # L1 量化
+            task["phase"] = "L1"
+            from tagging.l1_quant_engine import run_l1_for_stock
+            run_l1_for_stock(stock_code)
+
+            # L2 AI 轻量
+            task["phase"] = "L2"
+            from tagging.l2_ai_engine import run_l2_for_stock
+            run_l2_for_stock(stock_code)
+
+            # L3 AI 深度
+            task["phase"] = "L3"
+            from tagging.l3_deep_engine import run_l3_for_stock
+            run_l3_for_stock(stock_code)
+
+            # 读取最终结果
+            task["phase"] = "done"
+            from tagging.stock_tag_service import get_stock_tags
+            result = get_stock_tags(stock_code)
+            core = (
+                [{"name": t, "type": "industry"} for t in result.industry_tags] +
+                [{"name": t, "type": "theme"} for t in result.theme_tags]
+            )
+            more = [
+                {"name": t.name, "type": "selection", "category": t.category, "layer": t.layer}
+                for t in result.selection_tags
+            ]
+            task["status"] = "done"
+            task["result"] = {"core": core, "more": more}
+        except Exception as e:
+            logger.warning(f"generate-tags 失败 {stock_code}: {e}")
+            task["status"] = "failed"
+            task["result"] = {"core": [], "more": [], "error": str(e)}
+
+    background_tasks.add_task(_run)
+    return JSONResponse({"task_id": task_id})
+
+
+@router.get("/{stock_code}/api/generate-tags/{task_id}")
+def api_generate_tags_status(stock_code: str, task_id: str):
+    """查询标签生成任务状态"""
+    task = _tag_gen_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    return JSONResponse(task)
 
 
 @router.post("/{stock_code}/api/save-tags")
@@ -884,3 +1055,343 @@ async def api_save_tags(request: Request, stock_code: str):
             [json.dumps(tags, ensure_ascii=False), stock_code],
         )
     return JSONResponse({"ok": True, "count": len(tags)})
+
+# ==================== K线阶段分析 API ====================
+
+_chart_analysis_tasks: dict = {}
+_ca_tasks_lock = threading.Lock()
+
+
+def _create_ca_task(stock_code: str) -> str:
+    task_id = uuid.uuid4().hex[:8]
+    with _ca_tasks_lock:
+        _chart_analysis_tasks[task_id] = {
+            "id": task_id, "stock_code": stock_code,
+            "status": "running", "result": None,
+            "created_at": time.time(),
+        }
+    return task_id
+
+
+@router.post("/{stock_code}/api/chart-analysis")
+async def api_start_chart_analysis(stock_code: str, background_tasks: BackgroundTasks, user: TokenData = Depends(get_current_user)):
+    """触发K线阶段分析（后台任务）"""
+    user_id = user.user_id
+
+    # 检查K线分析权限
+    can_run, msg = check_quota(user_id, 'chart_analysis')
+    if not can_run:
+        return JSONResponse({"ok": False, "error": msg}, status_code=403)
+
+    # 消耗配额
+    consume_quota(user_id, 'chart_analysis', 1)
+
+    task_id = _create_ca_task(stock_code)
+
+    def _run():
+        try:
+            from analysis.kline_analyzer import run_full_analysis
+            result = run_full_analysis(stock_code, days=180)
+            with _ca_tasks_lock:
+                if task_id in _chart_analysis_tasks:
+                    _chart_analysis_tasks[task_id]["status"] = "done"
+                    _chart_analysis_tasks[task_id]["result"] = result
+        except Exception as e:
+            logger.error(f"K线阶段分析失败 {stock_code}: {e}")
+            with _ca_tasks_lock:
+                if task_id in _chart_analysis_tasks:
+                    _chart_analysis_tasks[task_id]["status"] = "error"
+                    _chart_analysis_tasks[task_id]["result"] = {"ok": False, "error": str(e)}
+
+    background_tasks.add_task(_run)
+    return JSONResponse({"ok": True, "task_id": task_id})
+
+
+@router.get("/{stock_code}/api/chart-analysis/latest")
+def api_get_latest_chart_analysis(stock_code: str):
+    """获取最新阶段分析结果"""
+    try:
+        from analysis.kline_analyzer import get_latest_analysis
+        data = get_latest_analysis(stock_code)
+        if data:
+            # 序列化 date/datetime 为字符串
+            payload = {
+                "ok": True,
+                "analysis_date": str(data.get("analysis_date") or ""),
+                "created_at": str(data.get("created_at") or ""),
+                "stages": data.get("stages") or [],
+                "current_stage": data.get("current_stage") or {},
+                "predictions": data.get("predictions") or [],
+            }
+            return JSONResponse(payload)
+        return JSONResponse({"ok": False, "message": "暂无分析数据"})
+    except Exception as e:
+        logger.error(f"获取阶段分析失败 {stock_code}: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
+@router.get("/{stock_code}/api/chart-analysis/{task_id}")
+def api_get_chart_analysis_task(stock_code: str, task_id: str):
+    """查询阶段分析任务状态"""
+    with _ca_tasks_lock:
+        task = _chart_analysis_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    return JSONResponse(task)
+
+
+# ==================== 个股报告 Chatbot API ====================
+
+@router.get("/{stock_code}/api/chat/history")
+def api_get_chat_history(stock_code: str):
+    """获取个股对话历史（最近30轮）"""
+    rows = execute_query(
+        """SELECT id, role, content, metadata_json, created_at
+           FROM stock_chat_messages WHERE stock_code=%s
+           ORDER BY created_at DESC LIMIT 60""",
+        [stock_code],
+    )
+    msgs = list(reversed([dict(r) for r in (rows or [])]))
+    return JSONResponse({"ok": True, "messages": msgs})
+
+
+@router.delete("/{stock_code}/api/chat/history")
+def api_clear_chat_history(stock_code: str):
+    """清空个股对话历史"""
+    execute_insert("DELETE FROM stock_chat_messages WHERE stock_code=%s", [stock_code])
+    return JSONResponse({"ok": True})
+
+
+@router.post("/{stock_code}/api/chat")
+async def api_stock_chat(request: Request, stock_code: str):
+    """个股报告Chatbot — SSE流式返回"""
+    from fastapi.responses import StreamingResponse
+
+    body = await request.json()
+    user_message = body.get("message", "").strip()
+    drag_context = body.get("drag_context", "")
+    current_tab  = body.get("current_tab", "")
+
+    if not user_message:
+        return JSONResponse({"error": "消息不能为空"}, status_code=400)
+
+    # 获取股票信息
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=%s", [stock_code])
+    stock_name = info[0]["stock_name"] if info else stock_code
+
+    # 获取历史（最近30轮=60条）
+    history_rows = execute_query(
+        """SELECT role, content FROM stock_chat_messages WHERE stock_code=%s
+           ORDER BY created_at DESC LIMIT 60""",
+        [stock_code],
+    )
+    history = [{"role": r["role"], "content": r["content"]} for r in reversed(history_rows or [])]
+
+    # 从 DB 读取当前报告章节数据，注入 system prompt 防幻觉
+    _TAB_TO_SECTION = {
+        "bm": "business_model", "vc": "value_chain", "fin": "financial",
+        "val": "valuation", "sh": "sector_heat", "rd": "research_data",
+        "pi": "policy_impact",
+    }
+    report_section_data = ""
+    if current_tab:
+        section_key = _TAB_TO_SECTION.get(current_tab, "")
+        if section_key:
+            rpt_rows = execute_query(
+                "SELECT report_json FROM deep_research WHERE research_type='stock' AND target=%s ORDER BY created_at DESC LIMIT 1",
+                [stock_code],
+            )
+            if rpt_rows and rpt_rows[0].get("report_json"):
+                try:
+                    rpt_full = json.loads(rpt_rows[0]["report_json"])
+                    rpt_body = rpt_full.get("report", rpt_full) if isinstance(rpt_full, dict) else {}
+                    section_data = rpt_body.get(section_key, {})
+                    if section_data:
+                        report_section_data = json.dumps(section_data, ensure_ascii=False)[:4000]
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
+    # 构建extra_context
+    extra_context = f"当前分析股票: {stock_code} {stock_name}"
+    if current_tab:
+        extra_context += f"\n当前查看的报告章节: {current_tab}"
+    if report_section_data:
+        extra_context += f'\n\n=== 当前报告数据（必须基于此回答，不得编造）===\n{report_section_data}\n如果用户问的内容超出以上数据范围，明确告知当前报告中没有这方面的数据。'
+    if drag_context:
+        extra_context += f"\n用户拖入的讨论内容:\n{drag_context}"
+
+    # 保存用户消息
+    execute_insert(
+        "INSERT INTO stock_chat_messages (stock_code, role, content) VALUES (%s, %s, %s)",
+        [stock_code, "user", user_message],
+    )
+
+    # 清理超过30轮的历史
+    _trim_chat_history(stock_code)
+
+    def _stream():
+        from agent.executor import run_agent_stream
+        full_response = []
+        try:
+            for chunk in run_agent_stream(user_message, history=history, extra_context=extra_context):
+                full_response.append(chunk)
+                yield f"data: {json.dumps({'chunk': chunk}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            return
+
+        # 保存助手回复
+        assistant_reply = "".join(full_response)
+        if assistant_reply:
+            execute_insert(
+                "INSERT INTO stock_chat_messages (stock_code, role, content) VALUES (%s, %s, %s)",
+                [stock_code, "assistant", assistant_reply],
+            )
+            _trim_chat_history(stock_code)
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")
+
+
+def _trim_chat_history(stock_code: str):
+    """保留最近30轮（60条）对话"""
+    rows = execute_query(
+        "SELECT id FROM stock_chat_messages WHERE stock_code=%s ORDER BY created_at DESC LIMIT 10000",
+        [stock_code],
+    )
+    if rows and len(rows) > 60:
+        ids_to_delete = [r["id"] for r in rows[60:]]
+        if ids_to_delete:
+            placeholders = ",".join(["%s"] * len(ids_to_delete))
+            execute_insert(
+                f"DELETE FROM stock_chat_messages WHERE id IN ({placeholders})",
+                ids_to_delete,
+            )
+
+
+# ==================== KG 新闻关联 API ====================
+
+@router.get("/{stock_code}/api/news-detail")
+def api_news_detail(stock_code: str, q: str = ""):
+    """根据新闻标题关键词检索展开详情，供产业链面板新闻展开用"""
+    if not q:
+        return JSONResponse({"ok": False, "detail": None, "error": "缺少查询关键词"})
+    try:
+        from research.rag_context import search_news_detail
+        detail = search_news_detail(q, stock_code=stock_code)
+        if detail:
+            return JSONResponse({"ok": True, "detail": detail})
+        return JSONResponse({"ok": False, "detail": None, "error": "未找到相关内容"})
+    except Exception as e:
+        logger.error(f"news-detail 检索失败: {e}")
+        return JSONResponse({"ok": False, "detail": None, "error": str(e)})
+
+
+@router.get("/{stock_code}/api/kg-related-news")
+def api_kg_related_news(stock_code: str, entity_name: str = ""):
+    """根据实体名搜索最新关联新闻（D3 tooltip 用）"""
+    if not entity_name:
+        return JSONResponse({"ok": False, "news": []})
+
+    like = f"%{entity_name}%"
+    # 优先从 content_summaries 搜（新管线）
+    rows = execute_query(
+        """SELECT cs.summary AS title, cs.summary, cs.created_at AS date
+           FROM content_summaries cs
+           WHERE cs.summary LIKE %s
+           ORDER BY cs.created_at DESC LIMIT 3""",
+        [like],
+    )
+    # 降级到 cleaned_items
+    if not rows:
+        rows = execute_query(
+            """SELECT ci.summary AS title, ci.summary, ci.cleaned_at AS date
+               FROM cleaned_items ci
+               WHERE ci.summary LIKE %s OR ci.tags_json LIKE %s
+               ORDER BY ci.cleaned_at DESC LIMIT 3""",
+            [like, like],
+        )
+    news = [
+        {
+            "title": (r.get("title") or "")[:60],
+            "summary": (r.get("summary") or "")[:120],
+            "date": str(r.get("date") or ""),
+        }
+        for r in (rows or [])
+    ]
+    return JSONResponse({"ok": True, "news": news})
+
+
+@router.get("/{stock_code}/api/kg-graph")
+def api_kg_graph(stock_code: str):
+    """返回与该股票相关的 KG 节点和边（D3 力导向图用）"""
+    # 先找股票名称
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=%s", [stock_code])
+    stock_name = info[0]["stock_name"] if info else ""
+
+    # 找与该股票直接相关的实体（通过关系表）
+    entity_rows = execute_query(
+        """SELECT DISTINCT e.id, e.entity_name, e.entity_type
+           FROM kg_entities e
+           JOIN kg_relationships r ON e.id = r.source_entity_id OR e.id = r.target_entity_id
+           WHERE r.source_entity_id IN (
+               SELECT id FROM kg_entities WHERE entity_name LIKE %s OR entity_name LIKE %s
+           ) OR r.target_entity_id IN (
+               SELECT id FROM kg_entities WHERE entity_name LIKE %s OR entity_name LIKE %s
+           )
+           LIMIT 30""",
+        [f"%{stock_code}%", f"%{stock_name}%", f"%{stock_code}%", f"%{stock_name}%"],
+    )
+
+    if not entity_rows:
+        return JSONResponse({"nodes": [], "links": []})
+
+    node_ids = {r["id"] for r in entity_rows}
+    id_set_ph = ",".join(["%s"] * len(node_ids))
+    rel_rows = execute_query(
+        f"""SELECT source_entity_id, target_entity_id, relation_type
+            FROM kg_relationships
+            WHERE source_entity_id IN ({id_set_ph}) AND target_entity_id IN ({id_set_ph})
+            LIMIT 60""",
+        list(node_ids) * 2,
+    )
+
+    nodes = [{"id": r["id"], "name": r["entity_name"], "type": r["entity_type"]} for r in entity_rows]
+    links = [{"source": r["source_entity_id"], "target": r["target_entity_id"], "relation": r["relation_type"] or ""} for r in (rel_rows or [])]
+    return JSONResponse({"nodes": nodes, "links": links})
+
+
+@router.get("/{stock_code}/api/chips")
+def api_chips(stock_code: str, date: str = None):
+    """获取筹码分布数据，返回 price/percent 列表及 90%/70% 成本线。
+
+    Query params:
+        date: YYYY-MM-DD，不传则取最新一期
+    """
+    from utils.db_utils import get_cyq_chips
+    chips = get_cyq_chips(stock_code, date)
+    if not chips:
+        return JSONResponse({"date": date, "chips": [], "cost_90": None, "cost_70": None})
+
+    # 计算累计持仓成本分位（90% / 70%）
+    total_pct = sum(c["percent"] for c in chips)
+    if total_pct <= 0:
+        return JSONResponse({"date": date, "chips": chips, "cost_90": None, "cost_70": None})
+
+    cumulative = 0.0
+    cost_90 = cost_70 = None
+    for c in chips:
+        cumulative += c["percent"]
+        frac = cumulative / total_pct
+        if cost_70 is None and frac >= 0.70:
+            cost_70 = c["price"]
+        if cost_90 is None and frac >= 0.90:
+            cost_90 = c["price"]
+            break
+
+    return JSONResponse({
+        "date": date,
+        "chips": chips,
+        "cost_90": cost_90,
+        "cost_70": cost_70,
+    })

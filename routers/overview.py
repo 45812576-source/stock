@@ -329,85 +329,119 @@ def get_watchlist_alerts(date_str: str) -> list:
 
 
 def get_industry_heat(date_str: str) -> dict:
-    """行业资金热度：近7个交易日，同时提供净流入和毛流入/出两套口径"""
+    """行业资金热度：用 akshare 实时拉取今日行业资金流向排行。
+
+    akshare 只提供当日单期快照，输出仍保持与热力图模板兼容的结构：
+    dates 仅含今日一列，net/gross top5 基于今日数据，daily_data/daily_gross 含今日数据。
+    """
+    import time
+    from config import AKSHARE_DELAY
     try:
-        dates = execute_query(
-            "SELECT DISTINCT trade_date FROM capital_flow WHERE trade_date<=%s ORDER BY trade_date DESC LIMIT 7",
-            [date_str],
-        )
-        if not dates:
+        import akshare as ak
+        time.sleep(AKSHARE_DELAY)
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        date_list = [today]
+
+        df = None
+        # 优先尝试带 sector_type 参数的接口
+        try:
+            df = ak.stock_sector_fund_flow_rank(indicator="今日", sector_type="行业资金流向")
+        except TypeError:
+            # 部分 akshare 版本不支持 sector_type 参数
+            try:
+                df = ak.stock_sector_fund_flow_rank(indicator="今日")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+        if df is None or df.empty:
             return {"dates": [], "net": {}, "gross": {}, "daily_data": {}, "daily_gross": {}}
 
-        date_list = [str(d["trade_date"]) for d in reversed(dates)]
-        ndays = len(date_list)
-        placeholders = ",".join(["%s"] * ndays)
+        # 解析各行
+        industry_net = {}       # name → 净流入金额（元）
+        industry_gross_in = {}  # name → 毛流入（净流入为正的部分，元）
+        industry_gross_out = {} # name → 毛流出（净流入为负的部分，元）
 
-        # 按行业+日期聚合：净流入 & 毛流入/毛流出
-        all_rows = execute_query(f"""
-            SELECT si.industry_l1 as industry_name, cf.trade_date,
-                   SUM(cf.main_net_inflow) as net_inflow,
-                   SUM(CASE WHEN cf.main_net_inflow > 0 THEN cf.main_net_inflow ELSE 0 END) as gross_inflow,
-                   SUM(CASE WHEN cf.main_net_inflow < 0 THEN cf.main_net_inflow ELSE 0 END) as gross_outflow
-            FROM capital_flow cf JOIN stock_info si ON cf.stock_code = si.stock_code
-            WHERE cf.trade_date IN ({placeholders}) AND si.industry_l1 IS NOT NULL
-            GROUP BY si.industry_l1, cf.trade_date
-        """, date_list)
+        for _, row in df.iterrows():
+            name = str(row.get("名称", "")).strip()
+            if not name:
+                continue
+            # akshare 返回单位为万元，统一转为元与热力图的 /1e8 显示逻辑兼容
+            raw_net = row.get("今日主力净流入-净额", row.get("主力净流入-净额", 0))
+            try:
+                net_val = float(str(raw_net).replace(",", "") or 0) * 1e4  # 万元 → 元
+            except (ValueError, TypeError):
+                net_val = 0.0
 
-        daily_data = {d: {} for d in date_list}  # net per day
-        daily_gross = {d: {} for d in date_list}  # {name: {inflow, outflow}} per day
-        industry_net = {}
-        industry_gross_in = {}
-        industry_gross_out = {}
-        market_daily_net = {d: 0.0 for d in date_list}
+            industry_net[name] = net_val
+            if net_val >= 0:
+                industry_gross_in[name] = net_val
+                industry_gross_out[name] = 0.0
+            else:
+                industry_gross_in[name] = 0.0
+                industry_gross_out[name] = net_val
 
-        for r in all_rows:
-            name = r["industry_name"]
-            d = str(r["trade_date"])
-            net = float(r["net_inflow"] or 0)
-            gin = float(r["gross_inflow"] or 0)
-            gout = float(r["gross_outflow"] or 0)
-            if d in daily_data:
-                daily_data[d][name] = net
-                daily_gross[d][name] = {"inflow": gin, "outflow": gout}
-                market_daily_net[d] += net
-            industry_net.setdefault(name, 0.0)
-            industry_net[name] += net
-            industry_gross_in.setdefault(name, 0.0)
-            industry_gross_in[name] += gin
-            industry_gross_out.setdefault(name, 0.0)
-            industry_gross_out[name] += gout
+        if not industry_net:
+            return {"dates": [], "net": {}, "gross": {}, "daily_data": {}, "daily_gross": {}}
 
-        # 行业市值
-        mktcap_rows = execute_query("""
-            SELECT si.industry_l1 as industry_name,
-                   SUM(sd.market_cap) as total_mktcap
-            FROM stock_info si
-            JOIN (SELECT stock_code, market_cap FROM stock_daily
-                  WHERE trade_date = (SELECT MAX(trade_date) FROM stock_daily)) sd
-              ON si.stock_code = sd.stock_code
-            WHERE si.industry_l1 IS NOT NULL
-            GROUP BY si.industry_l1
-        """) or []
-        industry_mktcap = {r["industry_name"]: float(r["total_mktcap"] or 0) / 1e8 for r in mktcap_rows}
+        # 行业市值（本地 stock_info，作为参考维度）
+        industry_mktcap = {}
+        try:
+            mktcap_rows = execute_query("""
+                SELECT industry_l1 as industry_name, SUM(market_cap) as total_mktcap
+                FROM stock_info
+                WHERE industry_l1 IS NOT NULL AND market_cap > 0
+                GROUP BY industry_l1
+            """) or []
+            industry_mktcap = {r["industry_name"]: float(r["total_mktcap"] or 0) / 1e8
+                               for r in mktcap_rows}
+        except Exception:
+            pass
 
-        # ── 净流入口径 ──
+        # ── daily_data / daily_gross（仅今日一列）──
+        daily_data = {today: {name: v for name, v in industry_net.items()}}
+        daily_gross = {
+            today: {
+                name: {"inflow": industry_gross_in.get(name, 0),
+                       "outflow": industry_gross_out.get(name, 0)}
+                for name in industry_net
+            }
+        }
+        market_daily_net = {today: sum(industry_net.values())}
+
+        # ── 净流入 top5 / 流出 top5 ──
         total_net_inflow = sum(v for v in industry_net.values() if v > 0) or 1
         total_net_outflow = sum(abs(v) for v in industry_net.values() if v < 0) or 1
         sorted_net = sorted(industry_net.items(), key=lambda x: x[1], reverse=True)
-        net_inflow_top5 = [{"name": n, "total": v, "pct": v / total_net_inflow * 100, "mktcap": industry_mktcap.get(n, 0)}
-                           for n, v in sorted_net[:5] if v > 0]
-        net_outflow_top5 = sorted([{"name": n, "total": v, "pct": abs(v) / total_net_outflow * 100, "mktcap": industry_mktcap.get(n, 0)}
-                                   for n, v in sorted_net if v < 0], key=lambda x: x["total"])[:5]
+        net_inflow_top5 = [
+            {"name": n, "total": v, "pct": v / total_net_inflow * 100,
+             "mktcap": industry_mktcap.get(n, 0)}
+            for n, v in sorted_net[:5] if v > 0
+        ]
+        net_outflow_top5 = sorted(
+            [{"name": n, "total": v, "pct": abs(v) / total_net_outflow * 100,
+              "mktcap": industry_mktcap.get(n, 0)}
+             for n, v in sorted_net if v < 0],
+            key=lambda x: x["total"],
+        )[:5]
 
-        # ── 毛流入/出口径 ──
+        # ── 毛流入/出 top5（akshare 单日快照中净流入≥0即为毛流入）──
         total_gross_in = sum(industry_gross_in.values()) or 1
         total_gross_out = sum(abs(v) for v in industry_gross_out.values()) or 1
         sorted_gin = sorted(industry_gross_in.items(), key=lambda x: x[1], reverse=True)
-        gross_inflow_top5 = [{"name": n, "total": v, "pct": v / total_gross_in * 100, "mktcap": industry_mktcap.get(n, 0)}
-                             for n, v in sorted_gin[:5] if v > 0]
+        gross_inflow_top5 = [
+            {"name": n, "total": v, "pct": v / total_gross_in * 100,
+             "mktcap": industry_mktcap.get(n, 0)}
+            for n, v in sorted_gin[:5] if v > 0
+        ]
         sorted_gout = sorted(industry_gross_out.items(), key=lambda x: x[1])
-        gross_outflow_top5 = [{"name": n, "total": v, "pct": abs(v) / total_gross_out * 100, "mktcap": industry_mktcap.get(n, 0)}
-                              for n, v in sorted_gout[:5] if v < 0]
+        gross_outflow_top5 = [
+            {"name": n, "total": v, "pct": abs(v) / total_gross_out * 100,
+             "mktcap": industry_mktcap.get(n, 0)}
+            for n, v in sorted_gout[:5] if v < 0
+        ]
 
         return {
             "dates": date_list,
@@ -418,6 +452,8 @@ def get_industry_heat(date_str: str) -> dict:
             "market_daily_net": market_daily_net,
         }
     except Exception:
+        import traceback
+        traceback.print_exc()
         return {"dates": [], "net": {}, "gross": {}, "daily_data": {}, "daily_gross": {}}
 
 
@@ -477,32 +513,21 @@ def get_capital_insight(date_str: str, industry_heat: dict) -> list:
     """资金热度解读：根据热力图结果，查找宏观资金面+top行业的关联新闻"""
     insights = []
     try:
-        # 1. 宏观资金面新闻
-        macro_rows = execute_query("""
-            SELECT ci.summary, ci.sentiment, ci.importance, ci.structured_json
-            FROM cleaned_items ci
-            WHERE ci.event_type IN ('macro_policy', 'macro_event')
-            ORDER BY ci.cleaned_at DESC LIMIT 4
-        """)
+        # 1. 宏观资金面新闻 — 从 content_summaries 取最新
+        macro_rows = query_content_summaries(
+            doc_types=["policy_doc", "data_release", "market_commentary", "strategy_report"],
+            date_str=None,
+            limit=4,
+            fallback_days=7,
+        )
         for r in macro_rows:
-            structured = json.loads(r.get("structured_json") or "{}") if r.get("structured_json") else {}
-            items = structured.get("items", [])
-            item0 = items[0] if items else {}
-            fact = item0.get("fact", r.get("summary", ""))
-            opinion = item0.get("opinion", "")
-            # 拼接原因：evidence + logic_chain / assumption
-            reason_parts = []
-            if item0.get("evidence"):
-                reason_parts.append(item0["evidence"])
-            if item0.get("logic_chain"):
-                reason_parts.append(item0["logic_chain"])
-            elif item0.get("assumption"):
-                reason_parts.append(item0["assumption"])
-            reason = "；".join(reason_parts) if reason_parts else ""
+            fact = r.get("fact_summary") or r.get("summary") or ""
+            opinion = r.get("opinion_summary") or ""
+            reason = r.get("evidence_assessment") or ""
             insights.append({
                 "category": "宏观资金面",
-                "sentiment": r.get("sentiment", "neutral"),
-                "importance": r.get("importance", 3),
+                "sentiment": "neutral",
+                "importance": 3,
                 "fact": fact,
                 "opinion": opinion,
                 "reason": reason,
@@ -530,7 +555,6 @@ def get_capital_insight(date_str: str, industry_heat: dict) -> list:
                 item0 = items[0] if items else {}
                 fact = item0.get("fact", r.get("summary", ""))
                 opinion = item0.get("opinion", "")
-                # 拼接原因：evidence + logic_chain / assumption
                 reason_parts = []
                 if item0.get("evidence"):
                     reason_parts.append(item0["evidence"])
@@ -548,13 +572,49 @@ def get_capital_insight(date_str: str, industry_heat: dict) -> list:
                     "reason": reason,
                 })
 
+        # 3. 大股东/高管增减持信号（最近7天，金额 > 500万）
+        try:
+            insider_rows = execute_query(
+                """SELECT stock_code, stock_name, person_name, person_role,
+                          direction, trade_amount, trade_date
+                   FROM insider_trading
+                   WHERE trade_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                     AND trade_amount IS NOT NULL AND trade_amount > 500
+                   ORDER BY trade_amount DESC LIMIT 5"""
+            ) or []
+            if insider_rows:
+                buy_rows = [r for r in insider_rows if "增持" in (r.get("direction") or "")]
+                sell_rows = [r for r in insider_rows if "减持" in (r.get("direction") or "")]
+                parts = []
+                if buy_rows:
+                    names = "、".join(f"{r['stock_name']}({r['stock_code']})" for r in buy_rows[:3])
+                    total = sum(r.get("trade_amount", 0) or 0 for r in buy_rows)
+                    parts.append(f"近7日大股东增持：{names}，合计{total:.0f}万元")
+                if sell_rows:
+                    names = "、".join(f"{r['stock_name']}({r['stock_code']})" for r in sell_rows[:3])
+                    total = sum(r.get("trade_amount", 0) or 0 for r in sell_rows)
+                    parts.append(f"近7日大股东减持：{names}，合计{total:.0f}万元")
+                if parts:
+                    insights.append({
+                        "category": "股东动向",
+                        "sentiment": "positive" if buy_rows and not sell_rows else (
+                            "negative" if sell_rows and not buy_rows else "neutral"
+                        ),
+                        "importance": 4,
+                        "fact": "；".join(parts),
+                        "opinion": "",
+                        "reason": "大股东增减持是反映公司内部人信心的重要信号",
+                    })
+        except Exception:
+            pass
+
         return insights
     except Exception:
         return []
 
 
 def get_risk_warnings(date_str: str) -> list:
-    """风险预警：从 content_summaries 过滤负面关键词"""
+    """风险预警：从 content_summaries 过滤负面关键词 + 大额减持信号"""
     try:
         rows = query_content_summaries(
             doc_types=["policy_doc", "data_release", "strategy_report",
@@ -571,6 +631,37 @@ def get_risk_warnings(date_str: str) -> list:
                 result.append(r)
             if len(result) >= 6:
                 break
+
+        # 大额减持信号（近7天，金额 > 500万元）
+        try:
+            sell_rows = execute_query(
+                """SELECT stock_code, stock_name, person_name, person_role,
+                          trade_amount, trade_date
+                   FROM insider_trading
+                   WHERE direction='减持'
+                     AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                     AND trade_amount IS NOT NULL AND trade_amount > 500
+                   ORDER BY trade_amount DESC LIMIT 5"""
+            ) or []
+            if sell_rows:
+                for r in sell_rows:
+                    result.append({
+                        "summary": (
+                            f"【减持预警】{r.get('stock_name','')}"
+                            f"({r.get('stock_code','')}) "
+                            f"{r.get('person_name','')}({r.get('person_role','')}) "
+                            f"减持 {r.get('trade_amount',0):.0f}万元 "
+                            f"（{r.get('trade_date','')}）"
+                        ),
+                        "fact_summary": "",
+                        "opinion_summary": "",
+                        "sentiment": "negative",
+                        "importance": 4,
+                        "_source": "insider_trading",
+                    })
+        except Exception:
+            pass
+
         return result
     except Exception:
         return []
@@ -613,37 +704,50 @@ def overview_page(request: Request, date: str = None):
 
 @router.get("/api/news-feed")
 def api_news_feed(days: int = 7):
-    """新闻聚合器：四容器，最近 days 天，各20条，按 importance DESC — 直接查 cleaned_items"""
+    """新闻聚合器：四容器，最近 days 天，各20条"""
     from fastapi.responses import JSONResponse
     try:
-        base = """
-            SELECT ci.id, ci.event_type, ci.summary, ci.importance, ci.sentiment,
-                   ci.structured_json, ci.cleaned_at as publish_time
-            FROM cleaned_items ci
-            WHERE ci.cleaned_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
+        base_select = """
+            SELECT cs.id, cs.doc_type,
+                   cs.summary, cs.fact_summary, cs.opinion_summary,
+                   cs.evidence_assessment, cs.info_gaps,
+                   COALESCE(et.publish_time, cs.created_at) as publish_time
+            FROM content_summaries cs
+            LEFT JOIN extracted_texts et ON cs.extracted_text_id = et.id
+            WHERE cs.created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
         """
 
+        # 宏观：政策/数据/市场评述/策略报告
         macro = execute_query(
-            base + " AND ci.event_type IN ('macro_policy','market') ORDER BY ci.importance DESC, ci.cleaned_at DESC LIMIT 20",
+            base_select + " AND cs.doc_type IN ('policy_doc','data_release','market_commentary','strategy_report')"
+                        " ORDER BY cs.created_at DESC LIMIT 20",
             [days]
         ) or []
 
+        # 行业：研报+特稿+简讯（行业分析类）
         industry = execute_query(
-            base + " AND ci.event_type IN ('industry_news') ORDER BY ci.importance DESC, ci.cleaned_at DESC LIMIT 20",
+            base_select + " AND cs.doc_type IN ('research_report','feature_news','flash_news','digest_news')"
+                        " ORDER BY cs.created_at DESC LIMIT 20",
             [days]
         ) or []
 
+        # 个股：公告/财报/路演纪要
         stock = execute_query(
-            base + " AND ci.event_type IN ('company_event','earnings','research_report') ORDER BY ci.importance DESC, ci.cleaned_at DESC LIMIT 20",
+            base_select + " AND cs.doc_type IN ('announcement','financial_report','roadshow_notes')"
+                        " ORDER BY cs.created_at DESC LIMIT 20",
             [days]
         ) or []
 
+        # 风险：全类型中包含负面关键词的条目
+        risk_kw_filter = (
+            " AND (cs.summary LIKE '%%风险%%' OR cs.summary LIKE '%%下跌%%'"
+            " OR cs.summary LIKE '%%利空%%' OR cs.summary LIKE '%%减持%%'"
+            " OR cs.summary LIKE '%%违约%%' OR cs.summary LIKE '%%退市%%'"
+            " OR cs.fact_summary LIKE '%%风险%%' OR cs.fact_summary LIKE '%%下跌%%'"
+            " OR cs.fact_summary LIKE '%%利空%%')"
+        )
         risk = execute_query(
-            base + """ AND (ci.sentiment = 'negative'
-                   OR ci.summary LIKE '%%风险%%' OR ci.summary LIKE '%%下跌%%'
-                   OR ci.summary LIKE '%%利空%%' OR ci.summary LIKE '%%减持%%'
-                   OR ci.summary LIKE '%%违约%%' OR ci.summary LIKE '%%退市%%')
-            ORDER BY ci.importance DESC, ci.cleaned_at DESC LIMIT 20""",
+            base_select + risk_kw_filter + " ORDER BY cs.created_at DESC LIMIT 20",
             [days]
         ) or []
 
@@ -651,16 +755,17 @@ def api_news_feed(days: int = 7):
             result = []
             for r in rows:
                 d = dict(r)
-                if d.get("publish_time") and hasattr(d["publish_time"], "strftime"):
-                    d["publish_time"] = d["publish_time"].strftime("%Y-%m-%d %H:%M")
-                # Extract fact/opinion from structured_json for card display
-                structured = json.loads(d.pop("structured_json") or "{}") if d.get("structured_json") else {}
-                items = structured.get("items", [])
-                item0 = items[0] if items else {}
-                d["fact_summary"] = item0.get("fact", "")
-                d["opinion_summary"] = item0.get("opinion", "")
-                d["evidence_assessment"] = item0.get("evidence", "")
-                d["info_gaps"] = ""
+                pt = d.get("publish_time")
+                if pt and hasattr(pt, "strftime"):
+                    d["publish_time"] = pt.strftime("%Y-%m-%d %H:%M")
+                # event_type 别名（前端模板同时读 event_type 和 doc_type）
+                d["event_type"] = d.get("doc_type") or ""
+                # importance 在 content_summaries 中无此列，给默认值 3
+                d.setdefault("importance", 3)
+                # 确保所有文本字段都不为 None
+                for fld in ("summary", "fact_summary", "opinion_summary",
+                            "evidence_assessment", "info_gaps"):
+                    d[fld] = d.get(fld) or ""
                 result.append(d)
             return result
 
@@ -676,22 +781,63 @@ def api_news_feed(days: int = 7):
         return JSONResponse({"macro": [], "industry": [], "stock": [], "risk": []})
 
 
+def _get_portfolio_stock_codes() -> list:
+    """获取用户持仓和默认收藏组的股票代码列表"""
+    codes = set()
+    rows = execute_query(
+        "SELECT DISTINCT stock_code FROM watchlist_list_stocks WHERE list_id=1 AND status='active' LIMIT 20"
+    ) or []
+    for r in rows:
+        codes.add(r["stock_code"])
+    rows2 = execute_query(
+        "SELECT stock_code FROM holding_positions WHERE status='open'"
+    ) or []
+    for r in rows2:
+        codes.add(r["stock_code"])
+    return list(codes)
+
+
 @router.post("/api/chat/send")
 async def api_overview_chat_send(request: Request):
-    """Overview AI 聊天 — 使用 DeepSeek Agent，带对话历史"""
+    """Overview AI 聊天 — 混合模式：pre-retrieval hybrid_search + DeepSeek Agent"""
     from fastapi.responses import JSONResponse
     import asyncio
     from agent.executor import run_agent
+    from retrieval.hybrid import hybrid_search
+
     try:
         body = await request.json()
         message = (body.get("message") or "").strip()
-        history = body.get("history") or []  # [{role, content}, ...]
+        history = body.get("history") or []
         if not message:
             return JSONResponse({"ok": False, "error": "消息为空"})
 
+        # Step 1: Pre-retrieval — hybrid_search 预检索
+        try:
+            hr = hybrid_search(message, top_k=6)
+            pre_context = hr.merged_context[:3000] if hr.merged_context else ""
+        except Exception:
+            pre_context = ""
+
+        # Step 2: 构建 extra_context
+        extra_context = ""
+        if pre_context:
+            extra_context += f"## 系统检索到的相关信息\n{pre_context}\n\n"
+
+        portfolio_codes = _get_portfolio_stock_codes()
+        if portfolio_codes:
+            extra_context += f"## 用户持仓股票\n{', '.join(portfolio_codes)}\n\n"
+
+        extra_context += """## 新闻解读框架
+当用户询问新闻影响时，请按以下层次分析：
+1. 宏观层面：政策/经济环境影响
+2. 行业层面：产业链上下游传导
+3. 个股层面：对用户持仓的具体影响
+对每层给出事实依据，区分确定性影响和不确定性推测。"""
+
         loop = asyncio.get_event_loop()
         reply = await loop.run_in_executor(
-            None, lambda: run_agent(message, history=history[-20:])
+            None, lambda: run_agent(message, history=history[-20:], extra_context=extra_context)
         )
 
         # 解析推荐股票（兼容旧格式）
@@ -713,57 +859,25 @@ async def api_overview_chat_send(request: Request):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
-def _search_related_news(query: str, limit: int = 5) -> str:
-    """从 cleaned_items 中检索与 query 相关的新闻摘要"""
-    import re
-    # 提取关键词：中文按2字切分，英文按单词
-    stopwords = {"的", "了", "吗", "呢", "是", "在", "有", "和", "与", "对", "这", "那",
-                 "我", "你", "他", "她", "它", "们", "什么", "怎么", "如何", "能", "会",
-                 "可以", "还", "也", "就", "都", "要", "不", "一", "个", "几", "推荐",
-                 "分析", "帮我", "看看", "股票", "能不能", "是否", "怎样", "哪些", "请问",
-                 "题材", "板块", "相关", "关于", "觉得", "认为", "目前", "现在", "最近"}
-    # 先提取英文词
-    en_words = re.findall(r'[A-Za-z]{2,}', query)
-    # 中文：去掉停用词后，提取连续中文段，再按2字切分
-    cn_text = re.sub(r'[^\u4e00-\u9fff]', ' ', query)
-    cn_segments = [s.strip() for s in cn_text.split() if s.strip()]
-    cn_words = []
-    for seg in cn_segments:
-        # 去掉停用词字符
-        cleaned = seg
-        for sw in stopwords:
-            cleaned = cleaned.replace(sw, ' ')
-        for part in cleaned.split():
-            if len(part) >= 2:
-                cn_words.append(part)
-            elif len(part) == 1 and part not in "的了吗呢是在有和与对这那":
-                cn_words.append(part)
-    keywords = list(dict.fromkeys(cn_words + en_words))[:6]  # 去重保序
-    if not keywords:
-        return ""
 
-    conditions = " OR ".join(["ci.summary LIKE %s"] * len(keywords))
-    params = [f"%{kw}%" for kw in keywords]
-    params.append(30)
-
-    rows = execute_query(
-        f"""SELECT ci.summary, ci.importance, ci.cleaned_at
-            FROM cleaned_items ci
-            WHERE ({conditions})
-              AND ci.cleaned_at >= DATE_SUB(NOW(), INTERVAL %s DAY)
-            ORDER BY ci.importance DESC, ci.cleaned_at DESC
-            LIMIT {limit}""",
-        params,
-    ) or []
-
-    if not rows:
-        return ""
-
-    lines = []
-    for r in rows:
-        date_str = r["cleaned_at"].strftime("%m-%d") if hasattr(r["cleaned_at"], "strftime") else ""
-        lines.append(f"[{date_str}] {r['summary'][:200]}")
-    return "\n".join(lines)
+@router.get("/api/driver-alerts")
+def api_driver_alerts():
+    """获取持仓股票的驱动因子监控结果"""
+    from fastapi.responses import JSONResponse
+    try:
+        from research.driver_monitor import get_portfolio_drivers, match_drivers_to_news
+        codes = _get_portfolio_stock_codes()
+        if not codes:
+            return JSONResponse({"alerts": []})
+        drivers = get_portfolio_drivers(codes)
+        if not drivers:
+            return JSONResponse({"alerts": []})
+        alerts = match_drivers_to_news(drivers, days=3)
+        return JSONResponse({"alerts": [a for a in alerts if a.get("has_news")]})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JSONResponse({"alerts": [], "error": str(e)})
 
 
 @router.get("/api/stock-name/{stock_code}")
