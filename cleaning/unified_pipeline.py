@@ -467,7 +467,7 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
         full_text = full_text[:12000] + "\n\n[文本已截断]"
 
     results = {"summary_id": None, "mentions": 0, "kg_rels": 0, "semantic_cleaned": semantic_cleaned,
-               "chunks": chunks_count}
+               "chunks": chunks_count, "indicators": 0}
     futures = {}
 
     with ThreadPoolExecutor(max_workers=3) as pool:
@@ -497,6 +497,37 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
             index_summary_chunk(results["summary_id"])
         except Exception as e:
             logger.warning(f"摘要 chunk 写入失败 id={extracted_text_id}: {e}")
+
+    # ★ Pipeline D: 行业指标结构化抽取
+    indicators_count = 0
+    try:
+        title_d = ""
+        meta_d = execute_cloud_query(
+            """SELECT sd.doc_type, sd.title
+               FROM extracted_texts et
+               LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
+               WHERE et.id = %s""",
+            [extracted_text_id],
+        )
+        if meta_d:
+            title_d = meta_d[0].get("title") or ""
+            doc_type_raw = meta_d[0].get("doc_type") or ""
+        else:
+            doc_type_raw = ""
+
+        from config.doc_types import classify_doc_type, FAMILY_MAP
+        doc_type_d = classify_doc_type(title_d, full_text[:200]) if not doc_type_raw else doc_type_raw
+        family_d = FAMILY_MAP.get(doc_type_d, 4)
+
+        if family_d == 2:  # 研报/策略/路演/深度特稿
+            from cleaning.industry_indicator_extractor import run_pipeline_d
+            if on_status:
+                on_status("D", f"行业指标抽取(精细) id={extracted_text_id}")
+            indicators_count = run_pipeline_d(extracted_text_id, full_text or "")
+    except Exception as e:
+        logger.warning(f"[D] 行业指标抽取跳过 id={extracted_text_id}: {e}")
+
+    results["indicators"] = indicators_count
 
     return results
 
