@@ -367,12 +367,13 @@ def sync_summary_to_local(summary_id):
                 lc.execute(
                     """REPLACE INTO content_summaries
                        (id, extracted_text_id, doc_type, summary, fact_summary, opinion_summary,
-                        evidence_assessment, info_gaps, family, detail_table, detail_id, created_at)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        evidence_assessment, info_gaps, family, type_fields, detail_table, detail_id, created_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     [row['id'], row['extracted_text_id'], row.get('doc_type'),
                      row['summary'], row.get('fact_summary'), row.get('opinion_summary'),
                      row.get('evidence_assessment'), row.get('info_gaps'),
-                     row.get('family'), row.get('detail_table'), row.get('detail_id'),
+                     row.get('family'), row.get('type_fields'),
+                     row.get('detail_table'), row.get('detail_id'),
                      row['created_at']]
                 )
         local.commit()
@@ -459,7 +460,7 @@ def sync_new_pipeline_records(batch_size: int = 500) -> dict:
             local_max = lc.fetchone()['max_id']
             cc.execute(
                 "SELECT id, extracted_text_id, doc_type, summary, fact_summary, "
-                "opinion_summary, evidence_assessment, info_gaps, created_at "
+                "opinion_summary, evidence_assessment, info_gaps, family, type_fields, created_at "
                 "FROM content_summaries WHERE id > %s ORDER BY id LIMIT %s",
                 [local_max, batch_size]
             )
@@ -468,11 +469,12 @@ def sync_new_pipeline_records(batch_size: int = 500) -> dict:
                 lc.execute(
                     """REPLACE INTO content_summaries
                        (id, extracted_text_id, doc_type, summary, fact_summary,
-                        opinion_summary, evidence_assessment, info_gaps, created_at)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        opinion_summary, evidence_assessment, info_gaps, family, type_fields, created_at)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
                     [r['id'], r['extracted_text_id'], r.get('doc_type'),
                      r['summary'], r['fact_summary'], r['opinion_summary'],
-                     r['evidence_assessment'], r['info_gaps'], r['created_at']]
+                     r['evidence_assessment'], r['info_gaps'],
+                     r.get('family'), r.get('type_fields'), r['created_at']]
                 )
             result['content_summaries'] = len(rows)
 
@@ -804,7 +806,7 @@ def query_industry_indicator(
     if metric_type:
         base_conditions.append("metric_type = %s")
         params.append(metric_type)
-    if period_year:
+    if period_year is not None:
         base_conditions.append("period_year >= %s")
         params.append(period_year)
     if data_type:
@@ -846,6 +848,18 @@ def upsert_industry_indicator(row: dict) -> int:
     唯一键：(industry_l2, metric_name, period_label, data_type)
     返回：写入/更新的 id
     """
+    _ALLOWED_COLS = {
+        "industry_l1", "industry_l2", "industry_l3",
+        "metric_type", "metric_name", "metric_definition", "metric_numerator", "metric_denominator",
+        "value", "value_raw",
+        "period_type", "period_label", "period_year", "period_end_date",
+        "publish_date",
+        "forecast_target_label", "forecast_target_date",
+        "data_type", "confidence", "source_type", "source_doc_id", "source_snippet",
+        "is_conflicted", "conflict_note",
+    }
+    row = {k: v for k, v in row.items() if k in _ALLOWED_COLS}
+
     # 查已有记录（云端）
     existing = execute_cloud_query(
         """SELECT id, value, confidence, publish_date FROM industry_indicators
@@ -870,8 +884,8 @@ def upsert_industry_indicator(row: dict) -> int:
             list(row.values()),
         )
         rows = execute_cloud_query(
-            "SELECT id FROM industry_indicators WHERE industry_l2=%s AND metric_name=%s AND period_label=%s ORDER BY id DESC LIMIT 1",
-            [row.get("industry_l2", ""), row.get("metric_name", ""), row.get("period_label", "")],
+            "SELECT id FROM industry_indicators WHERE industry_l2=%s AND metric_name=%s AND period_label=%s AND data_type=%s ORDER BY id DESC LIMIT 1",
+            [row.get("industry_l2", ""), row.get("metric_name", ""), row.get("period_label", ""), row.get("data_type", "actual")],
         )
         return rows[0]["id"] if rows else -1
 
