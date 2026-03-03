@@ -139,6 +139,7 @@ def _process_one(
     extracted_text_id: int,
     text: str,
     doc_type: str,
+    publish_time=None,
 ) -> Optional[int]:
     """对单条文本（已知 doc_type）走分族摘要，写入 content_summaries
 
@@ -188,6 +189,44 @@ def _process_one(
             json.dumps(type_fields, ensure_ascii=False) if type_fields else None,
         ],
     )
+
+    # Pipeline A Lite: 轻量指标抽取（顺带）
+    indicators_lite = result.get("indicators") or []
+    if indicators_lite:
+        try:
+            from utils.db_utils import upsert_industry_indicator
+            publish_date_str = str(publish_time or "")[:10]
+            for ind in indicators_lite:
+                if not ind.get("industry_l2") or not ind.get("metric_name"):
+                    continue
+                lite_row = {
+                    "industry_l1": ind.get("industry_l1") or "",
+                    "industry_l2": ind.get("industry_l2", ""),
+                    "industry_l3": None,
+                    "metric_type": ind.get("metric_type") or "growth_rate",
+                    "metric_name": ind.get("metric_name", ""),
+                    "metric_definition": None,
+                    "metric_numerator": None,
+                    "metric_denominator": None,
+                    "value": float(ind["value"]) if ind.get("value") is not None else None,
+                    "value_raw": ind.get("value_raw"),
+                    "period_type": None,
+                    "period_label": ind.get("period_label"),
+                    "period_year": ind.get("period_year"),
+                    "period_end_date": None,
+                    "publish_date": publish_date_str or None,
+                    "forecast_target_label": None,
+                    "forecast_target_date": None,
+                    "data_type": ind.get("data_type", "actual"),
+                    "confidence": ind.get("confidence", "medium"),
+                    "source_type": "pipeline_a_lite",
+                    "source_doc_id": extracted_text_id,
+                    "source_snippet": ind.get("source_snippet"),
+                }
+                upsert_industry_indicator(lite_row)
+        except Exception as e:
+            logger.warning(f"[A Lite] 指标写入失败: {e}")
+
     return cs_id
 
 
@@ -272,15 +311,31 @@ def summarize_single(extracted_text_id: int) -> Optional[int]:
     Returns: content_summaries.id（digest 返回第一条），失败返回 None
     """
     rows = execute_cloud_query(
-        "SELECT id, full_text FROM extracted_texts WHERE id=%s",
+        "SELECT id, full_text, source_format, publish_time FROM extracted_texts WHERE id=%s",
         [extracted_text_id],
     )
     if not rows:
         return None
 
     full_text = rows[0]["full_text"] or ""
+    source_format = rows[0].get("source_format") or ""
+    publish_time = rows[0].get("publish_time")
     if not full_text.strip():
         return None
+
+    # txt 原文直接存 summary，不调 LLM
+    if source_format == "text":
+        doc_type = _resolve_doc_type(extracted_text_id, full_text)
+        logger.info(f"[A] txt 原样存储 id={extracted_text_id} doc_type={doc_type}")
+        cs_id = execute_cloud_insert(
+            """INSERT INTO content_summaries
+               (extracted_text_id, doc_type, summary, fact_summary, opinion_summary,
+                evidence_assessment, info_gaps, family, type_fields)
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+            [extracted_text_id, doc_type, full_text, "", "", "", "", 3, None],
+        )
+        _finalize(extracted_text_id, [cs_id] if cs_id else [])
+        return cs_id
 
     if len(full_text) > 12000:
         full_text = full_text[:12000] + "\n\n[文本已截断]"
@@ -300,7 +355,7 @@ def summarize_single(extracted_text_id: int) -> Optional[int]:
             item_doc_type = classify_doc_type("", item_text[:200]) if len(item_text) > 100 else "flash_news"
             if item_doc_type == "other":
                 item_doc_type = "flash_news"
-            cs_id = _process_one(extracted_text_id, item_text, item_doc_type)
+            cs_id = _process_one(extracted_text_id, item_text, item_doc_type, publish_time=publish_time)
             if cs_id:
                 if first_cs_id is None:
                     first_cs_id = cs_id
@@ -308,7 +363,7 @@ def summarize_single(extracted_text_id: int) -> Optional[int]:
         _finalize(extracted_text_id, inserted_cs_ids)
         return first_cs_id
 
-    cs_id = _process_one(extracted_text_id, full_text, doc_type)
+    cs_id = _process_one(extracted_text_id, full_text, doc_type, publish_time=publish_time)
     _finalize(extracted_text_id, [cs_id] if cs_id else [])
     return cs_id
 
