@@ -18,6 +18,19 @@ from utils.model_router import call_model_json as _call_model_json
 logger = logging.getLogger(__name__)
 
 
+def _source_label(entry: dict) -> str:
+    """返回数据来源标签字符串，用于注入文本中标注可信度。"""
+    if entry.get("_from_indicator_db"):
+        src = entry.get("_from", "")
+        if src == "kg_bridge":
+            return "[indicator库·KG桥接]"
+        elif src == "kg_expand":
+            return "[indicator库·KG展开]"
+        else:
+            return "[indicator库]"
+    return "[RAG]"
+
+
 # ── LLM 提取 prompt ──────────────────────────────────────────
 
 _DOWNSTREAM_EXTRACT_PROMPT = """\
@@ -273,7 +286,7 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
     # 下游行业增速
     dg = downstream.get("downstream_growth") or []
     if dg:
-        parts.append("=== RAG检索：下游行业增速数据 ===")
+        parts.append("=== 下游行业增速数据 ===")
         for d in dg:
             industry = d.get("industry", "未知")
             recent = d.get("recent_growth_pct")
@@ -282,7 +295,8 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
             fperiod = d.get("forecast_period", "")
             dtype = d.get("data_type", "")
             snippet = d.get("source_snippet", "")
-            line = f"  [{industry}]"
+            src_label = _source_label(d)
+            line = f"  [{industry}]{src_label}"
             if recent is not None:
                 line += f" {period}{'实际' if dtype == 'actual' else '估算'}增速: {recent:+.1f}%"
             if snippet:
@@ -294,7 +308,7 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
     # 行业供需
     sd = downstream.get("industry_supply_demand") or {}
     if sd.get("balance") or sd.get("total_new_capacity"):
-        parts.append("\n=== RAG检索：行业供需格局 ===")
+        parts.append("\n=== 行业供需格局 ===")
         if sd.get("total_new_capacity"):
             parts.append(f"  [新增产能] {sd['total_new_capacity']}")
         if sd.get("total_demand_growth"):
@@ -307,14 +321,15 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
     # 上游成本价格
     uc = upstream.get("upstream_costs") or []
     if uc:
-        parts.append("\n=== RAG检索：上游成本价格 ===")
+        parts.append("\n=== 上游成本价格 ===")
         for u in uc:
             name = u.get("input_name", "未知")
             trend = u.get("price_trend", "")
             price = u.get("recent_price", "")
             yoy = u.get("yoy_change_pct")
             dtype = u.get("data_type", "")
-            line = f"  [{name}]"
+            src_label = _source_label(u)
+            line = f"  [{name}]{src_label}"
             if price:
                 line += f" 当前: {price}"
             if yoy is not None:
@@ -328,13 +343,13 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
     # 公司产能信号
     cc = upstream.get("company_capacity") or []
     if cc:
-        parts.append("\n=== RAG检索：公司产能信号 ===")
+        parts.append("\n=== 公司产能信号 ===")
         for c in cc:
             st = c.get("signal_type", "unknown")
             project = c.get("project", "")
             detail = c.get("detail", "")
             time = c.get("expected_time", "")
-            line = f"  [{st}] {project}"
+            line = f"  [{st}][RAG] {project}"
             if detail:
                 line += f" — {detail}"
             if time:
@@ -344,12 +359,12 @@ def _format_injection_text(downstream: dict, upstream: dict) -> str:
     # 竞对扩产
     ce = upstream.get("competitor_expansion") or []
     if ce:
-        parts.append("\n=== RAG检索：竞对扩产 ===")
+        parts.append("\n=== 竞对扩产 ===")
         for c in ce:
             comp = c.get("competitor", "")
             exp = c.get("expansion", "")
             impact = c.get("impact_on_supply", "")
-            line = f"  [{comp}] {exp}"
+            line = f"  [{comp}][RAG] {exp}"
             if impact:
                 line += f" → {impact}"
             parts.append(line)
@@ -379,20 +394,47 @@ def fetch_industry_demand_data(
     """
     industry = industry_l1 or ""
 
-    # ── 优先查 industry_indicators 结构化库 ─────────────────────────
-    db_downstream_growth = []
-    for ci in (customer_industries or [])[:6]:
-        ci_name = ci.get("name", "")
-        if not ci_name:
-            continue
-        db_rows = _query_indicator_db(ci_name, period_year=2024)
-        db_downstream_growth.extend(db_rows)
-        if db_rows:
-            logger.info(f"[demand_fetcher] SQL命中: {ci_name} → {db_rows[0].get('recent_growth_pct')}%")
+    # ── 优先查 industry_indicators 结构化库（KG桥接三层降级）────────
+    try:
+        from research.kg_indicator_bridge import (
+            query_downstream_indicators,
+            query_upstream_indicators,
+        )
+        bridge_available = True
+    except ImportError:
+        bridge_available = False
+        logger.warning("[demand_fetcher] kg_indicator_bridge 不可用，退回直接SQL查询")
 
-    # 仅对 SQL 未命中的行业做 RAG 搜索
+    db_downstream_growth = []
+    if bridge_available:
+        bridge_results = query_downstream_indicators(
+            stock_code, customer_industries or [], period_year=2024
+        )
+        db_downstream_growth = bridge_results
+        for r in bridge_results:
+            logger.info(
+                f"[demand_fetcher] bridge命中: {r.get('industry')} "
+                f"({r.get('_from','?')}) → {r.get('recent_growth_pct')}%"
+            )
+    else:
+        # 退回原始 SQL 查询
+        for ci in (customer_industries or [])[:6]:
+            ci_name = ci.get("name", "")
+            if not ci_name:
+                continue
+            db_rows = _query_indicator_db(ci_name, period_year=2024)
+            db_downstream_growth.extend(db_rows)
+            if db_rows:
+                logger.info(f"[demand_fetcher] SQL命中: {ci_name} → {db_rows[0].get('recent_growth_pct')}%")
+
+    # 提取未覆盖的行业（从 bridge 结果中获取，或直接计算）
     db_covered_industries = {r["industry"] for r in db_downstream_growth}
-    uncovered_cis = [ci for ci in (customer_industries or []) if ci.get("name") not in db_covered_industries]
+    # 优先从 bridge 结果中读取 _uncovered_names（bridge 已计算好）
+    if db_downstream_growth and db_downstream_growth[0].get("_uncovered_names") is not None:
+        uncovered_names_from_bridge = db_downstream_growth[0]["_uncovered_names"]
+        uncovered_cis = [ci for ci in (customer_industries or []) if ci.get("name") in uncovered_names_from_bridge]
+    else:
+        uncovered_cis = [ci for ci in (customer_industries or []) if ci.get("name") not in db_covered_industries]
 
     # 批1: 下游需求查询
     dq = _build_downstream_queries(stock_name, uncovered_cis)
@@ -410,7 +452,7 @@ def fetch_industry_demand_data(
     downstream = _extract_downstream(downstream_texts, stock_name, customer_industries)
     upstream = _extract_upstream(upstream_texts, stock_name)
 
-    # 合并 SQL 命中的数据到 downstream 结构
+    # 合并 SQL/bridge 命中的下游数据到 downstream 结构
     if db_downstream_growth:
         existing = downstream.get("downstream_growth") or []
         existing_industries = {d.get("industry") for d in existing}
@@ -418,6 +460,23 @@ def fetch_industry_demand_data(
             if db_row["industry"] not in existing_industries:
                 existing.append(db_row)
         downstream["downstream_growth"] = existing
+
+    # ── 上游：用 bridge 补充结构化指标数据 ────────────────────────
+    if bridge_available:
+        bridge_upstream = query_upstream_indicators(
+            stock_code, cost_breakdown or [], period_year=2024
+        )
+        if bridge_upstream:
+            existing_uc = upstream.get("upstream_costs") or []
+            existing_uc_names = {u.get("input_name") for u in existing_uc}
+            # indicator 优先：有精确数值，插到 RAG 结果前面
+            merged_uc = []
+            for bu in bridge_upstream:
+                if bu.get("input_name") not in existing_uc_names:
+                    merged_uc.append(bu)
+            merged_uc.extend(existing_uc)
+            upstream["upstream_costs"] = merged_uc
+            logger.info(f"[demand_fetcher] bridge上游补充: {len(bridge_upstream)}条")
 
     # 格式化注入文本
     injection_text = _format_injection_text(downstream, upstream)
