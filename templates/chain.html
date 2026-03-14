@@ -3,11 +3,19 @@
 
 {% block extra_styles %}
 <style>
-.chain-card { background:#1a2233; border:1px solid #2d3748; border-radius:14px; transition:border-color .2s,transform .15s; cursor:pointer; }
-.chain-card:hover { border-color:#135bec; transform:translateY(-2px); }
-.tier-pill { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:rgba(255,255,255,.07); color:#94a3b8; }
-.bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
-.bar-neg { background:#22c55e; border-radius:0 0 2px 2px; }
+.chain-card {
+  background: #111827;
+  border: 1px solid rgba(45,55,72,.8);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s, transform .15s;
+  cursor: pointer;
+}
+.chain-card:hover {
+  border-color: #135bec;
+  box-shadow: 0 0 0 1px #135bec22, 0 8px 32px rgba(19,91,236,.08);
+  transform: translateY(-2px);
+}
 .tab-btn { padding:6px 16px; border-radius:8px; font-size:13px; font-weight:600; transition:all .15s; }
 .tab-btn.active { background:#135bec; color:#fff; }
 .tab-btn:not(.active) { color:#64748b; }
@@ -121,62 +129,71 @@ function buildCard(c) {
   const color = c.color || '#6366f1';
   const flows = c.daily_flows || [];
   const dates = c.daily_dates || [];
-
-  // 计算柱子高度（最大绝对值为基准）
-  const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
   const totalFlow = flows.reduce((a, b) => a + b, 0);
-  const flowColor = totalFlow >= 0 ? 'text-red-400' : 'text-emerald-400';
-  const flowSign = totalFlow >= 0 ? '+' : '';
+  const flowPos = totalFlow >= 0;
+  const flowColor = flowPos ? '#ef4444' : '#22c55e';
+  const flowSign = flowPos ? '+' : '';
 
-  // 柱状图 SVG
-  const chartW = 180, chartH = 40;
-  const barW = flows.length > 0 ? Math.floor((chartW - flows.length) / flows.length) : 20;
-  let bars = '';
-  flows.forEach((v, i) => {
-    const x = i * (barW + 1);
+  // 资金流迷你柱图（以中线为基准，正上负下）
+  const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
+  const barHtml = flows.map((v, i) => {
+    const pct = Math.max(3, Math.round((Math.abs(v) / maxAbs) * 44));
     if (v >= 0) {
-      const h = Math.max(2, Math.round((v / maxAbs) * (chartH / 2)));
-      bars += `<rect x="${x}" y="${chartH/2 - h}" width="${barW}" height="${h}" fill="#ef4444" opacity=".85" rx="1"/>`;
+      return `<div class="flex-1 flex flex-col justify-end" style="height:48px;">
+        <div style="height:${pct}px;background:#ef444488;border-radius:2px 2px 0 0;" title="${dates[i]||''}: ${v>=0?'+':''}${v.toFixed(2)}亿"></div>
+      </div>`;
     } else {
-      const h = Math.max(2, Math.round((Math.abs(v) / maxAbs) * (chartH / 2)));
-      bars += `<rect x="${x}" y="${chartH/2}" width="${barW}" height="${h}" fill="#22c55e" opacity=".85" rx="1"/>`;
+      return `<div class="flex-1 flex flex-col justify-start" style="height:48px;">
+        <div style="height:${pct}px;background:#22c55e88;border-radius:0 0 2px 2px;" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
+      </div>`;
     }
-  });
-  const svg = flows.length > 0
-    ? `<svg width="${chartW}" height="${chartH}" class="w-full" viewBox="0 0 ${chartW} ${chartH}">
-        <line x1="0" y1="${chartH/2}" x2="${chartW}" y2="${chartH/2}" stroke="#2d3748" stroke-width="1"/>
-        ${bars}
-       </svg>`
-    : `<div class="h-10 flex items-center justify-center text-slate-600 text-xs">暂无资金数据</div>`;
-
-  // tier 标签（全部显示，key + label）
-  const tierPills = (c.tiers_summary || []).map(t => {
-    const label = t.label ? `<span class="text-slate-600 font-normal ml-1">${t.label}</span>` : '';
-    return `<div class="flex items-baseline gap-0.5 text-[11px]"><span class="font-semibold text-slate-300">${t.key}</span>${label}</div>`;
   }).join('');
+  const flowChart = flows.length > 0
+    ? `<div style="display:flex;gap:2px;height:48px;position:relative;">
+        <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(100,116,139,0.2);"></div>
+        ${barHtml}
+       </div>`
+    : `<div style="height:48px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:11px;">暂无资金数据</div>`;
+
+  // tier 行：key badge + label
+  const tierRows = (c.tiers_summary || []).map(t =>
+    `<div class="flex items-center gap-1.5">
+      <span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:${color}18;color:${color};">${t.key}</span>
+      <span style="font-size:11px;color:#64748b;">${t.label || ''}</span>
+    </div>`
+  ).join('');
 
   return `
-  <div class="chain-card p-5" onclick="window.location='/chain/${encodeURIComponent(c.name)}'">
-    <div class="flex items-center justify-between mb-3">
-      <div class="flex items-center gap-2">
-        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${color}22">
-          <span class="material-icons-round text-sm" style="color:${color}">${c.icon || 'hub'}</span>
+  <div class="chain-card" onclick="window.location='/chain/${encodeURIComponent(c.name)}'">
+    <!-- 顶部彩条 -->
+    <div style="height:3px;background:${color};"></div>
+
+    <div style="padding:16px 18px 14px;">
+      <!-- 标题行 -->
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:${color}1a;flex-shrink:0;">
+            <span class="material-icons-round" style="font-size:16px;color:${color};">${c.icon || 'hub'}</span>
+          </div>
+          <span style="font-weight:800;font-size:15px;">${c.name}</span>
         </div>
-        <span class="font-bold text-sm">${c.name}</span>
+        <span style="font-size:10px;color:#64748b;background:#0f172a;border:1px solid #1e293b;border-radius:9999px;padding:2px 8px;">${c.stock_count || 0}只</span>
       </div>
-      <span class="text-xs text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">${c.stock_count || 0}只</span>
-    </div>
 
-    <!-- 资金流柱图 -->
-    <div class="mb-1">${svg}</div>
-    <div class="flex justify-between items-center mb-3">
-      <span class="text-[10px] text-slate-600">${dates.length > 0 ? dates[0]+' — '+dates[dates.length-1] : '近7日'}</span>
-      <span class="text-xs font-bold ${flowColor}">${flowSign}${totalFlow.toFixed(2)}亿</span>
-    </div>
+      <!-- 资金流区块 -->
+      <div style="background:#0a1020;border:1px solid #1e293b;border-radius:10px;padding:10px 12px;margin-bottom:12px;">
+        <div class="flex items-center justify-between mb-2">
+          <span style="font-size:10px;color:#475569;">近${dates.length || 7}日主力净流入</span>
+          <span style="font-size:13px;font-weight:800;color:${flowColor};">${flowSign}${totalFlow.toFixed(2)} 亿</span>
+        </div>
+        ${flowChart}
+        ${dates.length > 0 ? `<div class="flex justify-between mt-1"><span style="font-size:9px;color:#334155;">${dates[0]}</span><span style="font-size:9px;color:#334155;">${dates[dates.length-1]}</span></div>` : ''}
+      </div>
 
-    <!-- 产业链结构（上/中/下游清单） -->
-    <div class="flex flex-col gap-1 border-t border-slate-700/50 pt-3">
-      ${tierPills}
+      <!-- 产业链环节 -->
+      <div style="display:flex;flex-direction:column;gap:5px;border-top:1px solid #1e293b;padding-top:11px;">
+        ${tierRows}
+      </div>
     </div>
   </div>`;
 }

@@ -317,33 +317,36 @@ def api_chain_detail_v2(name: str):
     if not all_codes:
         return {"ok": True, "name": name, "flow_dates": [], "flow_total": [], "tiers": []}
 
-    # 最近15个有效交易日（本地 capital_flow）
-    date_rows = execute_query(
-        "SELECT DISTINCT trade_date FROM capital_flow "
-        "WHERE LENGTH(stock_code)=6 AND main_net_inflow != 0 "
-        "ORDER BY trade_date DESC LIMIT 15",
+    codes_ph = ",".join(["%s"] * len(all_codes))
+
+    # 最近15个有效交易日（云端 fund_flow_history）
+    date_rows = cloud_stockdb_query(
+        f"""SELECT DISTINCT trade_date FROM fund_flow_history
+            WHERE symbol IN ({codes_ph})
+            ORDER BY trade_date DESC LIMIT 15""",
+        all_codes,
     ) or []
     dates = sorted([r["trade_date"] for r in date_rows])
 
-    codes_ph = ",".join(["%s"] * len(all_codes))
-
-    # 各股资金流（15日，本地）
+    # 各股资金流（15日，云端，main_net_inflow 单位：万元）
     cf_map: dict = {}
     if dates:
         dates_ph = ",".join(["%s"] * len(dates))
-        cf_rows = execute_query(
-            f"""SELECT stock_code, trade_date,
-                       ROUND(main_net_inflow / 1e8, 3) AS net_yi
-                FROM capital_flow
-                WHERE stock_code IN ({codes_ph}) AND trade_date IN ({dates_ph})""",
+        cf_rows = cloud_stockdb_query(
+            f"""SELECT symbol, trade_date, main_net_inflow
+                FROM fund_flow_history
+                WHERE symbol IN ({codes_ph}) AND trade_date IN ({dates_ph})""",
             all_codes + dates,
         ) or []
         for r in cf_rows:
-            cf_map.setdefault(r["stock_code"], {})[r["trade_date"]] = float(r["net_yi"] or 0)
+            # 万元 → 亿元，key 统一用字符串日期
+            cf_map.setdefault(r["symbol"], {})[str(r["trade_date"])] = float(r["main_net_inflow"] or 0) / 10000
+
+    dates_str = [str(d) for d in dates]
 
     # 全链逐日汇总
     flow_total = []
-    for d in dates:
+    for d in dates_str:
         total = sum(cf_map.get(code, {}).get(d, 0) for code in all_codes)
         flow_total.append(round(total, 2))
 
@@ -401,7 +404,7 @@ def api_chain_detail_v2(name: str):
 
         # 该环节15日资金流汇总
         tier_flow_15d = round(sum(
-            sum(cf_map.get(c, {}).get(d, 0) for d in dates)
+            sum(cf_map.get(c, {}).get(d, 0) for d in dates_str)
             for c in codes_in_tier
         ), 2)
 
@@ -417,7 +420,7 @@ def api_chain_detail_v2(name: str):
         "name": name,
         "icon": chain["icon"],
         "color": chain["color"],
-        "flow_dates": dates,
+        "flow_dates": dates_str,
         "flow_total": flow_total,
         "tiers": tiers_out,
     }
@@ -817,31 +820,32 @@ def api_watchlist_detail_v2(name: str):
     all_codes = list(set(r["stock_code"] for r in watch_rows))
     codes_ph = ",".join(["%s"] * len(all_codes))
 
-    # 最近15个有效交易日
-    date_rows = execute_query(
-        "SELECT DISTINCT trade_date FROM capital_flow "
-        "WHERE LENGTH(stock_code)=6 AND main_net_inflow != 0 "
-        "ORDER BY trade_date DESC LIMIT 15",
+    # 最近15个有效交易日（云端 fund_flow_history）
+    date_rows = cloud_stockdb_query(
+        f"""SELECT DISTINCT trade_date FROM fund_flow_history
+            WHERE symbol IN ({codes_ph})
+            ORDER BY trade_date DESC LIMIT 15""",
+        all_codes,
     ) or []
     dates = sorted([r["trade_date"] for r in date_rows])
+    dates_str = [str(d) for d in dates]
 
-    # 资金流
+    # 资金流（万元 → 亿元）
     cf_map: dict = {}
     if dates:
         dates_ph = ",".join(["%s"] * len(dates))
-        cf_rows = execute_query(
-            f"""SELECT stock_code, trade_date,
-                       ROUND(main_net_inflow / 1e8, 3) AS net_yi
-                FROM capital_flow
-                WHERE stock_code IN ({codes_ph}) AND trade_date IN ({dates_ph})""",
+        cf_rows = cloud_stockdb_query(
+            f"""SELECT symbol, trade_date, main_net_inflow
+                FROM fund_flow_history
+                WHERE symbol IN ({codes_ph}) AND trade_date IN ({dates_ph})""",
             all_codes + dates,
         ) or []
         for r in cf_rows:
-            cf_map.setdefault(r["stock_code"], {})[r["trade_date"]] = float(r["net_yi"] or 0)
+            cf_map.setdefault(r["symbol"], {})[str(r["trade_date"])] = float(r["main_net_inflow"] or 0) / 10000
 
     flow_total = [
         round(sum(cf_map.get(code, {}).get(d, 0) for code in all_codes), 2)
-        for d in dates
+        for d in dates_str
     ]
 
     # 最新行情
@@ -895,7 +899,7 @@ def api_watchlist_detail_v2(name: str):
             })
 
         tier_flow_15d = round(sum(
-            sum(cf_map.get(c, {}).get(d, 0) for d in dates)
+            sum(cf_map.get(c, {}).get(d, 0) for d in dates_str)
             for c in codes_in_tier
         ), 2)
 
@@ -915,7 +919,7 @@ def api_watchlist_detail_v2(name: str):
         "name": name,
         "icon": static.get("icon", "category"),
         "color": static.get("color", "#64748b"),
-        "flow_dates": dates,
+        "flow_dates": dates_str,
         "flow_total": flow_total,
         "tiers": tiers_out,
     }
