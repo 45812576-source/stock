@@ -452,8 +452,8 @@ def api_batch_kline(body: dict):
         # 去掉当月，取最近6个完整月
         monthly = [b for b in monthly_all if b["ym"] != current_ym][-6:]
 
-        # 去掉当周，取最近6个完整周
-        weekly = [b for b in weekly_all if b["wk"] != current_wk][-6:]
+        # 去掉当周，取最近4个完整周
+        weekly = [b for b in weekly_all if b["wk"] != current_wk][-4:]
 
         def fmt_bars(bars, key):
             out = []
