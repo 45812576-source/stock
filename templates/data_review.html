@@ -372,7 +372,7 @@
       <span id="reviewProgress" class="text-xs text-slate-500"></span>
       <button onclick="approveCurrent()" id="approveBtn"
               class="bg-primary hover:bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition disabled:opacity-30">
-        <span class="material-icons-round text-sm">check_circle</span> 保存审核
+        <span class="material-icons-round text-sm">check_circle</span> 审核通过
       </button>
     </div>
   </div>
@@ -749,11 +749,29 @@ async function singleExtract(docId) {
       body: JSON.stringify({ doc_ids: [docId] }),
     });
     const data = await res.json();
-    if (data.error || !data.items?.length) { showToast('提取失败', 'error'); return; }
-    reviewQueue = data.items;
-    reviewIndex = 0;
-    openModal();
-    loadStats();
+    if (data.error) { showToast('提取失败: ' + data.error, 'error'); return; }
+    const taskId = data.task_id;
+    if (!taskId) { showToast('提取失败', 'error'); return; }
+    // 轮询等待任务完成
+    const poll = setInterval(async () => {
+      try {
+        const tasks = await fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []);
+        const t = (tasks || []).find(x => x.task_id === taskId);
+        const done = !t || t.status === 'done' || t.progress >= t.total;
+        if (!done) return;
+        clearInterval(poll);
+        const r2 = await fetch(`/data/api/extract-preview-result?task_id=${taskId}`);
+        const d2 = await r2.json();
+        if (d2.items && d2.items.length) {
+          reviewQueue = d2.items;
+          reviewIndex = 0;
+          openModal();
+          loadStats();
+        } else {
+          showToast('提取失败，无结果', 'error');
+        }
+      } catch(e) {}
+    }, 2000);
   } catch(e) {
     showToast('请求失败', 'error');
   }
@@ -768,9 +786,21 @@ async function singlePipe(docId) {
     });
     const data = await res.json();
     if (data.error) { showToast('入管线失败: ' + data.error, 'error'); return; }
-    showToast(`已入管线 (pushed: ${data.pushed})`, 'ok');
-    loadReviewList();
-    loadStats();
+    const taskId = data.task_id;
+    if (!taskId) { loadReviewList(); loadStats(); return; }
+    // 轮询等待任务完成
+    const poll = setInterval(async () => {
+      try {
+        const tasks = await fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []);
+        const t = (tasks || []).find(x => x.task_id === taskId);
+        if (!t || t.progress >= t.total) {
+          clearInterval(poll);
+          showToast('已入管线', 'ok');
+          loadReviewList();
+          loadStats();
+        }
+      } catch(e) {}
+    }, 2000);
   } catch(e) {
     showToast('请求失败', 'error');
   }
@@ -809,11 +839,11 @@ async function batchExtractByFilter() {
     const poll = setInterval(async () => {
       const tasks = await fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []);
       const t = (tasks || []).find(x => x.task_id === data.task_id);
-      if (!t || t.status === 'done') {
+      if (!t || t.progress >= t.total) {
         clearInterval(poll);
         loadStats();
         loadReviewList();
-        if (t) showToast(`批量提取完成：提取${t.items?.extracted??''} 推入${t.items?.pushed??''} 失败${t.items?.failed??''}`, 'success');
+        showToast('批量提取完成，请查看任务栏详情', 'ok');
       }
     }, 3000);
   } catch(e) {
@@ -840,44 +870,24 @@ async function batchExtractAndReview() {
       try {
         const tasks = await fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []);
         const t = (tasks || []).find(x => x.task_id === taskId);
-        if (!t) {
-          // 任务已从列表移除（done），查一次结果
-          clearInterval(poll);
-          const r2 = await fetch(`/data/api/extract-preview-result?task_id=${taskId}`);
-          const d2 = await r2.json();
-          if (d2.items && d2.items.length) {
-            // 只在弹窗未打开时弹出，避免覆盖用户正在审核的内容
-            const modalOpen = document.getElementById('reviewModal').style.display === 'flex';
-            if (!modalOpen) {
-              reviewQueue = d2.items;
-              reviewIndex = 0;
-              openModal();
-            } else {
-              showToast(`提取完成，共 ${d2.items.length} 个文档，关闭当前弹窗后可重新审核`, 'info');
-            }
-            loadStats();
+        const done = !t || t.progress >= t.total;
+        if (!done) return;
+        clearInterval(poll);
+        const r2 = await fetch(`/data/api/extract-preview-result?task_id=${taskId}`);
+        const d2 = await r2.json();
+        if (d2.items && d2.items.length) {
+          const modalOpen = document.getElementById('reviewModal').style.display === 'flex';
+          if (!modalOpen) {
+            reviewQueue = d2.items;
+            reviewIndex = 0;
+            openModal();
           } else {
-            showToast('没有可审核的文档', 'info');
+            showToast(`提取完成，共 ${d2.items.length} 个文档，关闭当前弹窗后可重新审核`, 'info');
           }
-          return;
-        }
-        if (t.status === 'done' || t.progress >= t.total) {
-          clearInterval(poll);
-          const r2 = await fetch(`/data/api/extract-preview-result?task_id=${taskId}`);
-          const d2 = await r2.json();
-          if (d2.items && d2.items.length) {
-            const modalOpen = document.getElementById('reviewModal').style.display === 'flex';
-            if (!modalOpen) {
-              reviewQueue = d2.items;
-              reviewIndex = 0;
-              openModal();
-            } else {
-              showToast(`提取完成，共 ${d2.items.length} 个文档，关闭当前弹窗后可重新审核`, 'info');
-            }
-            loadStats();
-          } else {
-            showToast('没有可审核的文档', 'info');
-          }
+          loadStats();
+          loadReviewList();
+        } else {
+          showToast('没有可审核的文档', 'info');
         }
       } catch(e) {}
     }, 2000);
@@ -976,11 +986,29 @@ async function singleReview(docId) {
       body: JSON.stringify({ doc_ids: [docId] }),
     });
     const data = await res.json();
-    if (data.error || !data.items?.length) { showToast('提取失败', 'error'); return; }
-    reviewQueue = data.items;
-    reviewIndex = 0;
-    openModal();
-    loadStats();
+    if (data.error) { showToast('提取失败: ' + data.error, 'error'); return; }
+    const taskId = data.task_id;
+    if (!taskId) { showToast('提取失败', 'error'); return; }
+    // 轮询等待任务完成
+    const poll = setInterval(async () => {
+      try {
+        const tasks = await fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []);
+        const t = (tasks || []).find(x => x.task_id === taskId);
+        const done = !t || t.status === 'done' || t.progress >= t.total;
+        if (!done) return;
+        clearInterval(poll);
+        const r2 = await fetch(`/data/api/extract-preview-result?task_id=${taskId}`);
+        const d2 = await r2.json();
+        if (d2.items && d2.items.length) {
+          reviewQueue = d2.items;
+          reviewIndex = 0;
+          openModal();
+          loadStats();
+        } else {
+          showToast('提取失败，无结果', 'error');
+        }
+      } catch(e) {}
+    }, 2000);
   } catch(e) {
     showToast('请求失败', 'error');
   }

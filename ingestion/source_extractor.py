@@ -37,8 +37,10 @@ def _get_deepseek():
                 )
                 if not rows:
                     raise RuntimeError("system_config 中未找到 deepseek_api_key")
+                import httpx
                 _deepseek_client = OpenAI(
-                    api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1"
+                    api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1",
+                    http_client=httpx.Client(trust_env=False),
                 )
     return _deepseek_client
 
@@ -295,26 +297,226 @@ def _parse_values_row(row_str: str) -> list:
 
 # ==================== 文本提取 ====================
 
+# 大文件本地缓存目录（PDF > PDF_PAGE_THRESHOLD 页 / 所有音频）
+_LARGE_FILE_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "pending_files")
+PDF_PAGE_THRESHOLD = 10   # 超过此页数视为大文件，延迟到凌晨提取
+
+
+def _ensure_large_file_dir():
+    os.makedirs(_LARGE_FILE_DIR, exist_ok=True)
+
+
+def _count_pdf_pages(data: bytes) -> int:
+    """快速统计 PDF 页数，失败返回 0"""
+    try:
+        import pdfplumber, io
+        with pdfplumber.open(io.BytesIO(data)) as pdf:
+            return len(pdf.pages)
+    except Exception:
+        return 0
+
+
+def _is_large_file(row: dict, data: bytes) -> bool:
+    """判断是否为大文件（需要延迟提取）"""
+    ft = row.get("file_type", "")
+    if ft in ("audio", "mp3"):
+        return True  # 音频转写全部延迟
+    if ft == "pdf":
+        pages = _count_pdf_pages(data)
+        return pages > PDF_PAGE_THRESHOLD
+    return False
+
+
+def _download_to_local(row: dict, data: bytes) -> str:
+    """将文件数据存到本地 pending_files 目录，返回本地路径"""
+    _ensure_large_file_dir()
+    ft = row.get("file_type", "txt")
+    ext_map = {"pdf": "pdf", "mp3": "mp3", "audio": "m4a"}
+    ext = ext_map.get(ft, ft)
+    local_path = os.path.join(_LARGE_FILE_DIR, f"{row['id']}.{ext}")
+    with open(local_path, "wb") as f:
+        f.write(data)
+    return local_path
+
+
+def _extract_single_row(row: dict) -> dict:
+    """处理单条 source_documents 记录，返回 {'status': ..., 'extracted': ..., 'doc_type': ...}
+
+    供 extract_batch 并发调用。
+    """
+    from config.doc_types import classify_doc_type
+    ft = row.get("file_type", "")
+    oss_url = row.get("oss_url") or ""
+
+    # 音频全部延迟；PDF 先下载再判断页数
+    if ft in ("audio", "mp3") or ft == "pdf":
+        if not oss_url:
+            pass  # 无URL，继续走普通提取
+        else:
+            data = _download_file(oss_url, timeout=60)  # 下载失败会抛异常
+
+            if _is_large_file(row, data):
+                local_path = _download_to_local(row, data)
+                return {"status": "deferred", "local_path": local_path}
+            else:
+                with tempfile.NamedTemporaryFile(suffix=f".{ft}", delete=False) as tmp:
+                    tmp.write(data)
+                    tmp_path = tmp.name
+                try:
+                    row_with_local = dict(row)
+                    row_with_local["oss_url"] = f"file://{tmp_path}"
+                    extracted = _extract_and_clean_single(row_with_local)
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except OSError:
+                        pass
+                new_doc_type = classify_doc_type(row.get("title") or "", (extracted or "")[:200])
+                return {"status": "extracted", "extracted": extracted, "doc_type": new_doc_type}
+
+    # 其他类型（txt / image / mixed / xlsx）：实时提取
+    extracted = _extract_and_clean_single(row)
+    new_doc_type = classify_doc_type(row.get("title") or "", (extracted or "")[:200])
+    return {"status": "extracted", "extracted": extracted, "doc_type": new_doc_type}
+
+
 def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> dict:
-    """批量提取源文档
+    """批量提取源文档（并发执行，单条5分钟超时）
+
+    - txt / image / mixed / xlsx：实时提取
+    - pdf（页数 > PDF_PAGE_THRESHOLD）/ audio / mp3：下载原文件到本地，
+      标记 extract_status='pending_large'，由凌晨任务 run_large_file_extract 处理
+    - 改动4: ThreadPoolExecutor(3) 并发，每条5分钟总超时，超时标记 timeout_N
+    - 改动6: 自动纳入 timeout_1/timeout_2 状态重试，两次超时标记 failed_permanent
 
     Args:
         file_type: 限定文件类型 (txt/image/mixed/pdf/audio), None=全部
         limit: 每次处理数
         on_progress(done, total, row_id): 每完成一条时回调
     Returns:
-        {"total": N, "success": M, "failed": K}
+        {"total": N, "success": M, "failed": K, "deferred": D}
     """
-    sql = """SELECT id, doc_type, file_type, title, text_content, oss_url
-             FROM source_documents WHERE extract_status='pending'"""
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeout
+
+    # 改动6: 纳入 timeout_1（重试1次），timeout_2 → failed_permanent
+    status_filter = "extract_status IN ('pending', 'timeout_1')"
     params = []
     if file_type:
-        sql += " AND file_type=%s"
+        status_filter += " AND file_type=%s"
         params.append(file_type)
-    sql += " LIMIT %s"
+
+    sql = f"""SELECT id, doc_type, file_type, title, text_content, oss_url, extract_status
+             FROM source_documents WHERE {status_filter} LIMIT %s"""
     params.append(limit)
 
     rows = execute_cloud_query(sql, params)
+    total = len(rows)
+    success = 0
+    failed = 0
+    deferred = 0
+
+    if on_progress:
+        on_progress(0, total, None)
+
+    ITEM_TIMEOUT = 300  # 每条5分钟总超时
+
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        fut_to_row = {pool.submit(_extract_single_row, row): row for row in rows}
+        done_count = 0
+        for fut in as_completed(fut_to_row):
+            row = fut_to_row[fut]
+            done_count += 1
+            try:
+                result = fut.result(timeout=ITEM_TIMEOUT)
+            except FutureTimeout:
+                # 改动6: 标记超时状态，支持最多2次重试
+                prev_status = row.get("extract_status", "pending")
+                if prev_status == "timeout_1":
+                    new_status = "failed_permanent"
+                    logger.warning(f"[TIMEOUT] id={row['id']} 两次超时，标记 failed_permanent")
+                else:
+                    new_status = "timeout_1"
+                    logger.warning(f"[TIMEOUT] id={row['id']} 超时({ITEM_TIMEOUT}s)，标记 {new_status}")
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status=%s WHERE id=%s",
+                    [new_status, row["id"]],
+                )
+                failed += 1
+                if on_progress:
+                    on_progress(done_count, total, row["id"])
+                continue
+            except Exception as e:
+                err_str = str(e)
+                if "401" in err_str or "403" in err_str or "404" in err_str:
+                    execute_cloud_insert(
+                        "UPDATE source_documents SET extract_status='skipped' WHERE id=%s",
+                        [row["id"]],
+                    )
+                elif "Unauthorized" in err_str or "Forbidden" in err_str:
+                    logger.warning(f"跳过 id={row['id']} (URL 过期/无权限): {err_str[:100]}")
+                    execute_cloud_insert(
+                        "UPDATE source_documents SET extract_status='skipped' WHERE id=%s",
+                        [row["id"]],
+                    )
+                else:
+                    logger.error(f"提取失败 id={row['id']}: {e}")
+                    execute_cloud_insert(
+                        "UPDATE source_documents SET extract_status='failed' WHERE id=%s",
+                        [row["id"]],
+                    )
+                failed += 1
+                if on_progress:
+                    on_progress(done_count, total, row["id"])
+                continue
+
+            # 处理成功结果
+            status = result.get("status")
+            if status == "deferred":
+                local_path = result["local_path"]
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status='pending_large', oss_url=%s WHERE id=%s",
+                    [local_path, row["id"]],
+                )
+                logger.info(f"大文件延迟 id={row['id']} ft={row.get('file_type')} → {local_path}")
+                deferred += 1
+            elif status == "extracted":
+                execute_cloud_insert(
+                    """UPDATE source_documents
+                       SET extracted_text=%s, extract_status='extracted', doc_type=%s
+                       WHERE id=%s""",
+                    [result["extracted"], result["doc_type"], row["id"]],
+                )
+                success += 1
+            else:
+                logger.error(f"未知结果状态 id={row['id']}: {result}")
+                failed += 1
+
+            if on_progress:
+                on_progress(done_count, total, row["id"])
+
+    logger.info(f"批量提取完成: total={total}, success={success}, failed={failed}, deferred={deferred}")
+    return {"total": total, "success": success, "failed": failed, "deferred": deferred}
+
+
+def run_large_file_extract(limit: int = 30, on_progress=None) -> dict:
+    """凌晨大文件批量提取（extract_status='pending_large'）
+
+    从本地 pending_files 目录读取已缓存的 PDF/音频，提取后删除本地文件。
+
+    Args:
+        limit: 每次处理数
+        on_progress(done, total, row_id): 每完成一条时回调
+    Returns:
+        {"total": N, "success": M, "failed": K}
+    """
+    rows = execute_cloud_query(
+        """SELECT id, doc_type, file_type, title, text_content, oss_url
+           FROM source_documents
+           WHERE extract_status='pending_large'
+           ORDER BY id
+           LIMIT %s""",
+        [limit],
+    )
     total = len(rows)
     success = 0
     failed = 0
@@ -323,44 +525,54 @@ def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> d
         on_progress(0, total, None)
 
     for i, row in enumerate(rows):
+        local_path = row.get("oss_url") or ""
+        doc_id = row["id"]
+        ft = row.get("file_type", "")
+
         try:
-            extracted = _extract_and_clean_single(row)
+            if not local_path or not os.path.exists(local_path):
+                logger.warning(f"大文件本地路径不存在 id={doc_id}: {local_path}")
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status='failed' WHERE id=%s",
+                    [doc_id],
+                )
+                failed += 1
+                continue
+
+            # 用本地路径替代 oss_url 提取
+            row_local = dict(row)
+            row_local["oss_url"] = f"file://{local_path}"
+            extracted = _extract_and_clean_single(row_local)
+
             from config.doc_types import classify_doc_type
             new_doc_type = classify_doc_type(
-                row.get("title") or "",
-                (extracted or "")[:200],
+                row.get("title") or "", (extracted or "")[:200]
             )
             execute_cloud_insert(
                 """UPDATE source_documents
-                   SET extracted_text=%s, extract_status='extracted', doc_type=%s
+                   SET extracted_text=%s, extract_status='extracted', doc_type=%s, oss_url=NULL
                    WHERE id=%s""",
-                [extracted, new_doc_type, row["id"]],
+                [extracted, new_doc_type, doc_id],
             )
+            # 删除本地缓存文件
+            try:
+                os.unlink(local_path)
+            except OSError:
+                pass
+            logger.info(f"大文件提取完成 id={doc_id} ft={ft} ({len(extracted)}字)")
             success += 1
         except Exception as e:
-            err_str = str(e)
-            # 401/403 表示 URL 已过期或无权限，跳过而不是标记失败
-            if "401" in err_str or "403" in err_str or "Unauthorized" in err_str or "Forbidden" in err_str:
-                logger.warning(f"跳过 id={row['id']} (URL 过期/无权限): {err_str[:100]}")
-                execute_cloud_insert(
-                    """UPDATE source_documents
-                       SET extract_status='skipped'
-                       WHERE id=%s""",
-                    [row["id"]],
-                )
-            else:
-                logger.error(f"提取失败 id={row['id']}: {e}")
-                execute_cloud_insert(
-                    """UPDATE source_documents
-                       SET extract_status='failed'
-                       WHERE id=%s""",
-                    [row["id"]],
-                )
+            logger.error(f"大文件提取失败 id={doc_id}: {e}")
+            execute_cloud_insert(
+                "UPDATE source_documents SET extract_status='failed' WHERE id=%s",
+                [doc_id],
+            )
             failed += 1
-        if on_progress:
-            on_progress(i + 1, total, row["id"])
 
-    logger.info(f"批量提取完成: total={total}, success={success}, failed={failed}")
+        if on_progress:
+            on_progress(i + 1, total, doc_id)
+
+    logger.info(f"大文件提取完成: total={total}, success={success}, failed={failed}")
     return {"total": total, "success": success, "failed": failed}
 
 
@@ -377,7 +589,7 @@ def _extract_single_with_meta(row: dict) -> tuple:
     needs_understanding=False 表示已过 Qwen 或是结构化数据，轻度清洗即可
     """
     ft = row["file_type"]
-    if ft == "txt":
+    if ft in ("txt", "text"):
         return _extract_txt(row), True  # 裸文本，需要理解整理
     elif ft == "mp3":
         return _extract_mp3(row), False  # 音频转写，用 audio 清洗 prompt
@@ -602,15 +814,24 @@ def _extract_mp3(row: dict) -> str:
     旧格式: oss_url=下载URL, text_content=帖子原文
     新格式: text_content=下载URL
     优先级: FunASR（本地）→ Groq → Gemini
+    支持 file:// 本地路径（大文件缓存场景）
     """
     tc = (row.get("text_content") or "").strip()
     url = tc if tc.startswith("http") else (row.get("oss_url") or "").strip()
-    if not url or not url.startswith("http"):
+    if not url:
         return ""
 
     import time
 
-    data = _download_file(url, timeout=120)
+    # 支持本地缓存文件
+    if url.startswith("file://"):
+        local_path = url[7:]
+        with open(local_path, "rb") as f:
+            data = f.read()
+    elif url.startswith("http"):
+        data = _download_file(url, timeout=120)
+    else:
+        return ""
 
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
         tmp.write(data)
@@ -648,15 +869,11 @@ def _extract_mp3(row: dict) -> str:
                     raise
 
         if groq_key:
-            logger.warning("两个 API 都受限，等待 10 分钟后重试 Groq...")
-            time.sleep(620)
-            return _transcribe_groq(tmp_path, groq_key)
+            raise RuntimeError("Groq/Gemini 均触发速率限制，跳过本条，下次重试")
 
         raise RuntimeError("未配置任何音频转写方案（funasr/groq/gemini）")
     finally:
         os.unlink(tmp_path)
-
-
 
 
 def _transcribe_groq(tmp_path: str, api_key: str) -> str:
@@ -758,30 +975,42 @@ def _extract_image_with_meta(row: dict) -> tuple:
     ocr_parts = []
     non_text_urls = []
     non_text_indices = []
+    used_qwen = False
 
+    title = row.get("title", "股票分析")
     for idx, url in enumerate(urls):
         try:
             img_data = _download_file(url, timeout=30)
-            ocr_text = _ocr_image_bytes(img_data)
-            if len(ocr_text.strip()) >= 20:
+            # 改动5: 图片预校验
+            try:
+                import io as _io
+                from PIL import Image as _PILImage
+                _PILImage.open(_io.BytesIO(img_data)).verify()
+            except Exception as verify_err:
+                logger.warning(f"图片校验失败，跳过 idx={idx}: {verify_err}")
+                continue
+            ocr_text, _used_vision = _ocr_image_bytes_safe(img_data, title)
+            if _used_vision and ocr_text:
+                ocr_parts.append(f"### [图片{idx+1} 图表描述]\n{ocr_text}")
+                used_qwen = True
+            elif len(ocr_text.strip()) >= 20:
                 ocr_parts.append(f"### [图片{idx+1} OCR文字]\n{ocr_text}")
             else:
                 non_text_urls.append(url)
                 non_text_indices.append(idx)
         except Exception as e:
-            logger.warning(f"PaddleOCR 图片失败: {e}")
+            logger.warning(f"图片处理失败: {e}")
             non_text_urls.append(url)
             non_text_indices.append(idx)
 
     result_parts = ocr_parts[:]
-    used_qwen = False
 
-    # 无文字的图片降级到视觉模型
+    # 仍无文字的图片降级到视觉模型（批量）
     if non_text_urls:
         try:
             from utils.model_router import call_model_vision
             prompt = (
-                f"这是一张关于'{row.get('title', '股票分析')}'的图片。"
+                f"这是一张关于'{title}'的图片。"
                 "请详细描述图片中的所有内容、数据、图表信息。用中文回复。"
             )
             vision_desc = call_model_vision("vision", prompt, non_text_urls)
@@ -817,29 +1046,41 @@ def _extract_mixed_with_meta(row: dict) -> tuple:
     ocr_parts = []
     non_text_urls = []
     non_text_indices = []
+    used_qwen = False
 
+    title = row.get("title", "股票分析")
     for idx, url in enumerate(urls):
         try:
             img_data = _download_file(url, timeout=30)
-            ocr_text = _ocr_image_bytes(img_data)
-            if len(ocr_text.strip()) >= 20:
+            # 改动5: 图片预校验
+            try:
+                import io as _io
+                from PIL import Image as _PILImage
+                _PILImage.open(_io.BytesIO(img_data)).verify()
+            except Exception as verify_err:
+                logger.warning(f"图片校验失败，跳过 idx={idx}: {verify_err}")
+                continue
+            ocr_text, _used_vision = _ocr_image_bytes_safe(img_data, title)
+            if _used_vision and ocr_text:
+                ocr_parts.append(f"### [图片{idx+1} 图表描述]\n{ocr_text}")
+                used_qwen = True
+            elif len(ocr_text.strip()) >= 20:
                 ocr_parts.append(f"### [图片{idx+1} OCR文字]\n{ocr_text}")
             else:
                 non_text_urls.append(url)
                 non_text_indices.append(idx)
         except Exception as e:
-            logger.warning(f"PaddleOCR 图片失败: {e}")
+            logger.warning(f"图片处理失败: {e}")
             non_text_urls.append(url)
             non_text_indices.append(idx)
 
     img_parts = ocr_parts[:]
-    used_qwen = False
 
     if non_text_urls:
         try:
             from utils.model_router import call_model_vision
             prompt = (
-                f"这是关于'{row.get('title', '股票分析')}'的配图。"
+                f"这是关于'{title}'的配图。"
                 "请详细描述图片中的所有内容、数据、图表信息。用中文回复。"
             )
             vision_desc = call_model_vision("vision", prompt, non_text_urls)
@@ -897,13 +1138,15 @@ def _download_file(url: str, timeout: int = 60, cookies: dict = None, headers: d
         auth = _get_zsxq_auth()
         _cookies.update(auth["cookies"])
         _headers.update(auth["headers"])
+    s = requests.Session()
+    s.trust_env = False  # 不走系统代理
     try:
-        resp = requests.get(url, timeout=timeout, cookies=_cookies or None, headers=_headers or None)
+        resp = s.get(url, timeout=timeout, cookies=_cookies or None, headers=_headers or None)
         resp.raise_for_status()
         return resp.content
     except requests.exceptions.SSLError:
         logger.warning(f"SSL 错误，降级重试: {url[:80]}")
-        resp = requests.get(url, timeout=timeout, verify=False, cookies=_cookies or None, headers=_headers or None)
+        resp = s.get(url, timeout=timeout, verify=False, cookies=_cookies or None, headers=_headers or None)
         resp.raise_for_status()
         return resp.content
 
@@ -1200,7 +1443,13 @@ def _extract_pdf_with_meta(row: dict) -> tuple:
 
     import pdfplumber
 
-    data = _download_file(oss_url)
+    # 支持 file:// 本地路径（大文件缓存场景）
+    if oss_url.startswith("file://"):
+        local_path = oss_url[7:]
+        with open(local_path, "rb") as f:
+            data = f.read()
+    else:
+        data = _download_file(oss_url)
 
     # 检测文件头：PK 是 ZIP/Office Open XML
     if data[:2] == b'PK':
@@ -1215,7 +1464,15 @@ def _extract_pdf_with_meta(row: dict) -> tuple:
         page_images = {}  # page_num(1-based) -> tmp_path
         try:
             from pdf2image import convert_from_path
-            imgs = convert_from_path(tmp_path, dpi=150)
+            from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+            # 改动2: convert_from_path 加超时（畸形PDF防挂起）
+            with ThreadPoolExecutor(max_workers=1) as _pool:
+                _fut = _pool.submit(convert_from_path, tmp_path, 150)
+                try:
+                    imgs = _fut.result(timeout=120)
+                except FutureTimeout:
+                    logger.warning(f"[TIMEOUT] PDF 截图超时(120s) id={row.get('id')}")
+                    imgs = []
             for i, img in enumerate(imgs):
                 img_path = f"{tmp_path}_page{i+1}.png"
                 img.save(img_path, "PNG")
@@ -1235,47 +1492,96 @@ def _extract_pdf_with_meta(row: dict) -> tuple:
         except Exception as e:
             logger.warning(f"PDF 截图失败，跳过图表提取: {e}")
 
-        # 2. pdfplumber 提取文字+表格 + 视觉模型描述图表
+        # 2. pdfplumber 提取文字+表格
         texts = []
         page_count = 0
         title = row.get("title") or "研报"
+        page_text_map = {}  # page_num -> page_text
 
         with pdfplumber.open(tmp_path) as pdf:
             page_count = len(pdf.pages)
             for i, page in enumerate(pdf.pages):
                 page_num = i + 1
-                # 文字+表格提取
                 try:
                     page_text = _extract_pdf_page_structured(page)
                 except Exception:
                     page_text = _extract_page_main_column(page)
+                page_text_map[page_num] = page_text
 
-                # 视觉模型描述图表
-                chart_desc = ""
-                if page_num in page_images:
-                    chart_desc = _describe_pdf_page_chart(
-                        page_images[page_num], page_num, title)
+        full_text_raw = "\n\n".join(t for t in page_text_map.values() if t)
+        char_density = len(full_text_raw) / max(page_count, 1)
 
-                # 拼合
-                if page_text and chart_desc:
-                    texts.append(f"{page_text}\n\n### [第{page_num}页 图表描述]\n{chart_desc}")
-                elif page_text:
-                    texts.append(page_text)
-                elif chart_desc:
-                    texts.append(f"### [第{page_num}页 图表描述]\n{chart_desc}")
+        # 每页平均字符数 < 100，判定为扫描件
+        if char_density < 100:
+            logger.info(f"PDF 文字密度低（{char_density:.0f} 字/页），启动 OCR 降级")
+            # 改动2: 逐页 OCR，单页60秒超时，超时自动切 Qwen-VL-Max
+            import io as _io
+            ocr_texts = []
+            used_vision_any = False
+            for page_num in sorted(page_images.keys()):
+                img_path = page_images[page_num]
+                with open(img_path, "rb") as _f:
+                    img_bytes = _f.read()
+                ocr_text, _used_vision = _ocr_image_bytes_safe(
+                    img_bytes, f"{title} 第{page_num}页", timeout=60)
+                if _used_vision:
+                    used_vision_any = True
+                if ocr_text:
+                    ocr_texts.append(f"### 第{page_num}页\n{ocr_text}")
+            if not page_images and tmp_path:
+                # 没有截图时用 _ocr_pdf_with_paddle 兜底
+                try:
+                    ocr_result = _ocr_pdf_with_paddle(tmp_path)
+                    ocr_texts.append(ocr_result)
+                except Exception as e:
+                    logger.warning(f"PaddleOCR PDF 失败: {e}")
+            if ocr_texts:
+                logger.info(f"扫描件OCR完成 id={row.get('id')} used_vision={used_vision_any} ({len(ocr_texts)}页)")
+                return "\n\n".join(ocr_texts), True  # needs_understanding=True
+            logger.warning(f"扫描件OCR全部失败 id={row.get('id')}，返回空")
+            return "", False
+
+        # 3. 正常 PDF：并发视觉模型描述图表（改动3）
+        # 最多描述15页，文字充足(>300字)的页跳过，并发3，单页45秒超时
+        MAX_CHART_PAGES = 15
+        CHART_TEXT_THRESHOLD = 300
+        from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutureTimeout
+
+        pages_to_describe = [
+            pn for pn in sorted(page_images.keys())
+            if len((page_text_map.get(pn) or "").strip()) < CHART_TEXT_THRESHOLD
+        ][:MAX_CHART_PAGES]
+
+        chart_descs = {}  # page_num -> desc
+        if pages_to_describe:
+            def _describe_page(pn):
+                return pn, _describe_pdf_page_chart(page_images[pn], pn, title)
+
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                futs = {pool.submit(_describe_page, pn): pn for pn in pages_to_describe}
+                for fut in as_completed(futs, timeout=45 * len(pages_to_describe)):
+                    try:
+                        pn, desc = fut.result(timeout=45)
+                        if desc:
+                            chart_descs[pn] = desc
+                    except FutureTimeout:
+                        logger.warning(f"[TIMEOUT] 图表描述页{futs[fut]}超时")
+                    except Exception as e:
+                        logger.warning(f"图表描述页{futs[fut]}失败: {e}")
+
+        # 拼合文字+图表描述
+        texts = []
+        for page_num in sorted(page_text_map.keys()):
+            page_text = page_text_map[page_num]
+            chart_desc = chart_descs.get(page_num, "")
+            if page_text and chart_desc:
+                texts.append(f"{page_text}\n\n### [第{page_num}页 图表描述]\n{chart_desc}")
+            elif page_text:
+                texts.append(page_text)
+            elif chart_desc:
+                texts.append(f"### [第{page_num}页 图表描述]\n{chart_desc}")
 
         full_text = "\n\n".join(texts)
-        char_density = len(full_text) / max(page_count, 1)
-
-        # 每页平均字符数 < 100，判定为扫描件，改用 OCR
-        if char_density < 100:
-            logger.info(f"PDF 文字密度低（{char_density:.0f} 字/页），切换 PaddleOCR")
-            try:
-                ocr_text = _ocr_pdf_with_paddle(tmp_path)
-                return ocr_text, True  # 扫描件 OCR，没过 Qwen，需要理解
-            except Exception as e:
-                logger.warning(f"PaddleOCR 失败，返回 pdfplumber 结果: {e}")
-
         # 正常 PDF：pdfplumber + Qwen 图表描述，轻度清洗即可
         return full_text, False
     finally:
@@ -1290,14 +1596,19 @@ def _extract_pdf_with_meta(row: dict) -> tuple:
 
 
 def _extract_audio(row: dict) -> str:
-    """audio: 下载 oss_url 并用 Groq/Gemini 转写"""
+    """audio: 下载 oss_url 并用 Groq/Gemini 转写，支持 file:// 本地路径"""
     oss_url = row.get("oss_url")
     if not oss_url:
         return ""
 
     import time
 
-    data = _download_file(oss_url, timeout=120)
+    if oss_url.startswith("file://"):
+        local_path = oss_url[7:]
+        with open(local_path, "rb") as f:
+            data = f.read()
+    else:
+        data = _download_file(oss_url, timeout=120)
 
     # 推断文件扩展名
     ext = ".mp3"
@@ -1345,9 +1656,7 @@ def _extract_audio(row: dict) -> str:
                     raise
 
         if groq_key:
-            logger.warning("两个 API 都受限，等待 10 分钟后重试 Groq...")
-            time.sleep(620)
-            return _transcribe_groq(tmp_path, groq_key)
+            raise RuntimeError("Groq/Gemini 均触发速率限制，跳过本条，下次重试")
 
         raise RuntimeError("未配置任何音频转写方案（funasr/groq/gemini）")
     finally:
@@ -1363,13 +1672,16 @@ def _parse_image_urls(text: str) -> list:
 # ==================== PaddleOCR ====================
 
 _paddle_ocr_instance = None
+_paddle_ocr_lock = threading.Lock()
 
 def _get_paddle_ocr():
-    """懒加载 PaddleOCR 实例（单例，避免重复初始化）"""
+    """懒加载 PaddleOCR 实例（单例，线程安全）"""
     global _paddle_ocr_instance
     if _paddle_ocr_instance is None:
-        from paddleocr import PaddleOCR
-        _paddle_ocr_instance = PaddleOCR(lang="ch")
+        with _paddle_ocr_lock:
+            if _paddle_ocr_instance is None:
+                from paddleocr import PaddleOCR
+                _paddle_ocr_instance = PaddleOCR(lang="ch")
     return _paddle_ocr_instance
 
 
@@ -1387,6 +1699,52 @@ def _ocr_image_bytes(image_bytes: bytes) -> str:
     # PaddleOCR 3.x: result[0]['rec_texts'] 是识别文字列表
     texts = result[0].get("rec_texts", []) if isinstance(result[0], dict) else []
     return "\n".join(t for t in texts if t)
+
+
+def _vision_fallback(image_bytes: bytes, title: str = "") -> str:
+    """图片识别降级：用 Qwen-VL-Max 视觉模型识别图片内容"""
+    import base64, tempfile, os
+    try:
+        from utils.model_router import call_model_vision
+        # 写临时文件（call_model_vision 支持本地路径）
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(image_bytes)
+            tmp_path = tmp.name
+        try:
+            prompt = (
+                f"这是一张关于'{title or '股票分析'}'的图片。"
+                "请详细识别并描述图片中的所有文字、数据、图表内容。用中文回复。"
+            )
+            result = call_model_vision("vision", prompt, [tmp_path], max_tokens=2000, timeout=60)
+            logger.info(f"[VISION_FALLBACK] Qwen视觉识别成功 ({len(result or '')}字)")
+            return result or ""
+        finally:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+    except Exception as e:
+        logger.warning(f"[VISION_FALLBACK] Qwen视觉识别失败: {e}")
+        return ""
+
+
+def _ocr_image_bytes_safe(image_bytes: bytes, title: str = "", timeout: int = 60) -> tuple:
+    """带超时的 OCR，失败自动切视觉模型。返回 (text, used_vision)"""
+    from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        fut = pool.submit(_ocr_image_bytes, image_bytes)
+        try:
+            text = fut.result(timeout=timeout)
+            if len(text.strip()) >= 20:
+                return text, False
+            # OCR 有结果但太短，不降级（可能是真的图片少字）
+            return text, False
+        except FutureTimeout:
+            logger.warning(f"[TIMEOUT] OCR 超时({timeout}s)，切换 Qwen-VL-Max: {title[:40]}")
+        except Exception as e:
+            logger.warning(f"[TIMEOUT] OCR 失败，切换 Qwen-VL-Max: {e}")
+    # 降级到 Qwen-VL-Max
+    return _vision_fallback(image_bytes, title), True
 
 
 def _ocr_pdf_with_paddle(pdf_path: str) -> str:

@@ -113,11 +113,13 @@ def _call_openai(model_name: str, api_key: str, base_url: str,
     except ImportError:
         raise RuntimeError("openai 包未安装，请运行: pip install openai")
 
+    import httpx
     client = openai.OpenAI(
         api_key=api_key or "placeholder",
         base_url=base_url or None,
         timeout=timeout,
         max_retries=retries,
+        http_client=httpx.Client(trust_env=False),
     )
     resp = client.chat.completions.create(
         model=model_name,
@@ -192,11 +194,13 @@ def _call_deepseek(model_name: str, api_key: str, base_url: str,
         effective_max_tokens = 8000
         logger.debug(f"deepseek-reasoner: 自动扩大 max_tokens {max_tokens} → {effective_max_tokens}")
 
+    import httpx
     client = openai.OpenAI(
         api_key=api_key or "placeholder",
         base_url=effective_base_url,
         timeout=timeout,
         max_retries=retries,
+        http_client=httpx.Client(trust_env=False),
     )
     resp = client.chat.completions.create(
         model=model_name,
@@ -235,11 +239,13 @@ def _call_minimax(model_name: str, api_key: str, base_url: str,
     effective_base_url = base_url or "https://api.minimax.chat/v1"
     effective_model = model_name or "kimi2.5"
 
+    import httpx
     client = openai.OpenAI(
         api_key=api_key or "placeholder",
         base_url=effective_base_url,
         timeout=timeout,
         max_retries=retries,
+        http_client=httpx.Client(trust_env=False),
     )
     resp = client.chat.completions.create(
         model=effective_model,
@@ -386,7 +392,9 @@ def call_model_with_tools(
             pass
     max_tokens = int(extra.get("max_tokens", 4096))
 
-    client = openai.OpenAI(api_key=api_key or "placeholder", base_url=base_url, timeout=120)
+    import httpx
+    client = openai.OpenAI(api_key=api_key or "placeholder", base_url=base_url, timeout=120,
+                           http_client=httpx.Client(trust_env=False))
 
     tool_calls_log = []
     messages = list(messages)  # 复制避免修改原始列表
@@ -512,10 +520,12 @@ def _call_openai_vision(model_name: str, api_key: str, base_url: str,
 
     content.append({"type": "text", "text": text_prompt})
 
+    import httpx
     client = openai.OpenAI(
         api_key=api_key or "placeholder",
         base_url=base_url or None,
         timeout=timeout,
+        http_client=httpx.Client(trust_env=False),
     )
     resp = client.chat.completions.create(
         model=model_name,

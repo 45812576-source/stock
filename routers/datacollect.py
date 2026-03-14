@@ -61,14 +61,18 @@ def _get_source_context():
                 "icon": gcfg["icon"], "color": gcfg["color"],
                 "sources": sources,
             })
+        from utils.fetch_config import DEFAULT_SCHEDULER_PARAMS
+        sp = fetch_settings.get("scheduler_params", {})
+        scheduler_params = {k: sp.get(k, v) for k, v in DEFAULT_SCHEDULER_PARAMS.items()}
         return {
             "fetch_settings": fetch_settings,
             "source_groups": source_groups,
             "zsxq_cookie": get_config("zsxq_cookie") or "",
             "zsxq_group_ids": get_config("zsxq_group_ids") or ",".join(__import__("config").ZSXQ_GROUP_IDS),
+            "scheduler_params": scheduler_params,
         }
     except Exception:
-        return {"fetch_settings": {"news_hours": 24, "sources": {}}, "source_groups": [], "zsxq_cookie": "", "zsxq_group_ids": ""}
+        return {"fetch_settings": {"news_hours": 24, "sources": {}}, "source_groups": [], "zsxq_cookie": "", "zsxq_group_ids": "", "scheduler_params": {}}
 
 
 def _get_source_doc_summary():
@@ -78,7 +82,7 @@ def _get_source_doc_summary():
     queries = {
         "et_total":    "SELECT COUNT(*) as n FROM extracted_texts",
         "pipeline_a":  "SELECT COUNT(DISTINCT extracted_text_id) as n FROM content_summaries",
-        "pipeline_b":  "SELECT COUNT(DISTINCT extracted_text_id) as n FROM stock_mentions",
+        "pipeline_b":  "SELECT COUNT(DISTINCT id) as n FROM daily_intel_stocks",
         "pipeline_c":  "SELECT COUNT(*) as n FROM extracted_texts WHERE kg_status='done'",
         "doc_stats":   "SELECT source, COUNT(*) as doc_count, SUM(CASE WHEN extract_status IN ('extracted','ready_to_pipe','done') THEN 1 ELSE 0 END) as extracted_count FROM source_documents GROUP BY source",
     }
@@ -1172,6 +1176,13 @@ async def api_save_sources(request: Request):
     if "zsxq_group_ids" in body:
         from utils.sys_config import set_config
         set_config("zsxq_group_ids", body["zsxq_group_ids"])
+    if "scheduler_params" in body:
+        from utils.fetch_config import DEFAULT_SCHEDULER_PARAMS
+        sp = settings.setdefault("scheduler_params", {})
+        for k, default_v in DEFAULT_SCHEDULER_PARAMS.items():
+            if k in body["scheduler_params"]:
+                val = body["scheduler_params"][k]
+                sp[k] = int(val) if val is not None else default_v
     save_fetch_settings(settings)
     return {"ok": True}
 
@@ -1340,44 +1351,48 @@ def api_run_pipeline(
             from utils.db_utils import execute_cloud_query
             from concurrent.futures import ThreadPoolExecutor, as_completed as _as_completed
 
-            need_a = pipeline in ("a", "abc", "abcd")
-            need_b = pipeline in ("b2", "abc", "abcd")
-            need_c = pipeline in ("c", "abc", "abcd")
-            need_d = pipeline in ("d", "abcd")
+            need_a = pipeline in ("a", "ac", "acd", "abc", "abcd")
+            need_c = pipeline in ("c", "ac", "acd", "abc", "abcd")
+            need_d = pipeline in ("d", "acd", "abcd")
+
+            # Robust Kline 排除条件
+            _RK_KEYWORDS = ["调研日报", "评级日报", "脱水研报", "早知道", "强势股脱水", "风口研报", "公告全知道"]
+            _RK_AUTHORS = ["夏天", "白白"]
+            rk_title_filter = " AND ".join([f"sd.title NOT LIKE %s" for _ in _RK_KEYWORDS])
+            rk_author_filter = " AND ".join([f"sd.author != %s" for _ in _RK_AUTHORS])
+            rk_exclude = f"AND ({rk_title_filter}) AND ({rk_author_filter})"
+            rk_params = [f"%{kw}%" for kw in _RK_KEYWORDS] + list(_RK_AUTHORS)
 
             # 构建 WHERE 条件，只查该管线需要处理的记录
             conditions = []
             if need_a:
                 conditions.append("cs.id IS NULL")
-            if need_b:
-                conditions.append("(et.mentions_status IS NULL OR et.mentions_status != 'done')")
             if need_c:
                 conditions.append("(et.kg_status IS NULL OR et.kg_status != 'done')")
             if need_d:
-                # D 管线没有独立状态列，按 family=2 文档类型过滤（research_report/strategy_report/roadshow_notes/feature_news）
                 conditions.append("sd.doc_type IN ('research_report','strategy_report','roadshow_notes','feature_news')")
             where = " OR ".join(conditions) if conditions else "1=0"
 
             pending = execute_cloud_query(
                 f"""SELECT DISTINCT et.id,
                           (cs.id IS NULL) as need_a,
-                          (et.mentions_status IS NULL OR et.mentions_status != 'done') as need_b,
                           (et.kg_status IS NULL OR et.kg_status != 'done') as need_c,
                           1 as need_d
                    FROM extracted_texts et
                    LEFT JOIN content_summaries cs ON et.id = cs.extracted_text_id
                    LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
-                   WHERE {where}
+                   WHERE ({where})
+                   {rk_exclude}
                    ORDER BY et.id
                    LIMIT %s""",
-                [limit],
+                rk_params + [limit],
             ) or []
 
             total = len(pending)
             task["total"] = total
             task["current"] = f"待处理 {total} 条"
             ok, fail = 0, 0
-            total_a, total_b2, total_c, total_chunks, total_d = 0, 0, 0, 0, 0
+            total_a, total_c, total_chunks, total_d = 0, 0, 0, 0
 
             def should_cancel():
                 while task.get("paused"):
@@ -1390,7 +1405,6 @@ def api_run_pipeline(
                 return process_single(
                     row["id"],
                     need_a=need_a and bool(row["need_a"]),
-                    need_b=need_b and bool(row["need_b"]),
                     need_c=need_c and bool(row["need_c"]),
                     need_d=need_d and bool(row.get("need_d", 1)),
                     on_status=_on_status,
@@ -1409,7 +1423,6 @@ def api_run_pipeline(
                         r, row = fut.result()
                         if r.get("summary_id"):
                             total_a += 1
-                        total_b2 += r.get("mentions", 0)
                         total_c += r.get("kg_rels", 0)
                         total_chunks += r.get("chunks", 0)
                         total_d += r.get("indicators", 0)
@@ -1422,7 +1435,7 @@ def api_run_pipeline(
 
             task["results"].append({
                 "source": f"管线{pipeline.upper()}", "ok": True,
-                "count": f"成功{ok}, 失败{fail}, A={total_a}, B={total_b2}, C={total_c}, D={total_d}, 切片={total_chunks}",
+                "count": f"成功{ok}, 失败{fail}, A={total_a}, C={total_c}, D={total_d}, 切片={total_chunks}",
             })
         except Exception as e:
             logger.error(f"run_pipeline {pipeline} error: {e}")
@@ -1804,6 +1817,7 @@ def _do_extract_and_save(row: dict) -> tuple:
         "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
         [text, new_doc_type, row["id"]],
     )
+    _sd_cache_invalidate()
     return text or "", needs_reextract
 
 
@@ -2031,7 +2045,7 @@ async def api_ai_clean_text(request: Request):
 
 @router.post("/api/approve-docs", response_class=JSONResponse)
 async def api_approve_docs(request: Request):
-    """保存编辑后的提取文本，更新状态为 extracted（不自动入管线）"""
+    """保存编辑后的提取文本，更新状态为 ready_to_pipe（审核即确认，直接推进）"""
     from utils.db_utils import execute_cloud_insert
 
     body = await request.json()
@@ -2050,12 +2064,12 @@ async def api_approve_docs(request: Request):
         try:
             if edited_text is not None:
                 execute_cloud_insert(
-                    "UPDATE source_documents SET extracted_text=%s, extract_status='extracted' WHERE id=%s",
+                    "UPDATE source_documents SET extracted_text=%s, extract_status='ready_to_pipe' WHERE id=%s",
                     [edited_text, doc_id],
                 )
             else:
                 execute_cloud_insert(
-                    "UPDATE source_documents SET extract_status='extracted' WHERE id=%s",
+                    "UPDATE source_documents SET extract_status='ready_to_pipe' WHERE id=%s",
                     [doc_id],
                 )
             saved += 1
@@ -2174,7 +2188,8 @@ async def api_upload_chart_images(
         # 获取文档标题用于 context
         title = ""
         if doc_id:
-            rows = execute_cloud_query(
+            from utils.db_utils import execute_cloud_query as _ecq
+            rows = _ecq(
                 "SELECT title FROM source_documents WHERE id = %s", [doc_id]
             )
             title = rows[0]["title"] if rows else ""
@@ -2435,6 +2450,8 @@ async def api_get_source_documents_stats():
         "done": 0,
         "rejected": 0,
         "remix": 0,
+        "url_expired": 0,
+        "skipped": 0,
     }
 
     for r in rows or []:

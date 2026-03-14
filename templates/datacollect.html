@@ -73,7 +73,7 @@
           <p class="text-xl font-bold text-blue-400 font-mono" data-stat="pipeline_a">—</p>
         </div>
         <div class="bg-slate-800/50 rounded-lg p-3 text-center">
-          <p class="text-[10px] text-emerald-400/70 uppercase font-bold mb-1">B · 提及</p>
+          <p class="text-[10px] text-emerald-400/70 uppercase font-bold mb-1">B · 情报</p>
           <p class="text-xl font-bold text-emerald-400 font-mono" data-stat="pipeline_b">—</p>
         </div>
         <div class="bg-slate-800/50 rounded-lg p-3 text-center">
@@ -172,7 +172,7 @@
   <div class="p-4 border-b border-slate-800 flex items-center gap-2">
     <span class="material-icons-round text-amber-400 text-base">auto_fix_high</span>
     <h3 class="font-bold text-sm">清洗管线手动触发</h3>
-    <span class="text-[10px] text-slate-500 ml-2">extracted_texts → content_summaries / stock_mentions / KG</span>
+    <span class="text-[10px] text-slate-500 ml-2">extracted_texts → content_summaries / KG</span>
   </div>
   <div class="p-4">
     <div class="flex items-center gap-3 mb-4">
@@ -198,11 +198,6 @@
         <span class="material-icons-round text-base">summarize</span>
         <div class="text-left"><div>独立提取 A</div><div class="text-[10px] font-normal text-blue-400/60">content_summaries (Claude)</div></div>
       </button>
-      <button onclick="runPipeline('b2')"
-              class="flex items-center gap-2 px-4 py-3 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded-xl text-sm font-bold text-emerald-400 transition">
-        <span class="material-icons-round text-base">trending_up</span>
-        <div class="text-left"><div>独立提取 B</div><div class="text-[10px] font-normal text-emerald-400/60">stock_mentions (DeepSeek)</div></div>
-      </button>
       <button onclick="runPipeline('c')"
               class="flex items-center gap-2 px-4 py-3 bg-violet-500/10 hover:bg-violet-500/20 border border-violet-500/30 rounded-xl text-sm font-bold text-violet-400 transition">
         <span class="material-icons-round text-base">account_tree</span>
@@ -213,10 +208,10 @@
         <span class="material-icons-round text-base">bar_chart</span>
         <div class="text-left"><div>独立提取 D</div><div class="text-[10px] font-normal text-rose-400/60">行业指标 (Reasoner)</div></div>
       </button>
-      <button onclick="runPipeline('abcd')"
+      <button onclick="runPipeline('acd')"
               class="col-span-2 flex items-center justify-center gap-2 px-4 py-3 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl text-sm font-bold text-amber-400 transition">
         <span class="material-icons-round text-base">bolt</span>
-        <div class="text-left"><div>ABCD 并发</div><div class="text-[10px] font-normal text-amber-400/60">四管线同时执行</div></div>
+        <div class="text-left"><div>ACD 并发</div><div class="text-[10px] font-normal text-amber-400/60">三管线同时执行</div></div>
       </button>
     </div>
     <div id="pipelineStatus" class="hidden bg-slate-800/60 rounded-lg p-3 text-xs">
@@ -526,6 +521,69 @@
   {% endfor %}
 </div>
 
+<!-- 定时任务参数配置 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-3">
+    <span class="material-icons-round text-amber-400">timer</span>
+    <h3 class="font-bold text-sm">定时任务参数</h3>
+    <span class="text-xs text-slate-500 ml-2">控制 Scheduler 每次任务的采集量和回溯窗口</span>
+  </div>
+  <div class="divide-y divide-slate-800/50">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-slate-800/50">
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">zsxq 回溯小时</p>
+        <p class="text-[10px] text-slate-600 mb-2">07:30/17:00 采集窗口</p>
+        <input type="number" id="sp_zsxq_hours" value="{{ scheduler_params.zsxq_hours }}" min="1" max="168"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">zsxq 最大翻页</p>
+        <p class="text-[10px] text-slate-600 mb-2">每次采集页数上限</p>
+        <input type="number" id="sp_zsxq_max_pages" value="{{ scheduler_params.zsxq_max_pages }}" min="1" max="100"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">研报采集条数</p>
+        <p class="text-[10px] text-slate-600 mb-2">fxbaogao / djyanbao</p>
+        <input type="number" id="sp_report_limit" value="{{ scheduler_params.report_limit }}" min="1" max="500"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">东财通用研报条数</p>
+        <p class="text-[10px] text-slate-600 mb-2">每类型 (股/行业/策略)</p>
+        <input type="number" id="sp_em_report_limit" value="{{ scheduler_params.em_report_limit }}" min="1" max="100"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+    </div>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-0 divide-x divide-slate-800/50">
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">东财研报回溯天数</p>
+        <p class="text-[10px] text-slate-600 mb-2">通用采集的日期窗口</p>
+        <input type="number" id="sp_em_report_days" value="{{ scheduler_params.em_report_days }}" min="1" max="30"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">Portfolio 增量天数</p>
+        <p class="text-[10px] text-slate-600 mb-2">每次检查新研报的窗口</p>
+        <input type="number" id="sp_portfolio_daily_days" value="{{ scheduler_params.portfolio_daily_days }}" min="1" max="30"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">文档提取条数</p>
+        <p class="text-[10px] text-slate-600 mb-2">08:30/19:30 extract_batch</p>
+        <input type="number" id="sp_extract_limit" value="{{ scheduler_params.extract_limit }}" min="10" max="500"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+      <div class="px-5 py-4">
+        <p class="text-xs text-slate-400 mb-1">大文件提取条数</p>
+        <p class="text-[10px] text-slate-600 mb-2">02:00 大文件凌晨批次</p>
+        <input type="number" id="sp_large_extract_limit" value="{{ scheduler_params.large_extract_limit }}" min="10" max="200"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-sm text-white text-center font-mono focus:border-amber-500 focus:outline-none">
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="flex gap-3">
   <button onclick="saveSources()" id="saveSourcesBtn"
           class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition">
@@ -771,9 +829,6 @@ function pollPipeline(taskId) {
         } else if (cur.includes('a=') || cur.includes('摘要') || cur.includes('summary')) {
           stageText = 'A · 摘要'; stageColor = 'bg-blue-900/60 text-blue-300';
           barEl.className = 'bg-blue-400 h-1.5 rounded-full transition-all';
-        } else if (cur.includes('b') || cur.includes('提及') || cur.includes('mention')) {
-          stageText = 'B · 提及'; stageColor = 'bg-emerald-900/60 text-emerald-300';
-          barEl.className = 'bg-emerald-400 h-1.5 rounded-full transition-all';
         } else if (cur.includes('c') || cur.includes('kg') || cur.includes('三元')) {
           stageText = 'C · KG'; stageColor = 'bg-violet-900/60 text-violet-300';
           barEl.className = 'bg-violet-400 h-1.5 rounded-full transition-all';
@@ -1170,11 +1225,19 @@ async function saveSources() {
     const pagesEl = document.querySelector(`[data-source-pages="${key}"]`);
     if (pagesEl) sources[key].max_pages = parseInt(pagesEl.value) || null;
   });
+  const spKeys = ['zsxq_hours','zsxq_max_pages','report_limit','em_report_limit',
+                  'em_report_days','portfolio_daily_days','extract_limit','large_extract_limit'];
+  const scheduler_params = {};
+  spKeys.forEach(k => {
+    const el = document.getElementById('sp_' + k);
+    if (el) scheduler_params[k] = parseInt(el.value) || null;
+  });
   const body = {
     sources,
     news_hours: parseInt(document.getElementById('newsHours').value) || 24,
     zsxq_cookie: document.getElementById('zsxqCookie').value,
     zsxq_group_ids: document.getElementById('zsxqGroupIds').value,
+    scheduler_params,
   };
   try {
     const res = await fetch('/data/api/save-sources', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});

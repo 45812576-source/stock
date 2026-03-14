@@ -24,6 +24,7 @@ from config.doc_types import FAMILY_MAP, classify_doc_type
 from cleaning.summary_prompts import (
     DOC_TYPE_CLASSIFY_PROMPT,
     DIGEST_SPLIT_PROMPT,
+    SOCIAL_POST_SPLIT_PROMPT,
     get_summary_prompt,
 )
 from utils.db_utils import execute_cloud_query, execute_cloud_insert, sync_summary_to_local
@@ -133,6 +134,58 @@ def _split_digest(text: str) -> list[dict]:
     return [{"title": "", "text": text}]
 
 
+# ── social_post 拆条 ─────────────────────────────────────────────────────────
+
+def _split_social_post(text: str) -> list[dict]:
+    """将社媒帖子按主题/公司拆分为独立条目
+
+    Returns:
+        [{"topic": str, "topics": list, "text": str, "has_data": bool, "stocks": list}, ...]
+    """
+    try:
+        raw = _call_model(SOCIAL_POST_SPLIT_PROMPT, text[:8000], family=3, max_tokens=8000)
+        items = _parse_json(raw)
+        # 截断修复：如果 JSON 不完整，尝试修复
+        if items is None and raw and raw.strip().startswith("["):
+            items = _repair_truncated_json_array(raw)
+        if isinstance(items, list) and items:
+            valid = []
+            for item in items:
+                if isinstance(item, dict) and item.get("text"):
+                    valid.append(item)
+            if valid:
+                return valid
+    except Exception as e:
+        logger.warning(f"social_post 拆条失败: {e}")
+    return [{"topic": "", "topics": [], "text": text, "has_data": False, "stocks": []}]
+
+
+def _repair_truncated_json_array(raw: str) -> Optional[list]:
+    """修复被截断的 JSON 数组：尝试截取到最后一个完整的 } 并关闭数组"""
+    raw = raw.strip()
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1] if len(parts) > 1 else raw
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    # 找最后一个完整的 },
+    last_brace = raw.rfind("}")
+    if last_brace > 0:
+        candidate = raw[:last_brace + 1]
+        # 确保以 ] 结束
+        if not candidate.strip().endswith("]"):
+            candidate = candidate.rstrip().rstrip(",") + "\n]"
+        try:
+            result = json.loads(candidate)
+            if isinstance(result, list):
+                logger.info(f"[A] 截断JSON修复成功，恢复 {len(result)} 条")
+                return result
+        except Exception:
+            pass
+    return None
+
+
 # ── 单条处理：写 content_summaries（type_fields 存族特有字段）────────────────
 
 def _process_one(
@@ -140,6 +193,7 @@ def _process_one(
     text: str,
     doc_type: str,
     publish_time=None,
+    split_meta: Optional[dict] = None,
 ) -> Optional[int]:
     """对单条文本（已知 doc_type）走分族摘要，写入 content_summaries
 
@@ -171,6 +225,13 @@ def _process_one(
 
     # 族特有字段存 type_fields JSON（不再写 detail 表）
     type_fields = _extract_type_fields(result, family)
+
+    # 拆条 social_post：把拆条元数据（topic/commodities/has_data）存入 type_fields
+    if split_meta:
+        type_fields["split_topic"] = split_meta.get("topic", "")
+        type_fields["split_topics"] = split_meta.get("topics", [])
+        type_fields["split_has_data"] = split_meta.get("has_data", False)
+        type_fields["split_stocks"] = split_meta.get("stocks", [])
 
     cs_id = execute_cloud_insert(
         """INSERT INTO content_summaries
@@ -296,6 +357,193 @@ def _flatten_opinions(r: dict) -> str:
     return "\n".join(parts)
 
 
+# ── social_post 拆条 → daily_intel_stocks 写入 ─────────────────────────────
+
+def _write_daily_intel_stocks(extracted_text_id: int, stocks: list[dict], publish_time):
+    """将拆条中提取的 stocks 写入 daily_intel_stocks（复用 daily_intel 表结构）"""
+    try:
+        from utils.db_utils import execute_query, execute_cloud_insert
+        from datetime import date
+
+        # 查 source_documents 标题
+        sd_rows = execute_cloud_query(
+            """SELECT sd.title FROM extracted_texts et
+               LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
+               WHERE et.id=%s""",
+            [extracted_text_id],
+        )
+        source_title = sd_rows[0].get("title", "") if sd_rows else ""
+
+        # name→code 映射
+        name_code_rows = execute_query(
+            "SELECT stock_code, stock_name FROM stock_info"
+        )
+        name_code_map = {r["stock_name"]: r["stock_code"] for r in (name_code_rows or []) if r.get("stock_name")}
+
+        scan_date = str(publish_time)[:10] if publish_time else str(date.today())
+
+        count = 0
+        for s in stocks:
+            if not isinstance(s, dict):
+                continue
+            sname = (s.get("stock_name") or "").strip()
+            if not sname:
+                continue
+            scode = (s.get("stock_code") or "").strip() or name_code_map.get(sname) or None
+
+            execute_cloud_insert(
+                """INSERT INTO daily_intel_stocks
+                   (scan_date, source_type, source_id, source_title,
+                    stock_name, stock_code, industry, business_desc,
+                    event_type, event_summary)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                [
+                    scan_date, "zsxq", extracted_text_id,
+                    (source_title or "")[:500],
+                    sname[:50],
+                    scode[:20] if scode else None,
+                    (s.get("industry") or "")[:100],
+                    "",  # business_desc 拆条 prompt 未提取
+                    (s.get("event_type") or "")[:50],
+                    (s.get("event_summary") or ""),
+                ],
+            )
+            count += 1
+        logger.info(f"[A] social_post 写入 daily_intel_stocks {count} 条 id={extracted_text_id}")
+        return count
+    except Exception as e:
+        logger.warning(f"[A] daily_intel_stocks 写入失败 id={extracted_text_id}: {e}")
+        return 0
+
+
+# ── 公共入口：social_post 按需拆条（幂等）──────────────────────────────────────
+
+def ensure_social_post_split(extracted_text_id: int) -> dict:
+    """确保 social_post 已完成拆条+摘要+stocks提取。幂等：已done则直接读缓存。
+
+    触发方：daily_intel scanner / deep_researcher / unified_pipeline
+    返回:
+        {
+            "items": [{"topic", "topics", "has_data", "stocks"}, ...],
+            "stocks": [{stock_name, stock_code, ...}, ...],  # 所有拆条的 stocks 汇总
+            "cs_ids": [int, ...],  # content_summaries.id 列表
+            "from_cache": bool,
+        }
+    """
+    # 检查是否已处理过
+    et_rows = execute_cloud_query(
+        "SELECT id, full_text, publish_time, summary_status FROM extracted_texts WHERE id=%s",
+        [extracted_text_id],
+    )
+    if not et_rows:
+        return {"items": [], "stocks": [], "cs_ids": [], "from_cache": False}
+
+    row = et_rows[0]
+    full_text = row["full_text"] or ""
+    publish_time = row.get("publish_time")
+
+    # 已 done → 从 content_summaries 读缓存
+    if row.get("summary_status") == "done":
+        return _read_split_cache(extracted_text_id)
+
+    if not full_text.strip():
+        return {"items": [], "stocks": [], "cs_ids": [], "from_cache": False}
+
+    if len(full_text) > 12000:
+        full_text = full_text[:12000] + "\n\n[文本已截断]"
+
+    # 执行拆条
+    items = _split_social_post(full_text)
+    logger.info(f"[split] social_post 拆出 {len(items)} 条 id={extracted_text_id}")
+
+    inserted_cs_ids = []
+    all_stocks = []
+    for item in items:
+        item_text = item.get("text", "")
+        if not item_text.strip():
+            continue
+        item_stocks = item.get("stocks") or []
+        if item_stocks:
+            all_stocks.extend(item_stocks)
+        item_topics = item.get("topics") or []
+        item_stock_codes = [s.get("stock_code") for s in item_stocks if isinstance(s, dict) and s.get("stock_code")]
+        cs_id = _process_one(
+            extracted_text_id, item_text, "social_post",
+            publish_time=publish_time,
+            split_meta={
+                "topic": item.get("topic", ""),
+                "topics": item_topics,
+                "has_data": item.get("has_data", False),
+                "stocks": item_stocks,
+            },
+        )
+        if cs_id:
+            inserted_cs_ids.append(cs_id)
+
+        # 拆条结果写入 text_chunks + Milvus（细粒度向量检索）
+        try:
+            from retrieval.chunker import chunk_and_index
+            chunk_and_index(
+                extracted_text_id=extracted_text_id,
+                full_text=item_text,
+                doc_type="social_post_split",
+                publish_time=publish_time,
+                extra_tags={
+                    "topics": item_topics,
+                    "stock_codes": item_stock_codes,
+                },
+            )
+        except Exception as _chunk_err:
+            logger.warning(f"[A] 拆条入Milvus失败 et_id={extracted_text_id}: {_chunk_err}")
+
+    if all_stocks:
+        _write_daily_intel_stocks(extracted_text_id, all_stocks, publish_time)
+
+    _finalize(extracted_text_id, inserted_cs_ids)
+
+    return {
+        "items": items,
+        "stocks": all_stocks,
+        "cs_ids": inserted_cs_ids,
+        "from_cache": False,
+    }
+
+
+def _read_split_cache(extracted_text_id: int) -> dict:
+    """从 content_summaries 读取已有的拆条结果"""
+    cs_rows = execute_cloud_query(
+        """SELECT id, type_fields FROM content_summaries
+           WHERE extracted_text_id=%s AND doc_type='social_post'
+           ORDER BY id""",
+        [extracted_text_id],
+    )
+    items = []
+    all_stocks = []
+    cs_ids = []
+    for cs_row in (cs_rows or []):
+        cs_ids.append(cs_row["id"])
+        tf_raw = cs_row.get("type_fields") or "{}"
+        try:
+            tf = json.loads(tf_raw) if isinstance(tf_raw, str) else (tf_raw or {})
+        except Exception:
+            tf = {}
+        item = {
+            "topic": tf.get("split_topic", ""),
+            "topics": tf.get("split_topics", []),
+            "has_data": tf.get("split_has_data", False),
+            "stocks": tf.get("split_stocks", []),
+        }
+        items.append(item)
+        all_stocks.extend(item["stocks"])
+
+    return {
+        "items": items,
+        "stocks": all_stocks,
+        "cs_ids": cs_ids,
+        "from_cache": True,
+    }
+
+
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 
 def summarize_single(extracted_text_id: int) -> Optional[int]:
@@ -362,6 +610,10 @@ def summarize_single(extracted_text_id: int) -> Optional[int]:
                 inserted_cs_ids.append(cs_id)
         _finalize(extracted_text_id, inserted_cs_ids)
         return first_cs_id
+
+    if doc_type == "social_post":
+        result = ensure_social_post_split(extracted_text_id)
+        return result["cs_ids"][0] if result["cs_ids"] else None
 
     cs_id = _process_one(extracted_text_id, full_text, doc_type, publish_time=publish_time)
     _finalize(extracted_text_id, [cs_id] if cs_id else [])

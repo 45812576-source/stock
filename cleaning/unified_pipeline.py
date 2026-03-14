@@ -1,9 +1,10 @@
-"""统一清洗管线 — 对同一条 extracted_text 并发执行三条管线
+"""统一清洗管线 — 对同一条 extracted_text 并发执行管线
 
 Pipeline S:  semantic_clean      (DeepSeek, 前置语义清洗)
 Pipeline A:  content_summaries   (Claude via call_model_json)
-Pipeline B2: stock_mentions      (DeepSeek)
 Pipeline C:  KG triples          (DeepSeek)
+
+注意：Robust Kline 关键词文件（标题含特定关键词或帖主为夏天/白白）不进本管线。
 
 用法：
     from cleaning.unified_pipeline import process_single, process_pending
@@ -21,7 +22,7 @@ from typing import Optional
 from utils.db_utils import (
     execute_cloud_query, execute_cloud_insert,
     execute_query, execute_insert,
-    sync_summary_to_local, sync_mentions_to_local,
+    sync_summary_to_local,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,8 +43,10 @@ def _get_deepseek():
                 )
                 if not rows:
                     raise RuntimeError("system_config 中未找到 deepseek_api_key")
+                import httpx
                 _deepseek_client = OpenAI(
-                    api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1"
+                    api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1",
+                    http_client=httpx.Client(trust_env=False),
                 )
     return _deepseek_client
 
@@ -208,79 +211,6 @@ def _run_pipeline_a(extracted_text_id: int, full_text: str) -> Optional[int]:
         return None
 
 
-# ── Pipeline B2: stock_mentions ───────────────────────────────────────────────
-
-_STOCK_MENTIONS_PROMPT = """你是专业的金融信息分析专家。请从以下文本中提取所有被**明确提及**的股票/上市公司标的。
-
-严格规则：
-1. 只提取文本中**直接出现**的具体股票名称或代码，不推断、不联想相关公司
-2. 股票名称必须是具体的上市公司名称（如"宁德时代"、"比亚迪"），不接受模糊描述
-3. 数据提供商、指数编制机构（如万得资讯、中证指数）不算投资标的
-4. 如果文本中没有明确提及任何具体股票，直接返回空数组 []
-
-输出 JSON 数组，每个元素：
-{
-  "stock_name": "股票/标的名称（具体公司名）",
-  "stock_code": "代码（如有，如 600519.SH）",
-  "related_themes": "相关题材/概念（逗号分隔）",
-  "related_events": "文本中提及的相关事件",
-  "theme_logic": "为什么这个股票和这个题材相关（基于文本内容）",
-  "mention_time": "报道发布时间（如有，格式 YYYY-MM-DD HH:MM:SS，否则留空）"
-}"""
-
-
-def _run_pipeline_b2(extracted_text_id: int, full_text: str, publish_time) -> int:
-    """返回写入的 stock_mentions 条数"""
-    try:
-        raw = _call_deepseek(_STOCK_MENTIONS_PROMPT, full_text)
-        mentions = _parse_json(raw)
-    except Exception as e:
-        logger.error(f"[B2] DeepSeek 失败 id={extracted_text_id}: {e}")
-        return 0
-    if not isinstance(mentions, list) or not mentions:
-        execute_cloud_insert(
-            "UPDATE extracted_texts SET mentions_status='done' WHERE id=%s",
-            [extracted_text_id],
-        )
-        return 0
-
-    inserted_ids = []
-    for m in mentions:
-        if not m.get("stock_name"):
-            continue
-        mt = m.get("mention_time") or ""
-        if not mt and publish_time:
-            mt = str(publish_time)
-        if not mt:
-            mt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        mid = execute_cloud_insert(
-            """INSERT INTO stock_mentions
-               (extracted_text_id, stock_name, stock_code,
-                related_themes, related_events, theme_logic, mention_time)
-               VALUES (%s,%s,%s,%s,%s,%s,%s)""",
-            [extracted_text_id,
-             m.get("stock_name", ""),
-             m.get("stock_code") or None,
-             m.get("related_themes") or None,
-             m.get("related_events") or None,
-             m.get("theme_logic") or None,
-             mt],
-        )
-        if mid:
-            inserted_ids.append(mid)
-    
-    execute_cloud_insert(
-        "UPDATE extracted_texts SET mentions_status='done' WHERE id=%s",
-        [extracted_text_id],
-    )
-
-    if inserted_ids:
-        try:
-            sync_mentions_to_local(inserted_ids)
-        except Exception as e:
-            logger.warning(f"[B2] 同步本地失败: {e}")
-    return len(inserted_ids)
-
 # ── Pipeline C: KG triples ────────────────────────────────────────────────────
 
 def _run_pipeline_c(extracted_text_id: int, full_text: str) -> int:
@@ -382,15 +312,15 @@ def _link_relationship_to_chunks(
 
 # ── 主入口 ────────────────────────────────────────────────────────────────────
 
-def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True,
-                   need_d=True, on_status=None, rerun_a=False) -> dict:
-    """对单条 extracted_text 先做语义清洗(S)，再并发执行三条管线(A/B2/C)，串行执行管线D
+def process_single(extracted_text_id: int, need_a=True, need_c=True,
+                   need_d=True, on_status=None, rerun_a=False, **_kwargs) -> dict:
+    """对单条 extracted_text 先做语义清洗(S)，再并发执行管线(A/C)，串行执行管线D
 
     on_status(stage, msg): 可选回调，用于向调用方汇报当前阶段
     rerun_a: 为 True 时清除旧 content_summaries 记录并重跑 Pipeline A
     need_d: 为 True 时对研报/行业分析类文档执行 Pipeline D 行业指标抽取
     Returns:
-        {"summary_id": int|None, "mentions": int, "kg_rels": int, "semantic_cleaned": bool, "chunks": int, "indicators": int}
+        {"summary_id": int|None, "kg_rels": int, "semantic_cleaned": bool, "chunks": int, "indicators": int}
     """
     # 重跑：清除该 extracted_text 的旧摘要记录，重置 summary_status
     if rerun_a:
@@ -409,12 +339,12 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
         [extracted_text_id],
     )
     if not rows:
-        return {"summary_id": None, "mentions": 0, "kg_rels": 0, "semantic_cleaned": False}
+        return {"summary_id": None, "kg_rels": 0, "semantic_cleaned": False}
 
     row = rows[0]
     full_text = row["full_text"] or ""
     if not full_text.strip():
-        return {"summary_id": None, "mentions": 0, "kg_rels": 0, "semantic_cleaned": False}
+        return {"summary_id": None, "kg_rels": 0, "semantic_cleaned": False}
 
     # ★ Pipeline S: 语义清洗（前置步骤，所有文件类型）
     semantic_cleaned = False
@@ -430,11 +360,11 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
                     full_text = _s_fut.result(timeout=180)  # 最多等3分钟
                     semantic_cleaned = True
                 except Exception as _s_err:
-                    logger.warning(f"[S] 语义清洗超时/失败 id={extracted_text_id}: {_s_err}，跳过继续执行A/B2/C")
+                    logger.warning(f"[S] 语义清洗超时/失败 id={extracted_text_id}: {_s_err}，跳过继续执行A/C")
         except Exception as e:
             logger.error(f"[S] 语义清洗异常 id={extracted_text_id}: {e}")
 
-    # ★ 切片 + 向量索引（S完成后、A/B2/C之前）
+    # ★ 切片 + 向量索引（S完成后、A/C之前）
     chunks_count = 0
     try:
         from retrieval.chunker import chunk_and_index
@@ -467,15 +397,13 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
     if len(full_text) > 12000:
         full_text = full_text[:12000] + "\n\n[文本已截断]"
 
-    results = {"summary_id": None, "mentions": 0, "kg_rels": 0, "semantic_cleaned": semantic_cleaned,
+    results = {"summary_id": None, "kg_rels": 0, "semantic_cleaned": semantic_cleaned,
                "chunks": chunks_count, "indicators": 0}
     futures = {}
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=2) as pool:
         if need_a:
             futures["a"] = pool.submit(_run_pipeline_a, extracted_text_id, full_text)
-        if need_b:
-            futures["b"] = pool.submit(_run_pipeline_b2, extracted_text_id, full_text, row.get("publish_time"))
         if need_c:
             futures["c"] = pool.submit(_run_pipeline_c, extracted_text_id, full_text)
 
@@ -484,8 +412,6 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
                 val = fut.result()
                 if key == "a":
                     results["summary_id"] = val
-                elif key == "b":
-                    results["mentions"] = val
                 else:
                     results["kg_rels"] = val
             except Exception as e:
@@ -526,6 +452,29 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
                 if on_status:
                     on_status("D", f"行业指标抽取(精细) id={extracted_text_id}")
                 indicators_count = run_pipeline_d(extracted_text_id, full_text or "")
+            elif family_d == 3:  # social_post：只对含数据的拆条结果执行指标抽取
+                # 检查该文档是否有拆条后 has_data=True 的条目
+                has_data_items = execute_cloud_query(
+                    """SELECT id, type_fields FROM content_summaries
+                       WHERE extracted_text_id=%s AND doc_type='social_post'""",
+                    [extracted_text_id],
+                )
+                has_data_texts = []
+                for cs_row in (has_data_items or []):
+                    tf_raw = cs_row.get("type_fields") or "{}"
+                    try:
+                        tf = json.loads(tf_raw) if isinstance(tf_raw, str) else tf_raw
+                    except Exception:
+                        tf = {}
+                    if tf.get("split_has_data"):
+                        # 取该拆条的原文（从 type_fields 重建）
+                        # content_summaries 没存原文，用 fact_summary/opinion_summary 重建
+                        has_data_texts.append(tf)
+                if has_data_texts:
+                    from cleaning.industry_indicator_extractor import run_pipeline_d
+                    if on_status:
+                        on_status("D", f"行业指标抽取(social) id={extracted_text_id} {len(has_data_texts)}条含数据")
+                    indicators_count = run_pipeline_d(extracted_text_id, full_text or "")
         except Exception as e:
             logger.warning(f"[D] 行业指标抽取跳过 id={extracted_text_id}: {e}")
 
@@ -536,43 +485,50 @@ def process_single(extracted_text_id: int, need_a=True, need_b=True, need_c=True
 
 def process_pending(batch_size: int = 50, sleep: float = 0.5, should_cancel=None,
                     max_workers: int = 5, on_progress=None, rerun_a=False) -> dict:
-    """处理所有 A/B/C 任意一条管线缺失的 extracted_texts，并发处理多条
+    """处理所有 A/C 任意一条管线缺失的 extracted_texts，并发处理多条
 
+    排除 Robust Kline 专用文件（标题含关键词或帖主为夏天/白白）。
     rerun_a: 为 True 时对所有记录强制重跑 Pipeline A（用于 prompt 升级后全量重跑）
     on_progress(done, total, et_id, result): 每完成一条时回调
     """
+    # Robust Kline 排除条件（与 robust_kline/scanner.py 保持一致）
+    _RK_KEYWORDS = ["调研日报", "评级日报", "脱水研报", "早知道", "强势股脱水", "风口研报", "公告全知道"]
+    _RK_AUTHORS = ["夏天", "白白"]
+    rk_title_filter = " AND ".join([f"sd.title NOT LIKE %s" for _ in _RK_KEYWORDS])
+    rk_author_filter = " AND ".join([f"sd.author != %s" for _ in _RK_AUTHORS])
+    rk_exclude_clause = f"AND ({rk_title_filter}) AND ({rk_author_filter})"
+    rk_params = [f"%{kw}%" for kw in _RK_KEYWORDS] + list(_RK_AUTHORS)
+
     if rerun_a:
-        # 重跑模式：取所有有 full_text 的记录
         pending = execute_cloud_query(
-            """SELECT id,
+            f"""SELECT et.id,
                       1 as need_a,
-                      (mentions_status IS NULL OR mentions_status != 'done') as need_b,
-                      (kg_status IS NULL OR kg_status != 'done') as need_c
-               FROM extracted_texts
-               WHERE full_text IS NOT NULL AND full_text != ''
-               ORDER BY id
+                      (et.kg_status IS NULL OR et.kg_status != 'done') as need_c
+               FROM extracted_texts et
+               LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
+               WHERE et.full_text IS NOT NULL AND et.full_text != ''
+               {rk_exclude_clause}
+               ORDER BY et.id
                LIMIT %s""",
-            [batch_size],
+            rk_params + [batch_size],
         )
     else:
         pending = execute_cloud_query(
-            """SELECT DISTINCT et.id,
+            f"""SELECT DISTINCT et.id,
                       (cs.id IS NULL) as need_a,
-                      (et.mentions_status IS NULL OR et.mentions_status != 'done') as need_b,
                       (et.kg_status IS NULL OR et.kg_status != 'done') as need_c
                FROM extracted_texts et
                LEFT JOIN content_summaries cs ON et.id = cs.extracted_text_id
-               WHERE cs.id IS NULL
-                  OR (et.mentions_status IS NULL OR et.mentions_status != 'done')
-                  OR (et.kg_status IS NULL OR et.kg_status != 'done')
+               LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
+               WHERE (cs.id IS NULL OR (et.kg_status IS NULL OR et.kg_status != 'done'))
+               {rk_exclude_clause}
                ORDER BY et.id
                LIMIT %s""",
-            [batch_size],
+            rk_params + [batch_size],
         )
-    total_a, total_b2, total_c = 0, 0, 0
+    total_a, total_c = 0, 0
     ok, fail = 0, 0
 
-    # 回调通知实际待处理数
     if on_progress:
         on_progress(0, len(pending), None, None)
 
@@ -580,7 +536,6 @@ def process_pending(batch_size: int = 50, sleep: float = 0.5, should_cancel=None
         return process_single(
             row["id"],
             need_a=bool(row["need_a"]),
-            need_b=bool(row["need_b"]),
             need_c=bool(row["need_c"]),
             rerun_a=rerun_a,
         ), row
@@ -599,13 +554,12 @@ def process_pending(batch_size: int = 50, sleep: float = 0.5, should_cancel=None
                 r, row = fut.result()
                 if r["summary_id"]:
                     total_a += 1
-                total_b2 += r["mentions"]
-                total_c  += r["kg_rels"]
+                total_c += r["kg_rels"]
                 ok += 1
                 logger.info(
                     f"[{ok+fail}/{len(pending)}] id={row['id']} "
-                    f"need=({'A' if row['need_a'] else ''})({'B' if row['need_b'] else ''})({'C' if row['need_c'] else ''}) "
-                    f"summary={r['summary_id']} mentions={r['mentions']} kg={r['kg_rels']}"
+                    f"need=({'A' if row['need_a'] else ''})({'C' if row['need_c'] else ''}) "
+                    f"summary={r['summary_id']} kg={r['kg_rels']}"
                 )
                 if on_progress:
                     on_progress(ok + fail, len(pending), row["id"], r)
@@ -616,4 +570,4 @@ def process_pending(batch_size: int = 50, sleep: float = 0.5, should_cancel=None
                     on_progress(ok + fail, len(pending), None, None)
 
     return {"processed": ok + fail, "ok": ok, "fail": fail,
-            "summaries": total_a, "mentions": total_b2, "kg_rels": total_c}
+            "summaries": total_a, "kg_rels": total_c}

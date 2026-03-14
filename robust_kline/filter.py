@@ -11,7 +11,7 @@ import logging
 from datetime import date
 from typing import Optional, Tuple
 
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_query, execute_insert, execute_cloud_query
 from stock_selector.kline_calc import _fetch_daily, _resample_monthly, _resample_weekly
 
 logger = logging.getLogger(__name__)
@@ -21,11 +21,11 @@ _DAILY_DAYS = 280
 
 
 def _get_scan_codes(scan_date: date) -> list[dict]:
-    """取当日 mentions 中有 stock_code 的去重列表"""
-    rows = execute_query(
+    """取当日 daily_intel_stocks 中有 stock_code 的去重列表"""
+    rows = execute_cloud_query(
         """SELECT stock_code, stock_name, industry,
                   COUNT(*) AS mention_count
-           FROM robust_kline_mentions
+           FROM daily_intel_stocks
            WHERE scan_date = %s
              AND stock_code IS NOT NULL
              AND stock_code != ''

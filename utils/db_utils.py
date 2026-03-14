@@ -271,6 +271,22 @@ def execute_cloud_insert(sql, params=None):
                 pass
 
 
+def execute_cloud_many(sql, params_list):
+    """在云端批量执行（executemany）"""
+    sql = _adapt_sql(sql)
+    adapted_list = [_adapt_params(p) for p in params_list]
+    raw = _get_cloud_conn()
+    try:
+        with raw.cursor() as cur:
+            cur.executemany(sql, adapted_list)
+            raw.commit()
+    finally:
+        try:
+            raw.close()
+        except Exception:
+            pass
+
+
 def cloud_stockdb_query(sql, params=None):
     """在云端 stock_db 执行查询并返回结果列表"""
     raw = _get_cloud_stockdb_conn()
@@ -528,10 +544,30 @@ def _get_cloud_stockdb_conn():
         port=CLOUD_MYSQL_PORT,
         user=CLOUD_MYSQL_USER,
         password=CLOUD_MYSQL_PASSWORD,
-        database='stock_db',  # 行情数据在 stock_db
+        database='stock_db',
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
     )
+
+
+def cloud_stockanalysis_query(sql, params=None):
+    """在云端 stock_analysis 库执行查询（etf_constituent / etf_info 等）"""
+    from config import CLOUD_MYSQL_HOST, CLOUD_MYSQL_PORT, CLOUD_MYSQL_USER, CLOUD_MYSQL_PASSWORD
+    conn = pymysql.connect(
+        host=CLOUD_MYSQL_HOST,
+        port=CLOUD_MYSQL_PORT,
+        user=CLOUD_MYSQL_USER,
+        password=CLOUD_MYSQL_PASSWORD,
+        database='stock_analysis',
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor,
+    )
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params or ())
+            return cur.fetchall()
+    finally:
+        conn.close()
 
 
 def sync_stock_data_from_cloud(stock_code: str, days: int = 180) -> dict:

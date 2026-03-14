@@ -657,35 +657,6 @@ def _pipeline_task_run(task_id: str, mode: str, batch_size: int):
                     logger.warning(f"Pipeline A id={row['id']}: {e}")
             task["result"] = {"ok": ok, "fail": fail}
 
-        elif mode == "b2":
-            from cleaning.stock_mentions_extractor import extract_mentions_single, _get_deepseek_client
-            from utils.db_utils import execute_cloud_query as _cq
-            pending = _cq(
-                """SELECT et.id FROM extracted_texts et
-                   LEFT JOIN stock_mentions sm ON et.id = sm.extracted_text_id
-                   WHERE sm.id IS NULL ORDER BY et.id LIMIT %s""",
-                [batch_size],
-            )
-            task["total"] = len(pending)
-            client = _get_deepseek_client()
-            total = 0
-            for i, row in enumerate(pending):
-                import time
-                while task.get("paused"):
-                    if task.get("cancel"): break
-                    time.sleep(1)
-                if task.get("cancel"):
-                    task["status"] = "cancelled"
-                    break
-                task["progress"] = i + 1
-                task["current"] = f"id={row['id']}"
-                try:
-                    n = extract_mentions_single(row["id"], client=client)
-                    total += n
-                except Exception as e:
-                    logger.warning(f"Pipeline B2 id={row['id']}: {e}")
-            task["result"] = {"mentions": total}
-
         elif mode == "c":
             from cleaning.unified_pipeline import _run_pipeline_c, _get_deepseek
             from utils.db_utils import execute_cloud_query as _cq
@@ -761,7 +732,7 @@ def _pipeline_task_run(task_id: str, mode: str, batch_size: int):
 async def run_pipeline(request: Request):
     """手动触发清洗管线"""
     data = await request.json()
-    mode = data.get("mode", "abc")          # a / b2 / c / abc
+    mode = data.get("mode", "ac")           # a / c / ac
     batch_size = int(data.get("batch_size", 20))
     task_id = f"pipeline_{mode}_{int(datetime.now().timestamp())}"
     _pipeline_tasks[task_id] = {
@@ -947,11 +918,9 @@ def get_cleaning_logs():
                    FROM content_summaries cs
                    JOIN extracted_texts et ON cs.extracted_text_id = et.id
                    ORDER BY cs.created_at DESC LIMIT 20""")
-        sm = _cq("""SELECT sm.id, sm.stock_name, sm.stock_code, sm.related_themes,
-                          sm.mention_time, et.source
-                   FROM stock_mentions sm
-                   JOIN extracted_texts et ON sm.extracted_text_id = et.id
-                   ORDER BY sm.id DESC LIMIT 20""")
+        di = _cq("""SELECT id, scan_date, stock_name, stock_code, event_type, event_summary
+                   FROM daily_intel_stocks
+                   ORDER BY id DESC LIMIT 20""")
         kg = _q("""SELECT r.id, e_s.entity_name as src, r.relation_type, e_t.entity_name as tgt,
                          r.created_at
                   FROM kg_relationships r
@@ -961,7 +930,7 @@ def get_cleaning_logs():
                   ORDER BY r.created_at DESC LIMIT 20""")
         return JSONResponse(_safe_json({
             "content_summaries": [dict(r) for r in (cs or [])],
-            "stock_mentions": [dict(r) for r in (sm or [])],
+            "daily_intel_stocks": [dict(r) for r in (di or [])],
             "kg_relationships": [dict(r) for r in (kg or [])],
         }))
     except Exception as e:
@@ -983,7 +952,7 @@ def get_source_doc_summary():
         total_extracted = sum(r["extracted_count"] or 0 for r in (doc_stats or []))
         et_total = _cq("SELECT COUNT(*) as n FROM extracted_texts")
         cs_done  = _cq("SELECT COUNT(DISTINCT extracted_text_id) as n FROM content_summaries")
-        sm_done  = _cq("SELECT COUNT(DISTINCT extracted_text_id) as n FROM stock_mentions")
+        di_done  = _cq("SELECT COUNT(*) as n FROM daily_intel_stocks")
         kg_done  = _cq("SELECT COUNT(*) as n FROM extracted_texts WHERE kg_status='done'")
         return JSONResponse({
             "total": total_docs,
@@ -991,7 +960,7 @@ def get_source_doc_summary():
             "source_count": len(doc_stats or []),
             "et_total": et_total[0]["n"] if et_total else 0,
             "pipeline_a": cs_done[0]["n"] if cs_done else 0,
-            "pipeline_b": sm_done[0]["n"] if sm_done else 0,
+            "pipeline_b": di_done[0]["n"] if di_done else 0,
             "pipeline_c": kg_done[0]["n"] if kg_done else 0,
         })
     except Exception as e:
