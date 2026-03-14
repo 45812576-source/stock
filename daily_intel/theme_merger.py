@@ -41,18 +41,19 @@ def _ensure_table():
 # ── 读取数据 ──────────────────────────────────────────────────────
 
 def _fetch_day_summaries(scan_date: str) -> list[dict]:
-    """读当天所有有效的 event_summary，去重合并同一股票多条"""
+    """读当天股票情报，每只股票取最具代表性的一条 summary，最多200只"""
     from utils.db_utils import execute_cloud_query
     rows = execute_cloud_query(
         """SELECT stock_name, stock_code, industry,
-                  GROUP_CONCAT(event_summary SEPARATOR ' | ') AS summaries,
+                  SUBSTRING(MAX(event_summary), 1, 100) AS summary,
                   COUNT(*) AS cnt
            FROM daily_intel_stocks
            WHERE scan_date = %s
              AND event_summary IS NOT NULL AND event_summary != ''
              AND stock_name IS NOT NULL AND stock_name != ''
            GROUP BY stock_name, stock_code, industry
-           ORDER BY cnt DESC""",
+           ORDER BY cnt DESC
+           LIMIT 200""",
         [scan_date],
     ) or []
     return [dict(r) for r in rows]
@@ -62,10 +63,11 @@ def _fetch_recent_theme_names(days: int = 30) -> list[str]:
     """读近N天已有主题名，供 AI 参考保持一致性"""
     from utils.db_utils import execute_cloud_query
     rows = execute_cloud_query(
-        """SELECT DISTINCT theme_name
+        """SELECT theme_name, MAX(scan_date) AS last_seen
            FROM daily_intel_themes
            WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-           ORDER BY scan_date DESC
+           GROUP BY theme_name
+           ORDER BY last_seen DESC
            LIMIT 60""",
         [days],
     ) or []
@@ -86,7 +88,7 @@ def _ai_merge_themes(summaries: list[dict], existing_names: list[str]) -> list[d
     lines = []
     total_chars = 0
     for r in summaries:
-        line = f"【{r['stock_name']}｜{r.get('industry','')}】{(r['summaries'] or '')[:120]}"
+        line = f"【{r['stock_name']}｜{r.get('industry','')}】{(r.get('summary') or '')[:120]}"
         total_chars += len(line)
         if total_chars > 60000:
             break
