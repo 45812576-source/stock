@@ -110,6 +110,8 @@ const _expanded = new Set();
 const _klineCache = {};
 // 涨幅数据缓存
 const _perfCache = {};
+// 各 tier 的 codes 映射（避免 onclick 里 JSON 双引号冲突）
+const _tierCodes = {};
 
 // ── 入口 ───────────────────────────────────────────────────────────
 async function init() {
@@ -163,12 +165,15 @@ function renderFlowChart(dates, flows) {
 // ── 渲染环节列表 ───────────────────────────────────────────────────
 function renderTiers(tiers) {
   const container = document.getElementById('tiersContainer');
+  tiers.forEach((tier, idx) => {
+    _tierCodes[idx] = tier.stocks.map(s => s.code);
+  });
   container.innerHTML = tiers.map((tier, idx) => {
     const flowSign = tier.tier_flow_15d >= 0 ? '+' : '';
     const flowColor = tier.tier_flow_15d >= 0 ? '#ef4444' : '#22c55e';
     return `
     <div class="tier-section" id="tier-${idx}">
-      <div class="tier-header" onclick="toggleTier(${idx}, ${JSON.stringify(tier.stocks.map(s=>s.code))})">
+      <div class="tier-header" onclick="toggleTier(${idx})">
         <span class="material-icons-round text-sm transition-transform" id="chevron-${idx}" style="color:${CHAIN_COLOR}">chevron_right</span>
         <div class="flex-1 flex items-center gap-3">
           <span class="font-bold text-sm">${tier.key}</span>
@@ -185,7 +190,8 @@ function renderTiers(tiers) {
 }
 
 // ── 收起/展开 ──────────────────────────────────────────────────────
-async function toggleTier(idx, codes) {
+async function toggleTier(idx) {
+  const codes = _tierCodes[idx] || [];
   const body = document.getElementById(`tierbody-${idx}`);
   const chevron = document.getElementById(`chevron-${idx}`);
   const header = body.previousElementSibling;
