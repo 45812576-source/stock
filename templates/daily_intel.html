@@ -1,0 +1,413 @@
+{% extends "base.html" %}
+{% block title %}每日情报 — 个人股票分析系统{% endblock %}
+
+{% block extra_styles %}
+<style>
+.intel-row { border-bottom: 1px solid rgba(51,65,85,.4); transition: background .15s; cursor: pointer; }
+.intel-row:hover { background: rgba(19,91,236,.06); }
+.tag-pill { display:inline-block; padding:1px 7px; border-radius:9999px; font-size:10px; font-weight:600; }
+.tag-up   { background:rgba(239,68,68,.15);  color:#f87171; }
+.tag-down { background:rgba(34,197,94,.15);  color:#4ade80; }
+.tag-neu  { background:rgba(100,116,139,.15); color:#94a3b8; }
+.tag-policy { background:rgba(168,85,247,.15); color:#c084fc; }
+.tag-result { background:rgba(251,191,36,.15); color:#fbbf24; }
+.mini-kline { display:inline-flex; align-items:flex-end; gap:1px; height:24px; }
+.mini-kline span { width:6px; border-radius:1px; }
+.panel-slide { transition: all .2s ease; }
+#detail-panel { min-width: 360px; max-width: 420px; }
+.scan-badge { animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="p-6 flex flex-col h-full" style="min-height:calc(100vh - 64px)">
+
+<!-- Header -->
+<header class="flex justify-between items-center mb-5 flex-shrink-0">
+  <div>
+    <nav class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">股票分析系统 / 每日情报</nav>
+    <h1 class="text-3xl font-extrabold tracking-tight">每日情报</h1>
+  </div>
+  <div class="flex items-center gap-3">
+    <!-- 日期选择 -->
+    <input type="date" id="date-picker" value="{{ today }}"
+           class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none"
+           onchange="loadIntel()">
+    <!-- 手动扫描 -->
+    <button id="scan-btn" onclick="triggerScan()"
+            class="flex items-center gap-2 px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors">
+      <span class="material-icons-round text-sm" id="scan-icon">radar</span>
+      <span id="scan-label">扫描</span>
+    </button>
+    <!-- 手动录入 -->
+    <button onclick="document.getElementById('manual-modal').classList.remove('hidden')"
+            class="flex items-center gap-2 px-4 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-semibold transition-colors">
+      <span class="material-icons-round text-sm">add</span>手动录入
+    </button>
+  </div>
+</header>
+
+<!-- 筛选栏 -->
+<div class="flex items-center gap-3 mb-4 flex-shrink-0">
+  <select id="filter-event" onchange="loadIntel()"
+          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none">
+    <option value="">全部事件类型</option>
+    <option value="业绩">业绩</option>
+    <option value="政策">政策</option>
+    <option value="行业">行业</option>
+    <option value="公告">公告</option>
+    <option value="市场">市场</option>
+    <option value="宏观">宏观</option>
+    <option value="其他">其他</option>
+  </select>
+  <input id="filter-stock" placeholder="搜索股票..." onkeyup="debounceLoad()"
+         class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-36">
+  <span id="result-count" class="text-xs text-slate-500 ml-auto"></span>
+</div>
+
+<!-- 主体：左列表 + 右详情 -->
+<div class="flex gap-4 flex-1 min-h-0">
+
+  <!-- 情报列表 -->
+  <div class="flex-1 min-w-0 overflow-y-auto bg-slate-900/50 border border-slate-700/50 rounded-xl">
+    <table class="w-full text-sm">
+      <thead class="sticky top-0 bg-slate-900 z-10">
+        <tr class="text-xs text-slate-500 uppercase">
+          <th class="px-4 py-2 text-left font-semibold w-24">日期</th>
+          <th class="px-4 py-2 text-left font-semibold w-28">股票</th>
+          <th class="px-4 py-2 text-left font-semibold w-24">行业</th>
+          <th class="px-4 py-2 text-left font-semibold w-20">类型</th>
+          <th class="px-4 py-2 text-left font-semibold">事件摘要</th>
+        </tr>
+      </thead>
+      <tbody id="intel-list">
+        <tr><td colspan="5" class="px-4 py-12 text-center text-slate-500 text-sm">加载中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 详情面板 -->
+  <div id="detail-panel" class="hidden flex-shrink-0 overflow-y-auto bg-slate-900/60 border border-slate-700/50 rounded-xl p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-base" id="dp-stock-name">—</h3>
+      <button onclick="closeDetail()" class="text-slate-500 hover:text-white">
+        <span class="material-icons-round text-sm">close</span>
+      </button>
+    </div>
+    <!-- 基本信息 -->
+    <div class="grid grid-cols-2 gap-2 mb-4 text-xs text-slate-400">
+      <div><span class="text-slate-600">代码</span> <span id="dp-code" class="text-white font-mono ml-1">—</span></div>
+      <div><span class="text-slate-600">行业</span> <span id="dp-industry" class="text-white ml-1">—</span></div>
+      <div><span class="text-slate-600">类型</span> <span id="dp-event-type" class="ml-1">—</span></div>
+      <div><span class="text-slate-600">来源</span> <span id="dp-source" class="text-white ml-1">—</span></div>
+    </div>
+    <!-- 业务描述 -->
+    <div class="mb-3">
+      <p class="text-[10px] text-slate-500 mb-1 uppercase tracking-wide">业务</p>
+      <p id="dp-business" class="text-xs text-slate-300 leading-relaxed">—</p>
+    </div>
+    <!-- 事件摘要 -->
+    <div class="mb-4">
+      <p class="text-[10px] text-slate-500 mb-1 uppercase tracking-wide">事件摘要</p>
+      <p id="dp-summary" class="text-sm text-slate-200 leading-relaxed">—</p>
+    </div>
+    <!-- 跳转 -->
+    <a id="dp-stock-link" href="#" class="text-xs text-primary hover:underline flex items-center gap-1 mb-5">
+      <span class="material-icons-round text-sm">open_in_new</span>查看股票详情
+    </a>
+    <!-- Mini K线 -->
+    <div class="mb-4">
+      <p class="text-[10px] text-slate-500 mb-2 uppercase tracking-wide">K线（近6月 + 近3周）</p>
+      <div id="dp-kline" class="text-xs text-slate-500">加载中...</div>
+    </div>
+    <!-- 资金流 -->
+    <div class="mb-4">
+      <p class="text-[10px] text-slate-500 mb-2 uppercase tracking-wide">近15日主力资金流</p>
+      <div id="dp-capital" class="text-xs text-slate-500">加载中...</div>
+    </div>
+    <!-- ETF -->
+    <div>
+      <p class="text-[10px] text-slate-500 mb-2 uppercase tracking-wide">ETF持有</p>
+      <div id="dp-etf" class="text-xs text-slate-500">加载中...</div>
+    </div>
+  </div>
+
+</div><!-- end main flex -->
+
+</div><!-- end p-6 -->
+
+<!-- 手动录入 Modal -->
+<div id="manual-modal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-50">
+  <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="font-bold text-base">手动录入情报</h3>
+      <button onclick="document.getElementById('manual-modal').classList.add('hidden')" class="text-slate-500 hover:text-white">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <textarea id="manual-text" rows="5" placeholder="粘贴新闻/研报片段，支持多条（每条换行）..."
+              class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm text-slate-200 focus:border-primary focus:outline-none resize-none mb-3"></textarea>
+    <div class="flex items-center justify-between">
+      <input type="date" id="manual-date" value="{{ today }}"
+             class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none">
+      <button onclick="submitManual()"
+              class="px-5 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-semibold">
+        提交
+      </button>
+    </div>
+    <p id="manual-msg" class="text-xs text-slate-500 mt-2 hidden"></p>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+// ── 工具 ──────────────────────────────────────────────────────────
+const eventColors = {
+  '业绩': 'tag-result', '政策': 'tag-policy', '行业': 'tag-up',
+  '公告': 'tag-neu', '市场': 'tag-neu', '宏观': 'tag-policy', '其他': 'tag-neu',
+};
+function eventPill(t) {
+  const cls = eventColors[t] || 'tag-neu';
+  return `<span class="tag-pill ${cls}">${t || '—'}</span>`;
+}
+function escH(s) {
+  if (!s) return '';
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+let _debTimer = null;
+function debounceLoad() { clearTimeout(_debTimer); _debTimer = setTimeout(loadIntel, 350); }
+
+// ── 加载情报列表 ──────────────────────────────────────────────────
+async function loadIntel() {
+  const date  = document.getElementById('date-picker').value;
+  const etype = document.getElementById('filter-event').value;
+  const stock = document.getElementById('filter-stock').value.trim();
+  const params = new URLSearchParams();
+  if (date)  params.set('scan_date', date);
+  if (etype) params.set('event_type', etype);
+  if (stock) params.set('stock', stock);
+
+  const tbody = document.getElementById('intel-list');
+  tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-slate-500 text-sm"><span class="material-icons-round animate-spin mr-2 text-base align-middle">refresh</span>加载中...</td></tr>';
+
+  try {
+    const { total, items } = await fetch('/daily-intel/api/stocks?' + params).then(r => r.json());
+    document.getElementById('result-count').textContent = total ? `共 ${total} 条` : '';
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-12 text-center text-slate-500">当日暂无情报数据</td></tr>';
+      return;
+    }
+    tbody.innerHTML = items.map(it => `
+      <tr class="intel-row" onclick="openDetail(${JSON.stringify(it).replace(/"/g,'&quot;')})">
+        <td class="px-4 py-2.5 text-xs text-slate-500 whitespace-nowrap">${it.scan_date}</td>
+        <td class="px-4 py-2.5 font-medium text-white whitespace-nowrap">${escH(it.stock_name)}<span class="text-slate-500 text-xs ml-1">${it.stock_code}</span></td>
+        <td class="px-4 py-2.5 text-xs text-slate-400 max-w-[96px] truncate">${escH(it.industry)}</td>
+        <td class="px-4 py-2.5 whitespace-nowrap">${eventPill(it.event_type)}</td>
+        <td class="px-4 py-2.5 text-xs text-slate-300 max-w-xs truncate">${escH(it.event_summary)}</td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-10 text-center text-red-400 text-sm">加载失败</td></tr>';
+  }
+}
+
+// ── 详情面板 ──────────────────────────────────────────────────────
+let _currentCode = null;
+
+function openDetail(it) {
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('hidden');
+
+  document.getElementById('dp-stock-name').textContent = it.stock_name || '—';
+  document.getElementById('dp-code').textContent = it.stock_code || '—';
+  document.getElementById('dp-industry').textContent = it.industry || '—';
+  document.getElementById('dp-event-type').innerHTML = eventPill(it.event_type);
+  document.getElementById('dp-source').textContent = it.source_title || it.source_type || '—';
+  document.getElementById('dp-business').textContent = it.business_desc || '—';
+  document.getElementById('dp-summary').textContent = it.event_summary || '—';
+
+  const code = it.stock_code;
+  const link = document.getElementById('dp-stock-link');
+  if (code) {
+    link.href = '/stock/' + code;
+    link.classList.remove('hidden');
+  } else {
+    link.classList.add('hidden');
+  }
+
+  if (code && code !== _currentCode) {
+    _currentCode = code;
+    loadKline(code);
+    loadCapital(code);
+    loadEtf(code);
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.add('hidden');
+  _currentCode = null;
+}
+
+// ── Mini K线 ──────────────────────────────────────────────────────
+async function loadKline(code) {
+  const el = document.getElementById('dp-kline');
+  el.innerHTML = '<span class="text-slate-600">加载中...</span>';
+  try {
+    const { monthly, weekly } = await fetch('/daily-intel/api/kline/' + code).then(r => r.json());
+    if (!monthly.length && !weekly.length) { el.textContent = '暂无K线数据'; return; }
+
+    const renderBars = (bars, type) => {
+      if (!bars.length) return '';
+      const maxH = Math.max(...bars.map(b => b.high));
+      const minL = Math.min(...bars.map(b => b.low));
+      const range = maxH - minL || 1;
+      return `<div class="mb-2">
+        <p class="text-[9px] text-slate-600 mb-1">${type}</p>
+        <div class="flex items-end gap-0.5" style="height:36px;">
+          ${bars.map(b => {
+            const hPct = ((b.high - minL) / range * 100).toFixed(1);
+            const lPct = ((b.low  - minL) / range * 100).toFixed(1);
+            const color = b.yang ? '#ef4444' : '#22c55e';
+            const heightPct = ((b.close > b.open ? b.close - b.open : b.open - b.close) / range * 80 + 8).toFixed(1);
+            return `<div class="flex flex-col items-center" title="${b.label} O:${b.open} H:${b.high} L:${b.low} C:${b.close}">
+              <div style="width:8px;height:${heightPct}%;background:${color};border-radius:1px;min-height:4px;"></div>
+              <p class="text-[7px] text-slate-600 mt-0.5 rotate-[-45deg] origin-top-left w-6 truncate">${b.label.slice(-5)}</p>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`;
+    };
+    el.innerHTML = renderBars(monthly, '月K（近6月）') + renderBars(weekly, '周K（近3周）');
+  } catch(e) { el.textContent = '加载失败'; }
+}
+
+// ── 资金流 ────────────────────────────────────────────────────────
+async function loadCapital(code) {
+  const el = document.getElementById('dp-capital');
+  el.innerHTML = '<span class="text-slate-600">加载中...</span>';
+  try {
+    const { items } = await fetch('/daily-intel/api/capital/' + code).then(r => r.json());
+    if (!items.length) { el.textContent = '暂无资金流数据'; return; }
+    const maxAbs = Math.max(...items.map(i => Math.abs(i.main_net)));
+    el.innerHTML = `<div class="space-y-0.5">
+      ${items.slice(-10).map(i => {
+        const pct = maxAbs ? (Math.abs(i.main_net) / maxAbs * 80).toFixed(1) : 0;
+        const pos = i.main_net > 0;
+        const color = pos ? '#ef4444' : '#22c55e';
+        const val = (i.main_net / 1e8).toFixed(2);
+        return `<div class="flex items-center gap-2">
+          <span class="text-[9px] text-slate-600 w-12 flex-shrink-0">${i.trade_date.slice(5)}</span>
+          <div class="flex-1 flex ${pos ? 'justify-start' : 'justify-end'}">
+            <div style="width:${pct}%;height:6px;background:${color};border-radius:2px;min-width:2px;"></div>
+          </div>
+          <span class="text-[9px] w-14 text-right flex-shrink-0" style="color:${color}">${pos?'+':''}${val}亿</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  } catch(e) { el.textContent = '加载失败'; }
+}
+
+// ── ETF ──────────────────────────────────────────────────────────
+async function loadEtf(code) {
+  const el = document.getElementById('dp-etf');
+  el.innerHTML = '<span class="text-slate-600">加载中...</span>';
+  try {
+    const { items } = await fetch('/daily-intel/api/etf/' + code).then(r => r.json());
+    if (!items.length) { el.textContent = '无ETF持有记录'; return; }
+    el.innerHTML = `<div class="space-y-1">
+      ${items.slice(0,8).map(i => `
+        <div class="flex justify-between items-center">
+          <span class="text-slate-400 truncate max-w-[160px]">${escH(i.etf_name)}</span>
+          <span class="text-slate-300 flex-shrink-0 ml-2">${i.weight.toFixed(2)}%</span>
+        </div>
+      `).join('')}
+    </div>`;
+  } catch(e) { el.textContent = '加载失败'; }
+}
+
+// ── 扫描 ─────────────────────────────────────────────────────────
+async function triggerScan() {
+  const btn = document.getElementById('scan-btn');
+  const icon = document.getElementById('scan-icon');
+  const label = document.getElementById('scan-label');
+  btn.disabled = true;
+  icon.classList.add('scan-badge');
+  label.textContent = '扫描中...';
+  try {
+    const r = await fetch('/daily-intel/api/scan', { method: 'POST' }).then(r => r.json());
+    if (r.ok) {
+      label.textContent = '进行中';
+      pollScanStatus();
+    } else {
+      label.textContent = r.msg || '失败';
+      setTimeout(() => { btn.disabled = false; icon.classList.remove('scan-badge'); label.textContent = '扫描'; }, 3000);
+    }
+  } catch(e) {
+    label.textContent = '失败';
+    setTimeout(() => { btn.disabled = false; icon.classList.remove('scan-badge'); label.textContent = '扫描'; }, 3000);
+  }
+}
+
+async function pollScanStatus() {
+  const icon = document.getElementById('scan-icon');
+  const label = document.getElementById('scan-label');
+  const btn = document.getElementById('scan-btn');
+  const poll = setInterval(async () => {
+    try {
+      const s = await fetch('/daily-intel/api/scan-status').then(r => r.json());
+      if (!s.running) {
+        clearInterval(poll);
+        icon.classList.remove('scan-badge');
+        btn.disabled = false;
+        label.textContent = '扫描';
+        loadIntel();
+      }
+    } catch(e) { clearInterval(poll); }
+  }, 3000);
+}
+
+// ── 手动录入 ─────────────────────────────────────────────────────
+async function submitManual() {
+  const text = document.getElementById('manual-text').value.trim();
+  const date = document.getElementById('manual-date').value;
+  const msg  = document.getElementById('manual-msg');
+  if (!text) { msg.textContent = '请输入内容'; msg.classList.remove('hidden'); return; }
+  msg.textContent = '提交中...'; msg.classList.remove('hidden');
+  try {
+    const r = await fetch('/daily-intel/api/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, date }),
+    }).then(r => r.json());
+    msg.textContent = r.msg || (r.ok ? '成功' : '失败');
+    if (r.ok) {
+      setTimeout(() => {
+        document.getElementById('manual-modal').classList.add('hidden');
+        document.getElementById('manual-text').value = '';
+        msg.classList.add('hidden');
+        loadIntel();
+      }, 1500);
+    }
+  } catch(e) { msg.textContent = '请求失败'; }
+}
+
+// ── 初始化 ───────────────────────────────────────────────────────
+loadIntel();
+
+// 检查是否正在扫描
+(async () => {
+  try {
+    const s = await fetch('/daily-intel/api/scan-status').then(r => r.json());
+    if (s.running) {
+      document.getElementById('scan-icon').classList.add('scan-badge');
+      document.getElementById('scan-label').textContent = '进行中';
+      document.getElementById('scan-btn').disabled = true;
+      pollScanStatus();
+    }
+  } catch(e) {}
+})();
+</script>
+{% endblock %}

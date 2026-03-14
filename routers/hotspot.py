@@ -648,7 +648,7 @@ def api_daily_intel_baskets(days: int = 7):
 
 @router.get("/api/daily-intel-industry", response_class=JSONResponse)
 def api_daily_intel_industry(days: int = 7):
-    """细分行业热度：daily_intel_stocks.industry 按天统计，格式"一级-二级""""
+    """细分行业热度：daily_intel_stocks.industry 按天统计，格式[一级-二级]"""
     try:
         from config.chain_config import CHAINS, CHAIN_ORDER
         from utils.db_utils import execute_cloud_query

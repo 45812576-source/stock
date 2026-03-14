@@ -31,6 +31,28 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 _scan_lock = threading.Lock()
 _scan_status: dict = {"running": False, "last_result": None, "last_run": None}
 
+# ── chain_sync 当天触发追踪 ───────────────────────────────────────
+_chain_sync_last_date: str = ""  # 记录上次 chain_sync 运行的日期
+
+
+def _trigger_chain_sync_if_needed():
+    """当天首次调用时在后台线程运行 chain_sync"""
+    global _chain_sync_last_date
+    today = str(date.today())
+    if _chain_sync_last_date == today:
+        return
+    _chain_sync_last_date = today
+
+    def _run():
+        try:
+            from config.chain_sync import run_chain_sync
+            run_chain_sync(scan_date=today)
+        except Exception as e:
+            logger.warning(f"[ChainSync] 后台同步失败: {e}")
+
+    threading.Thread(target=_run, daemon=True).start()
+    logger.info("[ChainSync] 已在后台触发当天首次同步")
+
 
 def run_daily_intel_scan(scan_date: date = None):
     """全流程入口（供定时任务 + 手动触发）"""
@@ -65,6 +87,7 @@ def run_daily_intel_scan(scan_date: date = None):
 @router.get("", response_class=HTMLResponse)
 async def daily_intel_page(request: Request):
     today = str(date.today())
+    _trigger_chain_sync_if_needed()
     return templates.TemplateResponse(
         "daily_intel.html",
         {"request": request, "today": today, "active_page": "daily_intel"},

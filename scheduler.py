@@ -383,6 +383,21 @@ def start_scheduler():
         name="问财行业指标采集",
     )
 
+    # 每天 23:00 — chain_config 兜底同步（当天未打开 daily_intel 页时保底运行）
+    def _run_chain_sync_nightly():
+        try:
+            from config.chain_sync import run_chain_sync
+            result = run_chain_sync()
+            logger.info(f"[Scheduler] chain_sync 夜间兜底完成: {result}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] chain_sync 夜间兜底失败: {e}")
+
+    scheduler.add_job(
+        _run_chain_sync_nightly, CronTrigger(hour=23, minute=0),
+        id="chain_sync_nightly", replace_existing=True,
+        name="chain_config 夜间兜底同步",
+    )
+
     scheduler.start()
     logger.info("[Scheduler] 定时任务已启动: 06:00 + 20:00 KG自动构建, 18:30 宏观日度, 每月15日19:00 宏观月度, 每月5/15/25日20:30 市场数据同步, 06:00+16:00 Robust Kline, 21:00 问财行业指标")
 
