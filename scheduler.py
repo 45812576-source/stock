@@ -383,19 +383,25 @@ def start_scheduler():
         name="问财行业指标采集",
     )
 
-    # 每天 23:00 — chain_config 兜底同步（当天未打开 daily_intel 页时保底运行）
-    def _run_chain_sync_nightly():
+    # 每天 23:00 — chain_sync + theme_merger 夜间兜底
+    def _run_daily_sync_nightly():
         try:
             from config.chain_sync import run_chain_sync
             result = run_chain_sync()
-            logger.info(f"[Scheduler] chain_sync 夜间兜底完成: {result}")
+            logger.info(f"[Scheduler] chain_sync 夜间完成: {result}")
         except Exception as e:
-            logger.warning(f"[Scheduler] chain_sync 夜间兜底失败: {e}")
+            logger.warning(f"[Scheduler] chain_sync 夜间失败: {e}")
+        try:
+            from daily_intel.theme_merger import run_theme_merge
+            result = run_theme_merge()
+            logger.info(f"[Scheduler] theme_merger 夜间完成: {result}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] theme_merger 夜间失败: {e}")
 
     scheduler.add_job(
-        _run_chain_sync_nightly, CronTrigger(hour=23, minute=0),
-        id="chain_sync_nightly", replace_existing=True,
-        name="chain_config 夜间兜底同步",
+        _run_daily_sync_nightly, CronTrigger(hour=23, minute=0),
+        id="daily_sync_nightly", replace_existing=True,
+        name="chain_sync + theme_merger 夜间兜底",
     )
 
     scheduler.start()

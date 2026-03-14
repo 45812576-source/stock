@@ -31,17 +31,17 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 _scan_lock = threading.Lock()
 _scan_status: dict = {"running": False, "last_result": None, "last_run": None}
 
-# ── chain_sync 当天触发追踪 ───────────────────────────────────────
-_chain_sync_last_date: str = ""  # 记录上次 chain_sync 运行的日期
+# ── 当天首次触发追踪（chain_sync + theme_merger）──────────────────
+_daily_sync_last_date: str = ""
 
 
-def _trigger_chain_sync_if_needed():
-    """当天首次调用时在后台线程运行 chain_sync"""
-    global _chain_sync_last_date
+def _trigger_daily_sync_if_needed():
+    """当天首次打开页面时，后台并发运行 chain_sync + theme_merger"""
+    global _daily_sync_last_date
     today = str(date.today())
-    if _chain_sync_last_date == today:
+    if _daily_sync_last_date == today:
         return
-    _chain_sync_last_date = today
+    _daily_sync_last_date = today
 
     def _run():
         try:
@@ -49,9 +49,14 @@ def _trigger_chain_sync_if_needed():
             run_chain_sync(scan_date=today)
         except Exception as e:
             logger.warning(f"[ChainSync] 后台同步失败: {e}")
+        try:
+            from daily_intel.theme_merger import run_theme_merge
+            run_theme_merge(scan_date=today)
+        except Exception as e:
+            logger.warning(f"[ThemeMerger] 后台归纳失败: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
-    logger.info("[ChainSync] 已在后台触发当天首次同步")
+    logger.info("[DailySync] 已在后台触发当天首次同步（chain_sync + theme_merger）")
 
 
 def run_daily_intel_scan(scan_date: date = None):
@@ -87,7 +92,7 @@ def run_daily_intel_scan(scan_date: date = None):
 @router.get("", response_class=HTMLResponse)
 async def daily_intel_page(request: Request):
     today = str(date.today())
-    _trigger_chain_sync_if_needed()
+    _trigger_daily_sync_if_needed()
     return templates.TemplateResponse(
         "daily_intel.html",
         {"request": request, "today": today, "active_page": "daily_intel"},

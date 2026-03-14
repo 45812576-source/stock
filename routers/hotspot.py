@@ -550,9 +550,50 @@ def api_pool_delete(pool_id: int):
         return {"ok": False, "msg": str(e)}
 
 
+@router.get("/api/daily-intel-theme-trend", response_class=JSONResponse)
+def api_daily_intel_theme_trend(days: int = 7):
+    """综合热度趋势：从 daily_intel_themes 读 AI 归纳主题，按天展示 mention_count，Top20"""
+    try:
+        from utils.db_utils import execute_cloud_query
+        from datetime import datetime, timedelta
+
+        rows = execute_cloud_query(
+            """SELECT scan_date, theme_name, mention_count
+               FROM daily_intel_themes
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+               ORDER BY scan_date""",
+            [days],
+        ) or []
+
+        theme_totals: dict[str, int] = {}
+        theme_daily: dict[str, dict[str, int]] = {}
+        for r in rows:
+            name = r["theme_name"]
+            day  = str(r["scan_date"])[:10]
+            cnt  = int(r["mention_count"] or 0)
+            theme_totals[name] = theme_totals.get(name, 0) + cnt
+            if name not in theme_daily:
+                theme_daily[name] = {}
+            theme_daily[name][day] = cnt
+
+        top_themes = sorted(theme_totals.items(), key=lambda x: x[1], reverse=True)[:20]
+
+        today = datetime.now().date()
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+        heat_map = {
+            name: {"total": total, "daily": theme_daily.get(name, {})}
+            for name, total in top_themes
+        }
+        return {"dates": dates, "tags": [t[0] for t in top_themes], "heat_map": heat_map}
+    except Exception as e:
+        logger.warning(f"daily-intel-theme-trend 失败: {e}")
+        return {"dates": [], "tags": [], "heat_map": {}}
+
+
 @router.get("/api/daily-intel-trend", response_class=JSONResponse)
 def api_daily_intel_trend(days: int = 7):
-    """综合热度趋势：daily_intel_stocks 按股票出现次数，按天统计，Top20"""
+    """综合热度趋势（旧）：daily_intel_stocks 按股票出现次数，按天统计，Top20"""
     try:
         from config.chain_config import CHAINS
         from utils.db_utils import execute_cloud_query

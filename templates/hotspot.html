@@ -115,7 +115,7 @@
           <span class="material-icons-round text-orange-500">trending_up</span>
           综合热度趋势
         </h2>
-        <p class="text-xs text-slate-500">Daily Intel 股票提及次数 · Top 20</p>
+        <p class="text-xs text-slate-500">AI 归纳投资主题 · 相似度合并 · Top 20</p>
       </div>
       <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50" id="trend-days-tab">
         <button onclick="loadTrendChart(7)" data-days="7" class="trend-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white">近7天</button>
@@ -305,7 +305,7 @@ async function loadTrendChart(days) {
   const el = document.getElementById('freq-chart');
   el.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
   try {
-    const data = await fetch('/hotspot/api/daily-intel-trend?days=' + days).then(r => r.json());
+    const data = await fetch('/hotspot/api/daily-intel-theme-trend?days=' + days).then(r => r.json());
     const dates = data.dates || [];
     const tags = data.tags || [];
     const heatMap = data.heat_map || {};
