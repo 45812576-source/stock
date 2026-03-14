@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}产业链全景 — 个人股票分析系统{% endblock %}
+
+{% block extra_styles %}
+<style>
+.chain-card { background:#1a2233; border:1px solid #2d3748; border-radius:14px; transition:border-color .2s,transform .15s; cursor:pointer; }
+.chain-card:hover { border-color:#135bec; transform:translateY(-2px); }
+.tier-pill { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:600; background:rgba(255,255,255,.07); color:#94a3b8; }
+.bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
+.bar-neg { background:#22c55e; border-radius:0 0 2px 2px; }
+.tab-btn { padding:6px 16px; border-radius:8px; font-size:13px; font-weight:600; transition:all .15s; }
+.tab-btn.active { background:#135bec; color:#fff; }
+.tab-btn:not(.active) { color:#64748b; }
+.tab-btn:not(.active):hover { color:#94a3b8; background:rgba(255,255,255,.05); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="p-6">
+
+  <!-- Header -->
+  <header class="flex justify-between items-center mb-6">
+    <div>
+      <nav class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">股票分析系统 / 产业链</nav>
+      <h1 class="text-3xl font-extrabold tracking-tight">产业链全景</h1>
+    </div>
+    <!-- Tab 切换 -->
+    <div class="flex items-center gap-2 bg-slate-800/60 rounded-xl p-1 border border-slate-700/40">
+      <button class="tab-btn active" id="tab-all" onclick="switchTab('all')">
+        <span class="material-icons-round text-sm align-middle mr-1">hub</span>全部产业链
+      </button>
+      <button class="tab-btn" id="tab-watch" onclick="switchTab('watch')">
+        <span class="material-icons-round text-sm align-middle mr-1">bookmark</span>待观察
+      </button>
+    </div>
+  </header>
+
+  <!-- 加载骨架 -->
+  <div id="loadingState" class="grid grid-cols-3 gap-5">
+    {% for _ in range(6) %}
+    <div class="chain-card p-5 animate-pulse">
+      <div class="h-5 bg-slate-700 rounded w-2/3 mb-3"></div>
+      <div class="h-16 bg-slate-700/50 rounded mb-3"></div>
+      <div class="h-3 bg-slate-700 rounded w-1/2"></div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 卡片容器 -->
+  <div id="chainGrid" class="grid grid-cols-3 gap-5 hidden"></div>
+
+  <!-- 空状态 -->
+  <div id="emptyState" class="hidden text-center py-20">
+    <span class="material-icons-round text-5xl text-slate-700 mb-4 block">bookmark_border</span>
+    <p class="text-slate-500 text-sm">待观察列表暂无产业链</p>
+    <p class="text-slate-600 text-xs mt-1">在产业链详情页将股票加入待观察后会出现在这里</p>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _currentTab = 'all';
+let _allData = null;
+let _watchData = null;
+
+async function switchTab(tab) {
+  _currentTab = tab;
+  ['all','watch'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+  });
+  if (tab === 'all') {
+    if (_allData) renderChains(_allData);
+    else loadAll();
+  } else {
+    if (_watchData) renderChains(_watchData, true);
+    else loadWatch();
+  }
+}
+
+async function loadAll() {
+  try {
+    const r = await fetch('/chain/api/list');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _allData = d.chains;
+    renderChains(_allData);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+async function loadWatch() {
+  try {
+    const r = await fetch('/chain/api/watchlist/list');
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    _watchData = d.chains;
+    renderChains(_watchData, true);
+  } catch(e) {
+    console.error(e);
+  }
+}
+
+function renderChains(chains, isWatch=false) {
+  document.getElementById('loadingState').classList.add('hidden');
+  const grid = document.getElementById('chainGrid');
+  const empty = document.getElementById('emptyState');
+  if (!chains || chains.length === 0) {
+    grid.classList.add('hidden');
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  grid.classList.remove('hidden');
+  grid.innerHTML = chains.map(c => buildCard(c)).join('');
+}
+
+function buildCard(c) {
+  const color = c.color || '#6366f1';
+  const flows = c.daily_flows || [];
+  const dates = c.daily_dates || [];
+
+  // 计算柱子高度（最大绝对值为基准）
+  const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
+  const totalFlow = flows.reduce((a, b) => a + b, 0);
+  const flowColor = totalFlow >= 0 ? 'text-red-400' : 'text-emerald-400';
+  const flowSign = totalFlow >= 0 ? '+' : '';
+
+  // 柱状图 SVG
+  const chartW = 180, chartH = 40;
+  const barW = flows.length > 0 ? Math.floor((chartW - flows.length) / flows.length) : 20;
+  let bars = '';
+  flows.forEach((v, i) => {
+    const x = i * (barW + 1);
+    if (v >= 0) {
+      const h = Math.max(2, Math.round((v / maxAbs) * (chartH / 2)));
+      bars += `<rect x="${x}" y="${chartH/2 - h}" width="${barW}" height="${h}" class="bar-pos" opacity=".85"/>`;
+    } else {
+      const h = Math.max(2, Math.round((Math.abs(v) / maxAbs) * (chartH / 2)));
+      bars += `<rect x="${x}" y="${chartH/2}" width="${barW}" height="${h}" class="bar-neg" opacity=".85"/>`;
+    }
+  });
+  const svg = flows.length > 0
+    ? `<svg width="${chartW}" height="${chartH}" class="w-full" viewBox="0 0 ${chartW} ${chartH}">
+        <line x1="0" y1="${chartH/2}" x2="${chartW}" y2="${chartH/2}" stroke="#2d3748" stroke-width="1"/>
+        ${bars}
+       </svg>`
+    : `<div class="h-10 flex items-center justify-center text-slate-600 text-xs">暂无资金数据</div>`;
+
+  // tier 标签（最多展示4个）
+  const tierPills = (c.tiers_summary || []).slice(0, 5).map(t =>
+    `<span class="tier-pill">${t.key}</span>`
+  ).join('');
+
+  const detailUrl = isWatchDetail(c) ? `/chain/api/watchlist/detail-v2?name=${encodeURIComponent(c.name)}`
+    : `/chain/${encodeURIComponent(c.name)}`;
+
+  return `
+  <div class="chain-card p-5" onclick="window.location='/chain/${encodeURIComponent(c.name)}'">
+    <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center gap-2">
+        <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:${color}22">
+          <span class="material-icons-round text-sm" style="color:${color}">${c.icon || 'hub'}</span>
+        </div>
+        <span class="font-bold text-sm">${c.name}</span>
+      </div>
+      <span class="text-xs text-slate-500 bg-slate-800 rounded-full px-2 py-0.5">${c.stock_count || 0}只</span>
+    </div>
+
+    <!-- 资金流柱图 -->
+    <div class="mb-1">${svg}</div>
+    <div class="flex justify-between items-center mb-3">
+      <span class="text-[10px] text-slate-600">${dates.length > 0 ? dates[0]+' — '+dates[dates.length-1] : '近7日'}</span>
+      <span class="text-xs font-bold ${flowColor}">${flowSign}${totalFlow.toFixed(2)}亿</span>
+    </div>
+
+    <!-- 产业链结构 -->
+    <div class="flex flex-wrap gap-1 border-t border-slate-700/50 pt-3">
+      ${tierPills}
+      ${(c.tiers_summary||[]).length > 5 ? `<span class="tier-pill text-slate-600">+${(c.tiers_summary||[]).length-5}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function isWatchDetail(c) {
+  return _currentTab === 'watch';
+}
+
+// 初始化
+loadAll();
+</script>
+{% endblock %}

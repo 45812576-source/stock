@@ -550,6 +550,158 @@ def api_pool_delete(pool_id: int):
         return {"ok": False, "msg": str(e)}
 
 
+@router.get("/api/daily-intel-trend", response_class=JSONResponse)
+def api_daily_intel_trend(days: int = 7):
+    """综合热度趋势：daily_intel_stocks 按股票出现次数，按天统计，Top20"""
+    try:
+        from config.chain_config import CHAINS
+        from utils.db_utils import execute_cloud_query
+        from datetime import datetime, timedelta
+
+        rows = execute_cloud_query(
+            """SELECT stock_name, stock_code, DATE(scan_date) AS day, COUNT(*) AS cnt
+               FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND stock_name IS NOT NULL AND stock_name != ''
+               GROUP BY stock_name, stock_code, DATE(scan_date)
+               ORDER BY day""",
+            [days],
+        ) or []
+
+        # 汇总每只股票总次数，取 Top20
+        stock_totals = {}
+        stock_daily = {}
+        for r in rows:
+            name = r["stock_name"]
+            day = str(r["day"])[:10]
+            cnt = int(r["cnt"] or 0)
+            stock_totals[name] = stock_totals.get(name, 0) + cnt
+            if name not in stock_daily:
+                stock_daily[name] = {}
+            stock_daily[name][day] = cnt
+
+        top_stocks = sorted(stock_totals.items(), key=lambda x: x[1], reverse=True)[:20]
+
+        # 生成完整日期列表
+        today = datetime.now().date()
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+        heat_map = {}
+        for name, total in top_stocks:
+            heat_map[name] = {"total": total, "daily": stock_daily.get(name, {})}
+
+        return {"dates": dates, "tags": [s[0] for s in top_stocks], "heat_map": heat_map}
+    except Exception as e:
+        logger.warning(f"daily-intel-trend 失败: {e}")
+        return {"dates": [], "tags": [], "heat_map": {}}
+
+
+@router.get("/api/daily-intel-baskets", response_class=JSONResponse)
+def api_daily_intel_baskets(days: int = 7):
+    """走马灯：daily_intel_stocks 按产业链归组，返回篮子列表"""
+    try:
+        from config.chain_config import CHAINS, CHAIN_ORDER
+        from utils.db_utils import execute_cloud_query
+
+        rows = execute_cloud_query(
+            """SELECT stock_name, stock_code, COUNT(*) AS cnt
+               FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND stock_name IS NOT NULL AND stock_name != ''
+               GROUP BY stock_name, stock_code
+               ORDER BY cnt DESC""",
+            [days],
+        ) or []
+
+        # stock_name -> {code, cnt}
+        stock_map = {r["stock_name"]: {"code": r["stock_code"] or "", "cnt": int(r["cnt"] or 0)} for r in rows}
+
+        baskets = []
+        for chain_name in CHAIN_ORDER:
+            chain = CHAINS.get(chain_name, {})
+            for tier_key, tier in chain.get("tiers", {}).items():
+                label = f"{chain_name}-{tier_key}"
+                tier_stocks = []
+                total_cnt = 0
+                for sname in tier.get("stocks", []):
+                    if sname in stock_map:
+                        info = stock_map[sname]
+                        tier_stocks.append({"stock_name": sname, "stock_code": info["code"], "cnt": info["cnt"]})
+                        total_cnt += info["cnt"]
+                if tier_stocks:
+                    tier_stocks.sort(key=lambda x: x["cnt"], reverse=True)
+                    baskets.append({
+                        "theme": label,
+                        "group_logic": tier.get("label", ""),
+                        "stocks": tier_stocks,
+                        "mention_count": total_cnt,
+                        "chunk_count": len(tier_stocks),
+                    })
+
+        # 按总提及次数排序
+        baskets.sort(key=lambda x: x["mention_count"], reverse=True)
+        return baskets
+    except Exception as e:
+        logger.warning(f"daily-intel-baskets 失败: {e}")
+        return []
+
+
+@router.get("/api/daily-intel-industry", response_class=JSONResponse)
+def api_daily_intel_industry(days: int = 7):
+    """细分行业热度：daily_intel_stocks.industry 按天统计，格式"一级-二级""""
+    try:
+        from config.chain_config import CHAINS, CHAIN_ORDER
+        from utils.db_utils import execute_cloud_query
+        from datetime import datetime, timedelta
+
+        rows = execute_cloud_query(
+            """SELECT stock_name, stock_code, DATE(scan_date) AS day, COUNT(*) AS cnt
+               FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND stock_name IS NOT NULL AND stock_name != ''
+               GROUP BY stock_name, stock_code, DATE(scan_date)""",
+            [days],
+        ) or []
+
+        # 构建 stock_name -> chain-tier 映射
+        stock_to_industry = {}
+        for chain_name in CHAIN_ORDER:
+            chain = CHAINS.get(chain_name, {})
+            for tier_key, tier in chain.get("tiers", {}).items():
+                label = f"{chain_name}-{tier_key}"
+                for sname in tier.get("stocks", []):
+                    if sname not in stock_to_industry:
+                        stock_to_industry[sname] = label
+
+        # 按 (industry_label, day) 统计
+        today = datetime.now().date()
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+        industry_day = {}
+        for r in rows:
+            name = r["stock_name"]
+            label = stock_to_industry.get(name)
+            if not label:
+                continue
+            day = str(r["day"])[:10]
+            cnt = int(r["cnt"] or 0)
+            if label not in industry_day:
+                industry_day[label] = {"daily": {}, "total": 0}
+            industry_day[label]["daily"][day] = industry_day[label]["daily"].get(day, 0) + cnt
+            industry_day[label]["total"] += cnt
+
+        industries = sorted(
+            [{"name": k, "total": v["total"], "daily": v["daily"], "ai_direction": "neutral"}
+             for k, v in industry_day.items()],
+            key=lambda x: x["total"], reverse=True
+        )[:30]
+
+        return {"dates": dates, "industries": industries}
+    except Exception as e:
+        logger.warning(f"daily-intel-industry 失败: {e}")
+        return {"dates": [], "industries": []}
+
+
 @router.get("/api/mention-baskets", response_class=JSONResponse)
 def api_mention_baskets(days: int = 30):
     """按 related_themes 聚合 stock_mentions 为篮子，最新30个"""

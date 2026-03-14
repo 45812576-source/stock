@@ -92,12 +92,12 @@
   </div>
 </div>
 
-<!-- stock_mentions 走马灯 -->
+<!-- 产业链篮子走马灯 -->
 <div class="mb-4">
   <div class="flex items-center gap-2 mb-2">
     <span class="material-icons-round text-amber-400 text-sm">trending_up</span>
-    <h3 class="text-sm font-bold">主题篮子</h3>
-    <span class="text-[10px] text-slate-500">近7日 stock_mentions 聚合</span>
+    <h3 class="text-sm font-bold">产业链篮子</h3>
+    <span class="text-[10px] text-slate-500">近7日 Daily Intel 产业链归组</span>
   </div>
   <div class="relative overflow-hidden" style="height:100px;">
     <div id="mentionMarquee" class="flex gap-3 absolute" style="width:max-content; flex-wrap:nowrap;">
@@ -106,7 +106,7 @@
   </div>
 </div>
 
-<!-- Top Section: Heatmap Chart (full width) -->
+<!-- 综合热度趋势 -->
 <div class="mb-8">
   <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50 relative overflow-hidden">
     <div class="flex justify-between items-center mb-4">
@@ -115,10 +115,15 @@
           <span class="material-icons-round text-orange-500">trending_up</span>
           综合热度趋势
         </h2>
-        <p class="text-xs text-slate-500">新闻提及×重要性加权 + 行业资金流入标准化 · Top 20 · {{ start_date }} ~ {{ end_date }}</p>
+        <p class="text-xs text-slate-500">Daily Intel 股票提及次数 · Top 20</p>
+      </div>
+      <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50" id="trend-days-tab">
+        <button onclick="loadTrendChart(7)" data-days="7" class="trend-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white">近7天</button>
+        <button onclick="loadTrendChart(15)" data-days="15" class="trend-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近15天</button>
+        <button onclick="loadTrendChart(30)" data-days="30" class="trend-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近30天</button>
       </div>
     </div>
-    <div id="freq-chart" style="height: 560px;"></div>
+    <div id="freq-chart" style="height: 560px;"><div class="flex items-center justify-center h-full text-slate-500 text-sm">加载中...</div></div>
   </div>
 </div>
 
@@ -131,10 +136,17 @@
           <span class="material-icons-round text-teal-400">view_comfy</span>
           细分行业热度
         </h2>
-        <p class="text-xs text-slate-500">细分行业 × 天 · chunk 出现次数 · 近 {{ days }} 天</p>
+        <p class="text-xs text-slate-500">产业链-分层 × 天 · Daily Intel 提及次数</p>
       </div>
-      <div id="industry-heatmap-loading" class="text-xs text-slate-500 flex items-center gap-1">
-        <span class="material-icons-round text-sm animate-spin">refresh</span> 加载中...
+      <div class="flex items-center gap-3">
+        <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50" id="industry-days-tab">
+          <button onclick="loadIndustryHeatmap(7)" data-days="7" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white">近7天</button>
+          <button onclick="loadIndustryHeatmap(15)" data-days="15" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近15天</button>
+          <button onclick="loadIndustryHeatmap(30)" data-days="30" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近30天</button>
+        </div>
+        <div id="industry-heatmap-loading" class="text-xs text-slate-500 flex items-center gap-1 hidden">
+          <span class="material-icons-round text-sm animate-spin">refresh</span>
+        </div>
       </div>
     </div>
     <div id="industry-heatmap-chart" style="height: 400px;"></div>
@@ -282,169 +294,96 @@ function showToast(msg, isError) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 500); }, 3000);
 }
 
-{% if chart_data and chart_data.tags %}
-  var chartData = {{ chart_data | tojson }};
-  var dates = chartData.dates || [];
-  var tags = chartData.tags || [];
-  var heatMap = chartData.heat_map || {};
-
-  // Y轴：标签（从下到上，所以反转让排名靠前的在上面）
-  var yLabels = tags.slice().reverse();
-
-  // 日热度矩阵（不含合计）
-  var zDaily = [];
-  var hoverDaily = [];
-  // 合计列单独矩阵
-  var zTotal = [];
-  var hoverTotal = [];
-
-  for (var yi = 0; yi < yLabels.length; yi++) {
-    var tag = yLabels[yi];
-    var tagData = heatMap[tag] || {};
-    var daily = tagData.daily || {};
-    var row = [];
-    var textRow = [];
-    for (var xi = 0; xi < dates.length; xi++) {
-      var val = daily[dates[xi]] || 0;
-      row.push(val);
-      textRow.push(tag + '<br>' + dates[xi] + '<br>热度: ' + val);
-    }
-    zDaily.push(row);
-    hoverDaily.push(textRow);
-
-    zTotal.push([tagData.total || 0]);
-    hoverTotal.push([tag + '<br>合计: ' + (tagData.total || 0)]);
-  }
-
-  // 日热度 trace — 颜色只由单日值决定
-  var traceDaily = {
-    z: zDaily,
-    x: dates.map(d => d.slice(5)),
-    y: yLabels,
-    type: 'heatmap',
-    xaxis: 'x',
-    colorscale: [
-      [0, '#1a2233'],
-      [0.01, '#1e3a5f'],
-      [0.15, '#135bec44'],
-      [0.4, '#135bec'],
-      [0.7, '#f97316'],
-      [1, '#ef4444']
-    ],
-    hoverinfo: 'text',
-    text: hoverDaily,
-    showscale: true,
-    colorbar: {
-      title: { text: '热度', font: { size: 10, color: '#94a3b8' } },
-      thickness: 12,
-      len: 0.5,
-      tickfont: { size: 9, color: '#64748b' },
-      x: 1.02,
-    },
-  };
-
-  // 合计列 trace — 独立色阶
-  var traceTotal = {
-    z: zTotal,
-    x: ['合计'],
-    y: yLabels,
-    type: 'heatmap',
-    xaxis: 'x2',
-    colorscale: [
-      [0, '#1a2233'],
-      [0.3, '#135bec'],
-      [0.7, '#f97316'],
-      [1, '#ef4444']
-    ],
-    hoverinfo: 'text',
-    text: hoverTotal,
-    showscale: false,
-  };
-
-  Plotly.newPlot('freq-chart', [traceDaily, traceTotal], {
-    margin: { t: 10, b: 40, l: 100, r: 60 },
-    paper_bgcolor: 'rgba(0,0,0,0)',
-    plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#94a3b8', size: 10 },
-    xaxis: {
-      type: 'category',
-      side: 'bottom',
-      tickangle: -45,
-      tickfont: { size: 9 },
-      gridcolor: 'rgba(100,116,139,0.08)',
-      domain: [0, 0.88],
-    },
-    xaxis2: {
-      type: 'category',
-      side: 'bottom',
-      tickfont: { size: 9 },
-      gridcolor: 'rgba(100,116,139,0.08)',
-      domain: [0.90, 1],
-      anchor: 'y',
-    },
-    yaxis: {
-      tickfont: { size: 10 },
-      gridcolor: 'rgba(100,116,139,0.08)',
-      automargin: true,
-    },
-  }, { displayModeBar: false, responsive: true });
-
-  // 点击热力图单元格 → 高亮该标签行
-  document.getElementById('freq-chart').on('plotly_click', function(data) {
-    if (data.points && data.points[0]) {
-      var clickedTag = data.points[0].y;
-      showToast('标签: ' + clickedTag + ' — 热度: ' + data.points[0].z);
-    }
+// ── 综合热度趋势（Daily Intel）─────────────────────────────────
+async function loadTrendChart(days) {
+  // 更新 tab 高亮
+  document.querySelectorAll('.trend-tab-btn').forEach(b => {
+    b.className = b.dataset.days == days
+      ? 'trend-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white'
+      : 'trend-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300';
   });
-{% endif %}
-// ── 走马灯 ────────────────────────────────────────────────────
+  const el = document.getElementById('freq-chart');
+  el.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
+  try {
+    const data = await fetch('/hotspot/api/daily-intel-trend?days=' + days).then(r => r.json());
+    const dates = data.dates || [];
+    const tags = data.tags || [];
+    const heatMap = data.heat_map || {};
+    if (!tags.length) { el.innerHTML = '<p class="text-center text-slate-500 text-sm py-20">暂无数据</p>'; return; }
+
+    const yLabels = tags.slice().reverse();
+    const zDaily = [], hoverDaily = [], zTotal = [], hoverTotal = [];
+    for (const tag of yLabels) {
+      const tagData = heatMap[tag] || {};
+      const daily = tagData.daily || {};
+      const row = [], textRow = [];
+      for (const d of dates) {
+        const val = daily[d] || 0;
+        row.push(val);
+        textRow.push(tag + '<br>' + d + '<br>提及: ' + val + '次');
+      }
+      zDaily.push(row);
+      hoverDaily.push(textRow);
+      zTotal.push([tagData.total || 0]);
+      hoverTotal.push([tag + '<br>合计: ' + (tagData.total || 0) + '次']);
+    }
+
+    const traceDaily = {
+      z: zDaily, x: dates.map(d => d.slice(5)), y: yLabels,
+      type: 'heatmap', xaxis: 'x',
+      colorscale: [[0,'#1a2233'],[0.01,'#1e3a5f'],[0.15,'#135bec44'],[0.4,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
+      hoverinfo: 'text', text: hoverDaily, showscale: true,
+      colorbar: { title: { text: '次数', font: { size: 10, color: '#94a3b8' } }, thickness: 12, len: 0.5, tickfont: { size: 9, color: '#64748b' }, x: 1.02 },
+    };
+    const traceTotal = {
+      z: zTotal, x: ['合计'], y: yLabels,
+      type: 'heatmap', xaxis: 'x2',
+      colorscale: [[0,'#1a2233'],[0.3,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
+      hoverinfo: 'text', text: hoverTotal, showscale: false,
+    };
+    const chartH = Math.max(400, Math.min(yLabels.length * 28 + 80, 640));
+    Plotly.newPlot('freq-chart', [traceDaily, traceTotal], {
+      margin: { t: 10, b: 40, l: 110, r: 60 },
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#94a3b8', size: 10 },
+      xaxis: { type: 'category', side: 'bottom', tickangle: -45, tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)', domain: [0, 0.88] },
+      xaxis2: { type: 'category', side: 'bottom', tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)', domain: [0.90, 1], anchor: 'y' },
+      yaxis: { tickfont: { size: 10 }, gridcolor: 'rgba(100,116,139,0.08)', automargin: true },
+      height: chartH,
+    }, { displayModeBar: false, responsive: true });
+  } catch(e) { el.innerHTML = '<p class="text-center text-red-400 text-sm py-20">加载失败</p>'; console.error(e); }
+}
+loadTrendChart(7);
+// ── 走马灯（产业链篮子）─────────────────────────────────────────
 async function loadMentionBaskets() {
   try {
-    // 优先用向量聚类新 API，降级到旧 API
-    let data = [];
-    try {
-      data = await fetch('/hotspot/api/stock-baskets?days=3').then(r => r.json());
-    } catch(e) {}
-    if (!data || !data.length) {
-      data = await fetch('/hotspot/api/mention-baskets?days=30').then(r => r.json());
-    }
+    const data = await fetch('/hotspot/api/daily-intel-baskets?days=7').then(r => r.json());
     if (!data || !data.length) return;
     const container = document.getElementById('mentionMarquee');
     const renderCard = (b) => {
       const stocks = (b.stocks || []).slice(0, 4).map(s =>
-        `<a href="/stock/${s.stock_code}" class="text-primary hover:underline text-[10px]" onclick="event.stopPropagation()">${s.stock_name || s.stock_code}</a>`
+        `<a href="/stock/${s.stock_code}" class="text-primary hover:underline text-[10px]" onclick="event.stopPropagation()">${s.stock_name}${s.cnt > 1 ? '<sup class="text-slate-500">×'+s.cnt+'</sup>' : ''}</a>`
       ).join(' · ');
-      const logic = b.group_logic || b.investment_logic || '';
+      const logic = b.group_logic || '';
       const stockCount = (b.stocks || []).length;
-      const chunkCount = b.chunk_count || 0;
-      const badge = (stockCount || chunkCount)
-        ? `<span class="text-[9px] text-slate-500">${stockCount ? stockCount + '股' : ''}${stockCount && chunkCount ? ' · ' : ''}${chunkCount ? chunkCount + '篇' : ''}</span>`
-        : '';
       return `<div class="basket-card" title="${b.theme || ''}">
         <div class="flex items-center justify-between mb-1">
           <div class="text-xs font-bold text-white truncate">${b.theme || ''}</div>
-          ${badge}
+          <span class="text-[9px] text-slate-500 ml-1 flex-shrink-0">${stockCount}股</span>
         </div>
         <div class="text-[10px] text-slate-400 mb-1">${stocks}</div>
         ${logic ? `<div class="text-[9px] text-slate-500 italic line-clamp-1">${logic}</div>` : ''}
         <div class="text-[9px] text-slate-600 mt-0.5">${b.mention_count || 0}次提及</div>
       </div>`;
     };
-    // 双份内容实现无缝循环
     const html = data.map(renderCard).join('') + data.map(renderCard).join('');
     container.innerHTML = html;
-    // rAF 手动滚动，不依赖 CSS animation
     const half = container.scrollWidth / 2;
-    let x = 0;
-    let paused = false;
+    let x = 0, paused = false;
     container.parentElement.addEventListener('mouseenter', () => paused = true);
     container.parentElement.addEventListener('mouseleave', () => paused = false);
     function tick() {
-      if (!paused) {
-        x -= 0.5;
-        if (x <= -half) x = 0;
-        container.style.transform = `translateX(${x}px)`;
-      }
+      if (!paused) { x -= 0.5; if (x <= -half) x = 0; container.style.transform = `translateX(${x}px)`; }
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
@@ -503,12 +442,19 @@ async function removeFromPool(poolId, btn) {
 
 loadDiscoveryPool();
 
-// ── 细分行业热力图 ─────────────────────────────────────────────
-async function loadIndustryHeatmap() {
+// ── 细分行业热力图（Daily Intel）──────────────────────────────
+async function loadIndustryHeatmap(days) {
+  days = days || 7;
+  document.querySelectorAll('.industry-tab-btn').forEach(b => {
+    b.className = b.dataset.days == days
+      ? 'industry-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white'
+      : 'industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300';
+  });
   const loadingEl = document.getElementById('industry-heatmap-loading');
+  if (loadingEl) loadingEl.classList.remove('hidden');
   try {
-    const data = await fetch('/hotspot/api/industry-chunk-heatmap?days={{ days }}').then(r => r.json());
-    if (loadingEl) loadingEl.style.display = 'none';
+    const data = await fetch('/hotspot/api/daily-intel-industry?days=' + days).then(r => r.json());
+    if (loadingEl) loadingEl.classList.add('hidden');
     const industries = data.industries || [];
     const dates = data.dates || [];
     if (!industries.length || !dates.length) {
@@ -587,6 +533,6 @@ async function loadIndustryHeatmap() {
     console.error('行业热力图加载失败:', e);
   }
 }
-loadIndustryHeatmap();
+loadIndustryHeatmap(7);
 </script>
 {% endblock %}

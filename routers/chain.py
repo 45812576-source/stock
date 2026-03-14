@@ -476,6 +476,61 @@ def api_batch_kline(body: dict):
     return {"ok": True, "data": result}
 
 
+# ── API: 批量涨幅（1周/1月/3月） ──────────────────────────────────
+
+@router.post("/api/batch-perf")
+def api_batch_perf(body: dict):
+    """批量计算 1W/1M/3M 涨幅"""
+    codes = body.get("codes", [])
+    if not codes:
+        return {"ok": True, "data": {}}
+
+    from datetime import date, timedelta
+    today = date.today()
+    since = today - timedelta(days=95)  # 拉取约95天足够覆盖3个月
+
+    codes_ph = ",".join(["%s"] * len(codes))
+    rows = execute_query(
+        f"""SELECT stock_code, trade_date, close
+            FROM stock_daily
+            WHERE stock_code IN ({codes_ph})
+              AND trade_date >= %s
+            ORDER BY stock_code, trade_date ASC""",
+        codes + [str(since)],
+    ) or []
+
+    # 按 code 分组
+    from collections import defaultdict
+    daily_map = defaultdict(list)
+    for r in rows:
+        daily_map[r["stock_code"]].append((r["trade_date"], float(r["close"] or 0)))
+
+    def pct_change(bars, days):
+        if len(bars) < 2:
+            return None
+        latest_price = bars[-1][1]
+        # 找到 N 个交易日前的收盘价
+        ref_date = today - timedelta(days=days)
+        # 取 ref_date 之后最近一条
+        past = [b for b in bars if b[0] <= ref_date]
+        if not past:
+            past = [bars[0]]
+        ref_price = past[-1][1]
+        if ref_price == 0:
+            return None
+        return round((latest_price - ref_price) / ref_price * 100, 2)
+
+    result = {}
+    for code, bars in daily_map.items():
+        result[code] = {
+            "pct_1w": pct_change(bars, 7),
+            "pct_1m": pct_change(bars, 30),
+            "pct_3m": pct_change(bars, 91),
+        }
+
+    return {"ok": True, "data": result}
+
+
 # ── API: 产业链相关新闻 ───────────────────────────────────────────
 
 @router.get("/api/news")

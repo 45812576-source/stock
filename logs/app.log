@@ -14,3 +14,1754 @@ INFO:     Application startup complete.
 ERROR:    [Errno 48] error while attempting to bind on address ('0.0.0.0', 8501): address already in use
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
+/Users/xia/miniconda3/lib/python3.13/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.0.1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+INFO:     Started server process [8885]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8501 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61086 - "GET /daily-intel HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61107 - "GET /portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /daily-intel HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61088 - "GET /daily-intel HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61088 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /portfolio/api/strategies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61227 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61217 - "GET /portfolio/api/lists HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /portfolio/api/projects/1/chat/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /portfolio/api/projects/1/context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61227 - "GET /portfolio/api/lists/1/stocks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61227 - "GET /portfolio/api/projects/1/sector-flow HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /portfolio/api/projects/1/hotspot-reports HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /robust-kline HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61217 - "GET /robust-kline/api/mentions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61227 - "GET /robust-kline/api/candidates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61088 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:61253 - "GET /robust-kline/api/scan-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61226 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61253 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61204 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [8885]
+/Users/xia/miniconda3/lib/python3.13/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.0.1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+Traceback (most recent call last):
+  File "/Users/xia/miniconda3/bin/uvicorn", line 7, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/click/core.py", line 1442, in __call__
+    return self.main(*args, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/click/core.py", line 1363, in main
+    rv = self.invoke(ctx)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/click/core.py", line 1226, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/click/core.py", line 794, in invoke
+    return callback(*args, **kwargs)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/main.py", line 410, in main
+    run(
+    ~~~^
+        app,
+        ^^^^
+    ...<45 lines>...
+        h11_max_incomplete_event_size=h11_max_incomplete_event_size,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/main.py", line 577, in run
+    server.run()
+    ~~~~~~~~~~^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/server.py", line 65, in run
+    return asyncio.run(self.serve(sockets=sockets))
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/asyncio/runners.py", line 195, in run
+    return runner.run(main)
+           ~~~~~~~~~~^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "uvloop/loop.pyx", line 1518, in uvloop.loop.Loop.run_until_complete
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/server.py", line 69, in serve
+    await self._serve(sockets)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/server.py", line 76, in _serve
+    config.load()
+    ~~~~~~~~~~~^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/config.py", line 434, in load
+    self.loaded_app = import_from_string(self.app)
+                      ~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/importer.py", line 22, in import_from_string
+    raise exc from None
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+  File "/Users/xia/miniconda3/lib/python3.13/importlib/__init__.py", line 88, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 1023, in exec_module
+  File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+  File "/Users/xia/project/stock-analysis-system（v2.0）/app_web.py", line 70, in <module>
+    from routers.chain import router as chain_router
+  File "/Users/xia/project/stock-analysis-system（v2.0）/routers/chain.py", line 13, in <module>
+    from config.chain_config import CHAINS, CHAIN_ORDER
+ModuleNotFoundError: No module named 'config.chain_config'
+/Users/xia/miniconda3/lib/python3.13/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.0.1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+INFO:     Started server process [9156]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8501 (Press CTRL+C to quit)
+INFO:     127.0.0.1:62270 - "GET /portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62272 - "GET /daily-intel HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/project/stock-analysis-system（v2.0）/routers/daily_intel.py", line 68, in daily_intel_page
+    return templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "daily_intel.html",
+        ^^^^^^^^^^^^^^^^^^^
+        {"request": request, "today": today, "active_page": "daily_intel"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 208, in TemplateResponse
+    template = self.get_template(name)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 131, in get_template
+    return self.env.get_template(name)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 209, in get_source
+    raise TemplateNotFound(
+    ...<2 lines>...
+    )
+jinja2.exceptions.TemplateNotFound: 'daily_intel.html' not found in search path: '/Users/xia/project/stock-analysis-system（v2.0）/templates'
+INFO:     127.0.0.1:62330 - "GET /robust-kline HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62330 - "GET /robust-kline/api/mentions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62332 - "GET /robust-kline/api/candidates HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62339 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62344 - "GET /robust-kline/api/scan-status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /portfolio/api/strategies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/lists HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62442 - "GET /portfolio/api/projects/1/chat/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/projects/1/context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /portfolio/api/lists/1/stocks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /portfolio/api/projects/1/sector-flow HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/projects/1/hotspot-reports HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /portfolio/api/strategies HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62343 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62341 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/lists HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62442 - "GET /portfolio/api/projects/1/chat/history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/projects/1/context HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /portfolio/api/lists/1/stocks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /portfolio/api/projects/1/sector-flow HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /portfolio/api/projects/1/hotspot-reports HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62344 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "POST /auth/logout HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62440 - "GET /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "POST /auth/login HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /overview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62610 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62697 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /overview/api/news-feed?days=7 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /overview/api/driver-alerts HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62699 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62700 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [9156]
+/Users/xia/miniconda3/lib/python3.13/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.6.3) or chardet (7.0.1)/charset_normalizer (3.4.4) doesn't match a supported version!
+  warnings.warn(
+INFO:     Started server process [9932]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8501 (Press CTRL+C to quit)
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64900 - "GET /chain HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 214, in run_endpoint_function
+    return await run_in_threadpool(dependant.call, **values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/concurrency.py", line 39, in run_in_threadpool
+    return await anyio.to_thread.run_sync(func, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/anyio/to_thread.py", line 56, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        func, args, abandon_on_cancel=abandon_on_cancel, limiter=limiter
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 2364, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/anyio/_backends/_asyncio.py", line 864, in run
+    result = context.run(func, *args)
+  File "/Users/xia/project/stock-analysis-system（v2.0）/routers/chain.py", line 72, in chain_page
+    return templates.TemplateResponse("chain.html", {
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
+        "request": request,
+        ^^^^^^^^^^^^^^^^^^^
+        "active_page": "chain",
+        ^^^^^^^^^^^^^^^^^^^^^^^
+    })
+    ^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 208, in TemplateResponse
+    template = self.get_template(name)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 131, in get_template
+    return self.env.get_template(name)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 209, in get_source
+    raise TemplateNotFound(
+    ...<2 lines>...
+    )
+jinja2.exceptions.TemplateNotFound: 'chain.html' not found in search path: '/Users/xia/project/stock-analysis-system（v2.0）/templates'
+INFO:     127.0.0.1:64902 - "GET /daily-intel HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/protocols/http/httptools_impl.py", line 401, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 70, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/applications.py", line 1054, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/applications.py", line 113, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 187, in __call__
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 62, in wrapped_app
+    raise exc
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/_exception_handler.py", line 51, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/routing.py", line 73, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/fastapi/routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/project/stock-analysis-system（v2.0）/routers/daily_intel.py", line 68, in daily_intel_page
+    return templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        "daily_intel.html",
+        ^^^^^^^^^^^^^^^^^^^
+        {"request": request, "today": today, "active_page": "daily_intel"},
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 208, in TemplateResponse
+    template = self.get_template(name)
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/starlette/templating.py", line 131, in get_template
+    return self.env.get_template(name)
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
+    return self._load_template(name, globals)
+           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/environment.py", line 975, in _load_template
+    template = self.loader.load(self, name, self.make_globals(globals))
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 126, in load
+    source, filename, uptodate = self.get_source(environment, name)
+                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
+  File "/Users/xia/miniconda3/lib/python3.13/site-packages/jinja2/loaders.py", line 209, in get_source
+    raise TemplateNotFound(
+    ...<2 lines>...
+    )
+jinja2.exceptions.TemplateNotFound: 'daily_intel.html' not found in search path: '/Users/xia/project/stock-analysis-system（v2.0）/templates'
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64877 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64879 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64880 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /data/api/active-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /stock/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50443 - "GET /hotspot/api/research-tasks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50442 - "GET /data/api/active-tasks HTTP/1.1" 200 OK

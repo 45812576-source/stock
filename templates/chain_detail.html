@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}{{ chain_name }} — 产业链详情{% endblock %}
+
+{% block extra_styles %}
+<style>
+/* 环节收起/展开行 */
+.tier-header {
+  display:flex; align-items:center; gap:10px; padding:12px 16px;
+  cursor:pointer; user-select:none;
+  background:#1a2233; border-radius:10px;
+  border:1px solid #2d3748; transition:border-color .15s;
+}
+.tier-header:hover { border-color:{{ chain_color }}44; }
+.tier-header.expanded { border-radius:10px 10px 0 0; border-bottom-color:transparent; }
+
+.tier-body {
+  background:#141c2e; border:1px solid #2d3748; border-top:none;
+  border-radius:0 0 10px 10px; overflow:hidden;
+}
+
+/* 股票行 */
+.stock-row {
+  display:grid;
+  grid-template-columns: 130px 70px 70px 100px 100px 80px 80px 80px;
+  align-items:center; gap:0;
+  padding:8px 16px; border-bottom:1px solid #1e2738;
+  transition:background .1s;
+}
+.stock-row:last-child { border-bottom:none; }
+.stock-row:hover { background:#1e2738; }
+
+/* 表头 */
+.stock-header {
+  display:grid;
+  grid-template-columns: 130px 70px 70px 100px 100px 80px 80px 80px;
+  align-items:center; gap:0;
+  padding:6px 16px;
+  background:#0f1826; border-bottom:1px solid #2d3748;
+}
+
+/* K线小图 */
+.kline-mini { display:flex; align-items:flex-end; gap:1px; height:28px; }
+.kbar { width:6px; border-radius:1px; min-height:2px; }
+.kbar.yang { background:#ef4444; }
+.kbar.yin { background:#22c55e; }
+
+.pct-pos { color:#ef4444; font-weight:700; }
+.pct-neg { color:#22c55e; font-weight:700; }
+.pct-zero { color:#64748b; }
+
+/* 全链资金流图 */
+.flow-bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
+.flow-bar-neg { background:#22c55e; border-radius:0 0 2px 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="p-6">
+
+  <!-- Breadcrumb + 标题 -->
+  <div class="flex items-center gap-3 mb-6">
+    <a href="/chain" class="flex items-center gap-1 text-slate-500 hover:text-slate-300 text-sm transition-colors">
+      <span class="material-icons-round text-base">arrow_back</span>
+      产业链全景
+    </a>
+    <span class="text-slate-700">/</span>
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:{{ chain_color }}22">
+        <span class="material-icons-round text-sm" style="color:{{ chain_color }}">{{ chain_icon }}</span>
+      </div>
+      <h1 class="text-2xl font-extrabold tracking-tight">{{ chain_name }}</h1>
+    </div>
+  </div>
+
+  <!-- 全链资金流概览 -->
+  <div class="card p-5 mb-6" id="flowOverview">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-semibold text-slate-400">全链资金流（近15日）</span>
+      <span class="text-sm font-bold" id="totalFlowLabel" style="color:{{ chain_color }}">加载中…</span>
+    </div>
+    <div id="flowChart" class="flex items-end gap-1" style="height:48px;">
+      <!-- 柱状图 JS 填充 -->
+    </div>
+    <div id="flowDates" class="flex justify-between mt-1" style="font-size:10px;color:#475569;"></div>
+  </div>
+
+  <!-- 环节列表 -->
+  <div id="tiersContainer" class="space-y-3">
+    <div class="text-center py-10 text-slate-600">
+      <span class="material-icons-round text-3xl mb-2 block animate-spin" style="color:{{ chain_color }}">refresh</span>
+      加载产业链数据…
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CHAIN_NAME = {{ chain_name | tojson }};
+const CHAIN_COLOR = {{ chain_color | tojson }};
+
+// 当前已展开的 tier
+const _expanded = new Set();
+// K线数据缓存
+const _klineCache = {};
+// 涨幅数据缓存
+const _perfCache = {};
+
+// ── 入口 ───────────────────────────────────────────────────────────
+async function init() {
+  const r = await fetch(`/chain/api/detail-v2?name=${encodeURIComponent(CHAIN_NAME)}`);
+  const d = await r.json();
+  if (!d.ok) { document.getElementById('tiersContainer').innerHTML = `<p class="text-red-400 text-sm">${d.error}</p>`; return; }
+
+  renderFlowChart(d.flow_dates, d.flow_total);
+  renderTiers(d.tiers);
+}
+
+// ── 资金流主图 ─────────────────────────────────────────────────────
+function renderFlowChart(dates, flows) {
+  const chartEl = document.getElementById('flowChart');
+  const dateEl = document.getElementById('flowDates');
+  const totalLabel = document.getElementById('totalFlowLabel');
+
+  if (!flows || flows.length === 0) {
+    chartEl.innerHTML = '<span class="text-slate-600 text-xs">暂无数据</span>';
+    return;
+  }
+
+  const total = flows.reduce((a, b) => a + b, 0);
+  totalLabel.textContent = (total >= 0 ? '+' : '') + total.toFixed(2) + ' 亿';
+  totalLabel.style.color = total >= 0 ? '#ef4444' : '#22c55e';
+
+  const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
+  const maxH = 48;
+
+  chartEl.innerHTML = flows.map((v, i) => {
+    if (v >= 0) {
+      const h = Math.max(3, Math.round((v / maxAbs) * maxH * 0.9));
+      return `<div class="flex flex-col items-center flex-1" style="height:${maxH}px;justify-content:flex-end">
+        <div class="flow-bar-pos w-full" style="height:${h}px" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
+      </div>`;
+    } else {
+      const h = Math.max(3, Math.round((Math.abs(v) / maxAbs) * maxH * 0.9));
+      return `<div class="flex flex-col items-center flex-1" style="height:${maxH}px;justify-content:flex-start">
+        <div class="flow-bar-neg w-full" style="height:${h}px" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
+      </div>`;
+    }
+  }).join('');
+
+  if (dates.length > 0) {
+    const step = Math.ceil(dates.length / 5);
+    dateEl.innerHTML = dates.filter((_,i) => i % step === 0 || i === dates.length-1)
+      .map(d => `<span>${String(d).slice(5)}</span>`).join('');
+  }
+}
+
+// ── 渲染环节列表 ───────────────────────────────────────────────────
+function renderTiers(tiers) {
+  const container = document.getElementById('tiersContainer');
+  container.innerHTML = tiers.map((tier, idx) => {
+    const flowSign = tier.tier_flow_15d >= 0 ? '+' : '';
+    const flowColor = tier.tier_flow_15d >= 0 ? '#ef4444' : '#22c55e';
+    return `
+    <div class="tier-section" id="tier-${idx}">
+      <div class="tier-header" onclick="toggleTier(${idx}, ${JSON.stringify(tier.stocks.map(s=>s.code))})">
+        <span class="material-icons-round text-sm transition-transform" id="chevron-${idx}" style="color:${CHAIN_COLOR}">chevron_right</span>
+        <div class="flex-1 flex items-center gap-3">
+          <span class="font-bold text-sm">${tier.key}</span>
+          <span class="text-xs text-slate-500">${tier.label}</span>
+        </div>
+        <span class="text-xs text-slate-500">${tier.stocks.length}只</span>
+        <span class="text-xs font-bold" style="color:${flowColor}; min-width:60px; text-align:right">${flowSign}${tier.tier_flow_15d.toFixed(2)}亿</span>
+      </div>
+      <div class="tier-body hidden" id="tierbody-${idx}">
+        ${buildStockTable(tier.stocks, idx)}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 收起/展开 ──────────────────────────────────────────────────────
+async function toggleTier(idx, codes) {
+  const body = document.getElementById(`tierbody-${idx}`);
+  const chevron = document.getElementById(`chevron-${idx}`);
+  const header = body.previousElementSibling;
+  const isOpen = !body.classList.contains('hidden');
+
+  if (isOpen) {
+    body.classList.add('hidden');
+    chevron.style.transform = '';
+    header.classList.remove('expanded');
+    _expanded.delete(idx);
+  } else {
+    body.classList.remove('hidden');
+    chevron.style.transform = 'rotate(90deg)';
+    header.classList.add('expanded');
+    _expanded.add(idx);
+    // 懒加载K线 + 涨幅
+    await loadKlineForTier(idx, codes);
+  }
+}
+
+// ── 股票表格 ───────────────────────────────────────────────────────
+function buildStockTable(stocks, tierIdx) {
+  if (!stocks || stocks.length === 0) return '<div class="px-4 py-3 text-slate-600 text-xs">暂无股票数据</div>';
+
+  const headerCols = ['股票', '最新价', '今日涨跌', '月K（近6月）', '周K（近6周）', '1周涨幅', '1月涨幅', '3月涨幅'];
+  const header = `<div class="stock-header">
+    ${headerCols.map(h => `<span class="text-[10px] font-semibold text-slate-500 uppercase">${h}</span>`).join('')}
+  </div>`;
+
+  const rows = stocks.map(s => buildStockRow(s, tierIdx)).join('');
+  return header + rows;
+}
+
+function buildStockRow(s, tierIdx) {
+  const pct = s.latest_pct;
+  const pctClass = pct === null ? 'pct-zero' : pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
+  const pctText = pct === null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+  const priceText = s.latest_price ? s.latest_price.toFixed(2) : '—';
+
+  return `<div class="stock-row" id="srow-${s.code}">
+    <div class="flex items-center gap-2">
+      <a href="/stock/${s.code}" class="text-xs font-bold text-blue-400 hover:underline">${s.name}</a>
+      <span class="text-[10px] text-slate-600">${s.code}</span>
+    </div>
+    <span class="text-xs font-mono">${priceText}</span>
+    <span class="text-xs ${pctClass}">${pctText}</span>
+    <div class="kline-mini" id="monthly-${s.code}">
+      <div class="text-[9px] text-slate-700">—</div>
+    </div>
+    <div class="kline-mini" id="weekly-${s.code}">
+      <div class="text-[9px] text-slate-700">—</div>
+    </div>
+    <span class="text-xs" id="perf1w-${s.code}">—</span>
+    <span class="text-xs" id="perf1m-${s.code}">—</span>
+    <span class="text-xs" id="perf3m-${s.code}">—</span>
+  </div>`;
+}
+
+// ── 懒加载K线数据 ──────────────────────────────────────────────────
+async function loadKlineForTier(tierIdx, codes) {
+  // 过滤已缓存的
+  const missing = codes.filter(c => !_klineCache[c]);
+  if (missing.length === 0) {
+    fillKlineUI(codes);
+    return;
+  }
+
+  try {
+    const r = await fetch('/chain/api/batch-kline', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({codes: missing})
+    });
+    const d = await r.json();
+    if (d.ok && d.data) {
+      Object.assign(_klineCache, d.data);
+    }
+  } catch(e) { console.error('kline load error', e); }
+
+  // 同时加载涨幅数据
+  await loadPerfForCodes(missing);
+  fillKlineUI(codes);
+}
+
+// ── 拉取涨幅数据（用日线计算1W/1M/3M） ─────────────────────────────
+async function loadPerfForCodes(codes) {
+  const missing = codes.filter(c => !_perfCache[c]);
+  if (missing.length === 0) return;
+
+  try {
+    const r = await fetch('/chain/api/batch-perf', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({codes: missing})
+    });
+    const d = await r.json();
+    if (d.ok && d.data) {
+      Object.assign(_perfCache, d.data);
+    }
+  } catch(e) {
+    // 降级：不显示涨幅
+  }
+}
+
+// ── 填充K线 + 涨幅到 DOM ──────────────────────────────────────────
+function fillKlineUI(codes) {
+  codes.forEach(code => {
+    const kd = _klineCache[code];
+    const pd = _perfCache[code];
+
+    if (kd) {
+      fillMiniKline(`monthly-${code}`, kd.monthly || []);
+      fillMiniKline(`weekly-${code}`, kd.weekly || []);
+    }
+
+    if (pd) {
+      fillPerf(`perf1w-${code}`, pd.pct_1w);
+      fillPerf(`perf1m-${code}`, pd.pct_1m);
+      fillPerf(`perf3m-${code}`, pd.pct_3m);
+    }
+  });
+}
+
+function fillMiniKline(elId, bars) {
+  const el = document.getElementById(elId);
+  if (!el || !bars || bars.length === 0) return;
+
+  const maxH = 28;
+  const highs = bars.map(b => b.high);
+  const lows = bars.map(b => b.low);
+  const gHigh = Math.max(...highs);
+  const gLow = Math.min(...lows);
+  const range = gHigh - gLow || 1;
+
+  el.innerHTML = bars.map(b => {
+    const bodyTop = maxH - Math.round(((Math.max(b.open, b.close) - gLow) / range) * maxH);
+    const bodyBot = maxH - Math.round(((Math.min(b.open, b.close) - gLow) / range) * maxH);
+    const bodyH = Math.max(2, bodyBot - bodyTop);
+    const cls = b.yang ? 'yang' : 'yin';
+    return `<div class="kbar ${cls}" style="height:${bodyH}px;margin-top:${bodyTop}px" title="${b.label}: ${b.open.toFixed(2)}→${b.close.toFixed(2)}"></div>`;
+  }).join('');
+}
+
+function fillPerf(elId, pct) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (pct === null || pct === undefined) { el.textContent = '—'; return; }
+  const cls = pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
+  el.className = `text-xs ${cls}`;
+  el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+}
+
+// ── 初始化 ─────────────────────────────────────────────────────────
+init();
+</script>
+{% endblock %}
