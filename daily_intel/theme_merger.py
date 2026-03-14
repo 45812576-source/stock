@@ -46,7 +46,7 @@ def _fetch_day_summaries(scan_date: str) -> list[dict]:
     rows = execute_cloud_query(
         """SELECT stock_name, stock_code, industry,
                   SUBSTRING(MAX(event_summary), 1, 100) AS summary,
-                  COUNT(*) AS cnt
+                  COUNT(DISTINCT source_id) AS cnt
            FROM daily_intel_stocks
            WHERE scan_date = %s
              AND event_summary IS NOT NULL AND event_summary != ''

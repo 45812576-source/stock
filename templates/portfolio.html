@@ -519,11 +519,9 @@ function renderProjectContent(ctx, stocks) {
     </div>`;
 
   const content = document.getElementById('projectContent');
-  content.innerHTML = `
-    <div class="flex flex-1 overflow-hidden w-full">
-      <!-- 左列: 信息面板 (flex:3) -->
+  const leftPanel = hasAnalysis ? `
+      <!-- 左列有分析时：渲染六个板块 -->
       <div class="flex flex-col border-r border-slate-800" style="flex: 3; min-width: 0">
-        <!-- 滚动区：策略标签 → 热点报告 → 细分行业资金流 → 宏观 → 行业 → 关联新闻 -->
         <div class="flex-1 overflow-y-auto p-4">
           <!-- 策略标签（聚类） -->
           <div class="info-section">
@@ -537,7 +535,7 @@ function renderProjectContent(ctx, stocks) {
               </button>
             </div>
             <div id="strategyTags" class="info-section-body">
-              <div class="text-xs text-slate-600 text-center py-3">点击「聚类分析」运行</div>
+              ${ctx.strategy_tags && ctx.strategy_tags.length ? _renderStrategyTagsHtml(ctx.strategy_tags) : '<div class="text-xs text-slate-600 text-center py-3">点击「聚类分析」运行</div>'}
             </div>
           </div>
           <!-- 热点研究报告 -->
@@ -587,7 +585,24 @@ function renderProjectContent(ctx, stocks) {
             <div id="relatedNews" class="info-section-body">${renderNews(ctx.related_news || [])}</div>
           </div>
         </div>
-      </div>
+      </div>` : `
+      <!-- 左列未生成时：空状态引导 -->
+      <div class="flex flex-col border-r border-slate-800 items-center justify-center" style="flex: 3; min-width: 0">
+        <div class="flex flex-col items-center gap-4 text-center px-8">
+          <span class="material-icons-round text-5xl text-slate-700">auto_awesome</span>
+          <div>
+            <p class="text-sm font-semibold text-slate-400 mb-1">还没有生成分析报告</p>
+            <p class="text-xs text-slate-600">点击下方按钮，AI 将基于当前股票篮子生成<br>宏观分析、行业分析、关联新闻等六大板块</p>
+          </div>
+          <button onclick="triggerGenerateAnalysis(${project.id})"
+                  class="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold border border-primary/40 text-primary bg-primary/10 hover:bg-primary/20 transition">
+            <span class="material-icons-round text-base">auto_awesome</span>生成分析报告
+          </button>
+        </div>
+      </div>`;
+  content.innerHTML = `
+    <div class="flex flex-1 overflow-hidden w-full">
+      ${leftPanel}
       <!-- 右列: 股票篮子 -->
       <div class="flex flex-col" style="flex: 1.1; min-width: 0">
         <!-- 篮子 header -->
@@ -611,9 +626,11 @@ function renderProjectContent(ctx, stocks) {
       </div>
     </div>
   `;
-  // 异步加载
-  _loadSectorFlow(project.id);
-  _loadHotspotReports(project.id);
+  // 异步加载（仅有分析时才渲染对应容器）
+  if (hasAnalysis) {
+    _loadSectorFlow(project.id);
+    _loadHotspotReports(project.id);
+  }
 }
 
 // ── 渲染辅助函数 ──────────────────────────────────────────────
@@ -622,7 +639,7 @@ function renderProjectContent(ctx, stocks) {
 // 折叠式展示：标题行（highlight/fact） + 点击展开 FOE 全文
 let _newsExpandId = 0;
 function renderNews(newsList) {
-  if (!newsList || !newsList.length) return '<div class="text-xs text-slate-600 text-center py-4">暂无关联新闻</div>';
+  if (!newsList || !newsList.length) return '<div class="text-xs text-slate-600 text-center py-4">暂无关联新闻 · 点击右上角「生成分析」</div>';
 
   // 题材容器阈值 ≥ 3（news-importance-scoring Skill 规定）
   const filtered = [...newsList]
@@ -811,7 +828,7 @@ async function _loadHotspotReports(projectId) {
     const resp = await fetch(`/portfolio/api/projects/${projectId}/hotspot-reports`);
     const d = await resp.json();
     if (!d.ok || !d.reports || !d.reports.length) {
-      el.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">暂无关联热点研究</div>';
+      el.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">暂无关联研究 · 需在「机会发现」模块生成热点研究后自动匹配</div>';
       return;
     }
     el.innerHTML = d.reports.map((r, i) => _renderHotspotReportItem(r, i)).join('');
@@ -933,6 +950,75 @@ async function _runStrategyTags(projectId) {
   if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-[11px]">auto_awesome</span>重新分析'; }
 }
 
+const _STRAT_CAT_ORDER = ['profit_quality','growth_momentum','revenue_structure','valuation',
+  'capital_flow','smart_money','technical','industry_chain','event_catalyst',
+  'macro_policy','risk_return','sentiment_behavior'];
+const _STRAT_CAT_META = {
+  profit_quality:    {label:'盈利质量',  color:'emerald'},
+  growth_momentum:   {label:'成长动能',  color:'blue'},
+  revenue_structure: {label:'收入结构',  color:'violet'},
+  valuation:         {label:'估值洼地',  color:'amber'},
+  capital_flow:      {label:'资金面',    color:'red'},
+  smart_money:       {label:'聪明钱',    color:'pink'},
+  technical:         {label:'技术形态',  color:'cyan'},
+  industry_chain:    {label:'产业链·龙头', color:'orange'},
+  event_catalyst:    {label:'事件驱动',  color:'yellow'},
+  macro_policy:      {label:'宏观政策',  color:'indigo'},
+  risk_return:       {label:'风险收益',  color:'teal'},
+  sentiment_behavior:{label:'情绪·行为', color:'slate'},
+};
+
+function _renderStrategyTagsHtml(tags) {
+  if (!tags || !tags.length) return '<div class="text-xs text-slate-600 text-center py-3">点击「聚类分析」运行</div>';
+  const total = tags[0]?.total || 1;
+  const groups = {};
+  for (const tag of tags) {
+    const cat = tag.category || 'other';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(tag);
+  }
+  for (const g of Object.values(groups)) g.sort((a, b) => b.match_count - a.match_count);
+
+  const renderTag = tag => {
+    const color = (_STRAT_CAT_META[tag.category] || {}).color || 'slate';
+    const pct = Math.round(tag.match_count / total * 100);
+    const stockList = tag.stocks.map(s => `${s.stock_name}(${s.stock_code})`).join('、');
+    const isContrarian = tag.is_contrarian;
+    const contraHint = isContrarian ? ' ⚠' : '';
+    const borderColor = isContrarian
+      ? 'border-rose-500/40 text-rose-300'
+      : `border-${color}-500/30 text-${color}-300`;
+    const dragText = `策略标签：${tag.tag_name}\n覆盖股票：${stockList}`;
+    return `<span class="strat-tag ${borderColor} bg-${color}-500/5 mr-1 mb-1"
+                  draggable="true"
+                  data-drag-label="策略：${tag.tag_name}"
+                  data-drag-text="${escapeAttr(dragText)}"
+                  ondragstart="onReportDragStart(event, this)">
+      ${tag.tag_name}${contraHint}
+      <span class="ml-1 text-[9px] opacity-70">${tag.match_count}/${total}</span>
+      <span class="strat-tag-tooltip">
+        <strong>${tag.tag_name}</strong>（${tag.category_label}）<br>
+        命中 ${tag.match_count}/${total} 只（${pct}%）<br>
+        <span class="text-slate-400">${stockList}</span>
+        ${isContrarian ? '<br><span class="text-rose-400">⚠ 反向提醒：该策略可能为逆势信号</span>' : ''}
+      </span>
+    </span>`;
+  };
+
+  const catOrder = [..._STRAT_CAT_ORDER, ...Object.keys(groups).filter(k => !_STRAT_CAT_ORDER.includes(k))];
+  return catOrder.filter(cat => groups[cat]).map(cat => {
+    const meta = _STRAT_CAT_META[cat] || {label: cat, color: 'slate'};
+    const color = meta.color;
+    return `<div class="mb-2">
+      <div class="flex items-center gap-1 mb-1">
+        <span class="w-1.5 h-1.5 rounded-full bg-${color}-400 shrink-0"></span>
+        <span class="text-[10px] font-medium text-${color}-400 uppercase tracking-wide">${meta.label}</span>
+      </div>
+      <div class="flex flex-wrap">${groups[cat].map(renderTag).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
 async function _loadStrategyTags(projectId) {
   const el = document.getElementById('strategyTags');
   if (!el) return;
@@ -948,75 +1034,7 @@ async function _loadStrategyTags(projectId) {
       el.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">暂无匹配策略标签</div>';
       return;
     }
-    const total = d.total || 1;
-    // 按 category 分组，每组内按 match_count 降序
-    const CAT_ORDER = ['profit_quality','growth_momentum','revenue_structure','valuation',
-      'capital_flow','smart_money','technical','industry_chain','event_catalyst',
-      'macro_policy','risk_return','sentiment_behavior'];
-    const CAT_META = {
-      profit_quality:    {label:'盈利质量',  color:'emerald'},
-      growth_momentum:   {label:'成长动能',  color:'blue'},
-      revenue_structure: {label:'收入结构',  color:'violet'},
-      valuation:         {label:'估值洼地',  color:'amber'},
-      capital_flow:      {label:'资金面',    color:'red'},
-      smart_money:       {label:'聪明钱',    color:'pink'},
-      technical:         {label:'技术形态',  color:'cyan'},
-      industry_chain:    {label:'产业链·龙头', color:'orange'},
-      event_catalyst:    {label:'事件驱动',  color:'yellow'},
-      macro_policy:      {label:'宏观政策',  color:'indigo'},
-      risk_return:       {label:'风险收益',  color:'teal'},
-      sentiment_behavior:{label:'情绪·行为', color:'slate'},
-    };
-    // 分组
-    const groups = {};
-    for (const tag of d.tags) {
-      const cat = tag.category || 'other';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(tag);
-    }
-    // 每组内按 match_count 降序
-    for (const g of Object.values(groups)) g.sort((a, b) => b.match_count - a.match_count);
-
-    const renderTag = tag => {
-      const color = (CAT_META[tag.category] || {}).color || 'slate';
-      const pct = Math.round(tag.match_count / total * 100);
-      const stockList = tag.stocks.map(s => `${s.stock_name}(${s.stock_code})`).join('、');
-      const isContrarian = tag.is_contrarian;
-      const contraHint = isContrarian ? ' ⚠' : '';
-      const borderColor = isContrarian
-        ? 'border-rose-500/40 text-rose-300'
-        : `border-${color}-500/30 text-${color}-300`;
-      const dragText = `策略标签：${tag.tag_name}\n覆盖股票：${stockList}`;
-      return `<span class="strat-tag ${borderColor} bg-${color}-500/5 mr-1 mb-1"
-                    draggable="true"
-                    data-drag-label="策略：${tag.tag_name}"
-                    data-drag-text="${escapeAttr(dragText)}"
-                    ondragstart="onReportDragStart(event, this)">
-        ${tag.tag_name}${contraHint}
-        <span class="ml-1 text-[9px] opacity-70">${tag.match_count}/${total}</span>
-        <span class="strat-tag-tooltip">
-          <strong>${tag.tag_name}</strong>（${tag.category_label}）<br>
-          命中 ${tag.match_count}/${total} 只（${pct}%）<br>
-          <span class="text-slate-400">${stockList}</span>
-          ${isContrarian ? '<br><span class="text-rose-400">⚠ 反向提醒：该策略可能为逆势信号</span>' : ''}
-        </span>
-      </span>`;
-    };
-
-    const catOrder = [...CAT_ORDER, ...Object.keys(groups).filter(k => !CAT_ORDER.includes(k))];
-    const sectionsHtml = catOrder.filter(cat => groups[cat]).map(cat => {
-      const meta = CAT_META[cat] || {label: cat, color: 'slate'};
-      const color = meta.color;
-      const tagsInGroup = groups[cat].map(renderTag).join('');
-      return `<div class="mb-2">
-        <div class="flex items-center gap-1 mb-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-${color}-400 shrink-0"></span>
-          <span class="text-[10px] font-medium text-${color}-400 uppercase tracking-wide">${meta.label}</span>
-        </div>
-        <div class="flex flex-wrap">${tagsInGroup}</div>
-      </div>`;
-    }).join('');
-    el.innerHTML = sectionsHtml;
+    el.innerHTML = _renderStrategyTagsHtml(d.tags);
   } catch(e) {
     el.innerHTML = `<div class="text-xs text-rose-500 text-center py-4">加载失败: ${e.message || e}</div>`;
   }
@@ -1058,7 +1076,7 @@ function clearChatCtx() {
 
 
 function renderMacro(macroJson) {
-  if (!macroJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无宏观分析</div>';
+  if (!macroJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无宏观分析 · 点击右上角「生成分析」</div>';
   let html = '<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">宏观分析</h3>';
   if (macroJson.summary) {
     html += `<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-4">
@@ -1104,7 +1122,7 @@ function renderMacro(macroJson) {
 }
 
 function renderIndustry(industryJson) {
-  if (!industryJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无行业分析</div>';
+  if (!industryJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无行业分析 · 点击右上角「生成分析」</div>';
   let html = '<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">行业分析</h3>';
   if (industryJson.summary) {
     html += `<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-4">

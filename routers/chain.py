@@ -376,6 +376,8 @@ def api_chain_detail_v2(name: str):
     ) or []
     info_map = {r["stock_code"]: r for r in info_rows}
 
+    from config.chain_config import STOCK_TAGS
+
     def build_stock_v2(code):
         info = info_map.get(code, {})
         sd = latest_sd_map.get(code, {})
@@ -388,6 +390,7 @@ def api_chain_detail_v2(name: str):
             "latest_price": sd.get("latest_price"),
             "latest_pct": sd.get("latest_pct"),
             "market_cap": market_cap_yi,
+            "tag": STOCK_TAGS.get(name_str, ""),
         }
 
     # 按环节组织
@@ -872,6 +875,8 @@ def api_watchlist_detail_v2(name: str):
     for r in watch_rows:
         tier_stocks.setdefault(r["tier_key"], []).append(r["stock_code"])
 
+    from config.chain_config import STOCK_TAGS as _STOCK_TAGS
+
     tiers_out = []
     for tk, codes_in_tier in tier_stocks.items():
         stocks = []
@@ -879,12 +884,14 @@ def api_watchlist_detail_v2(name: str):
             info = info_map.get(code, {})
             sd = latest_sd_map.get(code, {})
             mc = info.get("market_cap")
+            name_str = info.get("stock_name") or code
             stocks.append({
                 "code": code,
-                "name": info.get("stock_name") or code,
+                "name": name_str,
                 "latest_price": sd.get("latest_price"),
                 "latest_pct": sd.get("latest_pct"),
                 "market_cap": round(float(mc) / 1e8, 1) if mc else None,
+                "tag": _STOCK_TAGS.get(name_str, "news"),  # watchlist 来源默认 news
             })
 
         tier_flow_15d = round(sum(

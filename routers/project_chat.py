@@ -80,6 +80,7 @@ def api_project_context(project_id: int):
                 "theme_heat": cached.get("theme_heat"),
                 "macro_analysis": cached.get("macro"),
                 "industry_analysis": cached.get("industry"),
+                "strategy_tags": cached.get("strategy_tags") or [],
                 "analysis_meta": {
                     "source": cached.get("source"),
                     "generated_at": cached.get("generated_at"),
@@ -544,7 +545,9 @@ def api_strategy_tags(project_id: int):
                     })
 
             tags.sort(key=lambda t: t["match_count"], reverse=True)
-            return {"ok": True, "tags": tags[:30], "total": total, "method": "vector"}
+            result = {"ok": True, "tags": tags[:30], "total": total, "method": "vector"}
+            _persist_strategy_tags(project_id, tags[:30])
+            return result
 
         except Exception as e:
             logger.warning(f"向量策略匹配失败，降级到关键词: {e}")
@@ -587,7 +590,29 @@ def api_strategy_tags(project_id: int):
             })
 
     tags.sort(key=lambda t: t["match_count"], reverse=True)
+    _persist_strategy_tags(project_id, tags[:30])
     return {"ok": True, "tags": tags[:30], "total": total, "method": "keyword"}
+
+
+def _persist_strategy_tags(project_id: int, tags: list):
+    """将策略标签结果写入 analysis_json.strategy_tags，供下次加载时直接渲染"""
+    try:
+        row = execute_query("SELECT analysis_json FROM watchlist_lists WHERE id=%s", [project_id])
+        if not row:
+            return
+        cached = {}
+        if row[0].get("analysis_json"):
+            try:
+                cached = json.loads(row[0]["analysis_json"])
+            except Exception:
+                pass
+        cached["strategy_tags"] = tags
+        execute_insert(
+            "UPDATE watchlist_lists SET analysis_json=%s WHERE id=%s",
+            [json.dumps(cached, ensure_ascii=False, default=str), project_id],
+        )
+    except Exception as e:
+        logger.warning(f"策略标签持久化失败 project={project_id}: {e}")
 
 
 def _extract_rule_keywords(rule_name: str, definition: str) -> list:
@@ -746,6 +771,7 @@ def _get_project_stock_codes(project_id: int, project_type: str) -> list:
 
 
 def _get_latest_research_for_stocks(stock_codes: list):
+    """按股票代码找最相关的热点研究记录（只做精确匹配，不做无关 fallback）"""
     if not stock_codes:
         return None
     codes_str = ",".join(["%s"] * len(stock_codes))
@@ -755,24 +781,20 @@ def _get_latest_research_for_stocks(stock_codes: list):
     )
     if not names:
         return None
-    name = names[0]["stock_name"]
-    row = execute_query(
-        """SELECT tgr.*, tg.group_name FROM tag_group_research tgr
-           JOIN tag_groups tg ON tgr.group_id = tg.id
-           WHERE tgr.top10_stocks_json LIKE %s
-           ORDER BY tgr.research_date DESC LIMIT 1""",
-        [f"%{name}%"],
-    )
-    if row:
-        return dict(row[0])
-    row = execute_query(
-        """SELECT tgr.*, tg.group_name FROM tag_group_research tgr
-           JOIN tag_groups tg ON tgr.group_id = tg.id
-           WHERE tgr.news_parsed_json IS NOT NULL
-           ORDER BY tgr.research_date DESC LIMIT 1""",
-        [],
-    )
-    return dict(row[0]) if row else None
+    # 尝试每个股票名做 LIKE 匹配，命中即返回
+    for n in names:
+        name = n["stock_name"]
+        row = execute_query(
+            """SELECT tgr.*, tg.group_name FROM tag_group_research tgr
+               JOIN tag_groups tg ON tgr.group_id = tg.id
+               WHERE tgr.top10_stocks_json LIKE %s
+               ORDER BY tgr.research_date DESC LIMIT 1""",
+            [f"%{name}%"],
+        )
+        if row:
+            return dict(row[0])
+    # 没有命中，返回 None（不随机取最新记录，避免展示无关主题内容）
+    return None
 
 
 def _get_related_news(stock_codes: list, limit: int = 15) -> list:
@@ -818,13 +840,6 @@ def _get_theme_heat(stock_codes: list):
 
 def _get_macro_analysis(stock_codes=None):
     research = _get_latest_research_for_stocks(stock_codes or []) if stock_codes else None
-    if not research:
-        row = execute_query(
-            """SELECT tgr.macro_json, tgr.macro_report FROM tag_group_research tgr
-               WHERE tgr.macro_json IS NOT NULL AND tgr.macro_json != ''
-               ORDER BY tgr.research_date DESC LIMIT 1""", [],
-        )
-        research = dict(row[0]) if row else None
     if not research:
         return None
     if research.get("macro_json"):

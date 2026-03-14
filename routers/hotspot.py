@@ -646,7 +646,7 @@ def api_daily_intel_baskets(days: int = 7):
         from utils.db_utils import execute_cloud_query
 
         rows = execute_cloud_query(
-            """SELECT stock_name, stock_code, COUNT(*) AS cnt
+            """SELECT stock_name, stock_code, COUNT(DISTINCT source_id) AS cnt
                FROM daily_intel_stocks
                WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                  AND stock_name IS NOT NULL AND stock_name != ''
@@ -697,7 +697,7 @@ def api_daily_intel_industry(days: int = 7):
         from datetime import datetime, timedelta
 
         rows = execute_cloud_query(
-            """SELECT stock_name, stock_code, DATE(scan_date) AS day, COUNT(*) AS cnt
+            """SELECT stock_name, stock_code, DATE(scan_date) AS day, COUNT(DISTINCT source_id) AS cnt
                FROM daily_intel_stocks
                WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                  AND stock_name IS NOT NULL AND stock_name != ''
