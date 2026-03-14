@@ -3,7 +3,8 @@
 
 {% block extra_styles %}
 /* ── Tab Bar ── */
-.tab-bar { display: flex; align-items: end; gap: 0; border-bottom: 2px solid #1e293b; padding: 0 16px; }
+.tab-bar { display: flex; align-items: end; gap: 0; border-bottom: 2px solid #1e293b; padding: 0 16px; overflow-x: auto; scroll-behavior: smooth; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+.tab-bar::-webkit-scrollbar { display: none; }
 .tab-item { position: relative; padding: 8px 18px 10px; font-size: 0.8rem; font-weight: 600; color: #64748b; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 10px 10px 0 0; transition: all .15s; user-select: none; white-space: nowrap; }
 .tab-item:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
 /* active 样式由 JS 内联注入颜色，这里只设结构 */
@@ -1759,5 +1760,12 @@ async function createProject() {
 
 // ── 启动 ──────────────────────────────────────────────────────
 init();
+
+// tab-bar 鼠标滚轮横向滚动（触控板双指已由 overflow-x:auto 原生支持）
+document.getElementById('tabBar').addEventListener('wheel', e => {
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; // 已是横向滑动，不干预
+  e.preventDefault();
+  e.currentTarget.scrollLeft += e.deltaY;
+}, { passive: false });
 </script>
 {% endblock %}
