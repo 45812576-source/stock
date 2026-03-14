@@ -123,7 +123,7 @@
         <button onclick="loadTrendChart(30)" data-days="30" class="trend-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近30天</button>
       </div>
     </div>
-    <div id="freq-chart" style="height: 560px;"><div class="flex items-center justify-center h-full text-slate-500 text-sm">加载中...</div></div>
+    <div id="freq-chart"><div class="flex items-center justify-center text-slate-500 text-sm py-20">加载中...</div></div>
   </div>
 </div>
 
@@ -149,7 +149,7 @@
         </div>
       </div>
     </div>
-    <div id="industry-heatmap-chart" style="height: 400px;"></div>
+    <div id="industry-heatmap-chart"></div>
   </div>
 </div>
 
@@ -341,9 +341,9 @@ async function loadTrendChart(days) {
       colorscale: [[0,'#1a2233'],[0.3,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
       hoverinfo: 'text', text: hoverTotal, showscale: false,
     };
-    const chartH = Math.max(400, Math.min(yLabels.length * 28 + 80, 640));
+    const chartH = yLabels.length * 32 + 80;  // 每行32px，不截断
     Plotly.newPlot('freq-chart', [traceDaily, traceTotal], {
-      margin: { t: 10, b: 40, l: 110, r: 60 },
+      margin: { t: 10, b: 40, l: 120, r: 60 },
       paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
       font: { color: '#94a3b8', size: 10 },
       xaxis: { type: 'category', side: 'bottom', tickangle: -45, tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)', domain: [0, 0.88] },
@@ -508,9 +508,9 @@ async function loadIndustryHeatmap(days) {
       },
     };
 
-    const chartH = Math.max(300, Math.min(industries.length * 22 + 60, 600));
+    const chartH = industries.length * 30 + 80;  // 每行30px，不截断
     Plotly.newPlot('industry-heatmap-chart', [traceHeatmap], {
-      margin: { t: 10, b: 40, l: 120, r: 60 },
+      margin: { t: 10, b: 40, l: 200, r: 60 },  // 左边距加宽，容纳完整产业链名称
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       font: { color: '#94a3b8', size: 10 },

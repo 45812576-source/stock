@@ -563,6 +563,7 @@ def api_daily_intel_trend(days: int = 7):
                FROM daily_intel_stocks
                WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                  AND stock_name IS NOT NULL AND stock_name != ''
+                 AND stock_code IS NOT NULL AND stock_code != ''
                GROUP BY stock_name, stock_code, DATE(scan_date)
                ORDER BY day""",
             [days],
@@ -620,7 +621,7 @@ def api_daily_intel_baskets(days: int = 7):
         for chain_name in CHAIN_ORDER:
             chain = CHAINS.get(chain_name, {})
             for tier_key, tier in chain.get("tiers", {}).items():
-                label = f"{chain_name}-{tier_key}"
+                label = tier.get("label", tier_key)  # 直接用细分产业链描述
                 tier_stocks = []
                 total_cnt = 0
                 for sname in tier.get("stocks", []):
@@ -668,7 +669,7 @@ def api_daily_intel_industry(days: int = 7):
         for chain_name in CHAIN_ORDER:
             chain = CHAINS.get(chain_name, {})
             for tier_key, tier in chain.get("tiers", {}).items():
-                label = f"{chain_name}-{tier_key}"
+                label = tier.get("label", tier_key)  # 直接用细分产业链描述
                 for sname in tier.get("stocks", []):
                     if sname not in stock_to_industry:
                         stock_to_industry[sname] = label
