@@ -1,8 +1,7 @@
 {% extends "base.html" %}
 {% block title %}系统设置{% endblock %}
 
-{% block head %}
-<style>
+{% block extra_styles %}
 .toggle-switch { position:relative; display:inline-flex; align-items:center; cursor:pointer; }
 .toggle-switch input { position:absolute; opacity:0; width:0; height:0; }
 .toggle-track { width:36px; height:20px; background:#334155; border-radius:9999px; transition:background .2s; }
@@ -17,7 +16,7 @@
 .pool-radio:checked + label { border-color:#135bec; background:rgba(19,91,236,0.08); }
 .pool-radio:checked + label .dot { background:#135bec; }
 .dtype-btn.active { background:#135bec; color:#fff; }
-</style>
+
 {% endblock %}
 
 {% block content %}
@@ -25,7 +24,7 @@
 <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
   <div>
     <h1 class="text-2xl font-extrabold tracking-tight">系统设置</h1>
-    <p class="text-sm text-slate-500 mt-1">API 配置 · 信息源管理 · 数据下载 · Skill 配置</p>
+    <p class="text-sm text-slate-500 mt-1">API 配置 · 信息源管理 · 数据下载 · Skill 配置 · 投资策略</p>
   </div>
   <div class="flex items-center gap-3">
     <span id="apiStatus" class="flex items-center gap-2 px-3 py-1.5 bg-slate-700/30 rounded-full border border-slate-700/40">
@@ -45,110 +44,207 @@
   <a href="/settings" class="tab-btn {% if tab == 'api' %}active{% endif %}">
     <span class="material-icons-round text-sm align-middle mr-1">key</span>API 配置
   </a>
-  <a href="/settings/sources" class="tab-btn {% if tab == 'sources' %}active{% endif %}">
-    <span class="material-icons-round text-sm align-middle mr-1">newspaper</span>非结构化信息源
-  </a>
   <a href="/settings/structured" class="tab-btn {% if tab == 'structured' %}active{% endif %}">
     <span class="material-icons-round text-sm align-middle mr-1">candlestick_chart</span>结构化信息源
   </a>
   <a href="/settings/skills" class="tab-btn {% if tab == 'skills' %}active{% endif %}">
     <span class="material-icons-round text-sm align-middle mr-1">psychology</span>Skill 配置
   </a>
+  <a href="/settings/strategy" class="tab-btn {% if tab == 'strategy' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">target</span>投资策略
+  </a>
 </div>
 
 <!-- ==================== Tab 1: API 配置 ==================== -->
 {% if tab == 'api' %}
 <div>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-    <!-- Claude API 配置 -->
-    <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-      <h3 class="font-bold flex items-center gap-2 mb-6">
-        <span class="material-icons-round text-primary">key</span>
-        Claude API 配置
-      </h3>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">API Key</label>
-          <input type="password" id="cfgApiKey" value="{{ config.claude_api_key }}"
-                 class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-                 placeholder="sk-...">
-        </div>
-        <div>
-          <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Base URL</label>
-          <input type="text" id="cfgBaseUrl" value="{{ config.claude_base_url }}"
-                 class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-                 placeholder="https://api.anthropic.com (留空用默认)">
-        </div>
-        <div>
-          <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Model</label>
-          <input type="text" id="cfgModel" value="{{ config.claude_model }}"
-                 class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-                 placeholder="claude-sonnet-4-20250514">
-        </div>
-        <div class="flex gap-3 pt-2">
-          <button onclick="saveConfig()" id="saveBtn"
-                  class="flex-1 bg-primary hover:bg-primary/90 text-white py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition">
-            <span class="material-icons-round text-sm">save</span> 保存
-          </button>
-          <button onclick="testClaude()" id="testBtn"
-                  class="flex-1 border border-slate-700 hover:border-primary text-slate-300 hover:text-primary py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition">
-            <span class="material-icons-round text-sm">wifi_tethering</span> 测试连通
-          </button>
-        </div>
-        <div id="configMsg" class="hidden text-center text-xs py-2 rounded-lg"></div>
-      </div>
-    </div>
+  <!-- 各环节配置 + 日志（左右结构，从上到下） -->
+  {% set stage_icons = {'extraction':'upload_file','cleaning':'cleaning_services','kg':'share','research':'science','hotspot':'local_fire_department','ai_recommend':'auto_awesome','chat':'chat','vision':'image','audio':'mic'} %}
+  {% set stage_labels = {'extraction':'信息提取','cleaning':'数据清洗','kg':'知识图谱','research':'深度研究','hotspot':'机会发现','ai_recommend':'AI推荐','chat':'对话','vision':'图片识别','audio':'语音转录'} %}
+  {% set stage_descs = {
+    'extraction':'PDF/图片/音频 → 文本提取',
+    'cleaning':'原始信息 → 结构化清洗',
+    'kg':'构建/更新知识图谱',
+    'research':'个股深度研究报告生成',
+    'hotspot':'机会发现/标签分析',
+    'ai_recommend':'自建主题/策略AI选股',
+    'chat':'智能对话助手',
+    'vision':'图片内容识别',
+    'audio':'语音转文字'
+  } %}
+  {# 检查是否有 stage 字段 #}
+  {% set has_stage = pipeline_logs and pipeline_logs[0].get('stage') is not none %}
 
-    <!-- API 用量 -->
-    <div class="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-xl">
-      <div class="flex items-center justify-between mb-6">
-        <h3 class="font-bold flex items-center gap-2">
-          <span class="material-icons-round text-primary">analytics</span>
-          Claude API 用量
-        </h3>
-        {% if api_usage %}
-        <div class="text-right">
-          <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">今日调用</p>
-          <p class="text-lg font-mono text-primary font-bold">{{ api_usage[0].call_count if api_usage else 0 }}</p>
-        </div>
+  <!-- Key 管理面板 -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+    <div class="flex items-center gap-2 px-5 py-3 border-b border-slate-800 bg-slate-950/50">
+      <span class="material-icons-round text-amber-400 text-base">key</span>
+      <span class="font-bold text-white">API Key 管理</span>
+      <span class="text-[10px] text-slate-500 ml-auto">已存储的 Key（脱敏显示）</span>
+    </div>
+    <div class="p-5">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 mb-4" id="keyList">
+        {% if stored_keys %}
+          {% for kname, kmasked in stored_keys.items() %}
+          <div class="flex items-center gap-2 bg-slate-800/50 border border-slate-700 rounded px-3 py-2">
+            <span class="material-icons-round text-emerald-400 text-sm">check_circle</span>
+            <div class="min-w-0">
+              <div class="text-[10px] text-slate-400 font-mono truncate">{{ kname }}</div>
+              <div class="text-[11px] text-slate-300 font-mono">{{ kmasked if kmasked else '(空)' }}</div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="col-span-4 text-xs text-slate-500 py-2">暂无已存储的 Key</div>
         {% endif %}
       </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="border-b border-slate-800">
-              <th class="px-3 py-2 text-left text-slate-500 font-bold">日期</th>
-              <th class="px-3 py-2 text-left text-slate-500 font-bold">API</th>
-              <th class="px-3 py-2 text-right text-slate-500 font-bold">调用次数</th>
-              <th class="px-3 py-2 text-right text-slate-500 font-bold">Input Tokens</th>
-              <th class="px-3 py-2 text-right text-slate-500 font-bold">Output Tokens</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for u in api_usage[:10] %}
-            <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
-              <td class="px-3 py-2 text-slate-400 font-mono">{{ u.call_date }}</td>
-              <td class="px-3 py-2 text-white font-bold">{{ u.api_name }}</td>
-              <td class="px-3 py-2 text-right text-white">{{ u.call_count }}</td>
-              <td class="px-3 py-2 text-right text-slate-400 font-mono">{{ "{:,}".format(u.input_tokens) }}</td>
-              <td class="px-3 py-2 text-right text-slate-400 font-mono">{{ "{:,}".format(u.output_tokens) }}</td>
-            </tr>
-            {% endfor %}
-            {% if not api_usage %}
-            <tr><td colspan="5" class="px-3 py-6 text-center text-slate-600">暂无用量记录</td></tr>
-            {% endif %}
-          </tbody>
-        </table>
+      <div class="flex gap-2 items-end">
+        <div class="flex-1">
+          <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Key 名称</label>
+          <input type="text" id="newKeyName" class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" placeholder="如 deepseek_api_key">
+        </div>
+        <div class="flex-1">
+          <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Key 值</label>
+          <input type="password" id="newKeyValue" class="w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" placeholder="sk-...">
+        </div>
+        <button onclick="saveKey(this)" class="bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 px-3 py-1.5 rounded text-xs font-semibold transition border border-amber-500/20 whitespace-nowrap">
+          <span class="material-icons-round text-xs align-middle">save</span> 保存 Key
+        </button>
       </div>
+      <div id="keyMsg" class="hidden mt-2 text-xs text-center py-1 rounded"></div>
     </div>
   </div>
 
-  <!-- Pipeline Logs -->
-  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
-      <h3 class="font-bold flex items-center gap-2">
+  <div class="space-y-6" id="stageSections">
+    {% for cfg in model_configs %}
+    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden" id="stage-section-{{ cfg.stage }}">
+      <div class="flex items-center gap-2 px-5 py-3 border-b border-slate-800 bg-slate-950/50">
+        <span class="material-icons-round text-primary text-base">{{ stage_icons.get(cfg.stage, 'smart_toy') }}</span>
+        <span class="font-bold text-white">{{ stage_labels.get(cfg.stage, cfg.stage) }}</span>
+        <span class="text-[10px] text-slate-600 font-mono">{{ cfg.stage }}</span>
+        {% if cfg.api_key_ref %}
+          {% if stored_keys.get(cfg.api_key_ref) %}
+          <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 font-mono">
+            <span class="material-icons-round text-[10px]">check_circle</span>{{ cfg.api_key_ref }}
+          </span>
+          {% else %}
+          <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-[10px] text-amber-400 font-mono">
+            <span class="material-icons-round text-[10px]">warning</span>{{ cfg.api_key_ref }} (未配置)
+          </span>
+          {% endif %}
+        {% else %}
+          <span class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700/50 border border-slate-600/30 text-[10px] text-slate-500 font-mono">
+            <span class="material-icons-round text-[10px]">key_off</span>无 Key 引用
+          </span>
+        {% endif %}
+        <span class="text-[10px] text-slate-500 ml-auto">{{ stage_descs.get(cfg.stage, '') }}</span>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-0 divide-x divide-slate-800">
+        <!-- 左：模型配置 -->
+        <div class="p-5" id="model-card-{{ cfg.stage }}">
+          {% if cfg.stage == 'audio' %}
+          <div class="mb-3 px-3 py-2 bg-amber-500/5 border border-amber-500/20 rounded text-[11px] text-amber-400">
+            <span class="material-icons-round text-[11px] align-middle">info</span>
+            音频转写使用 <strong>Groq</strong>（whisper-large-v3）或 <strong>Gemini</strong>，厂商选 groq 或 gemini，Key 引用名填对应的 key 名称。
+          </div>
+          {% endif %}
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">厂商</label>
+              <select class="mc-provider w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white focus:border-primary focus:outline-none">
+                {% for p in ['claude_cli','anthropic','openai','gemini','groq','deepseek','minimax'] %}
+                <option value="{{ p }}" {{ 'selected' if cfg.provider == p }}>{{ p }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">模型</label>
+              <input type="text" class="mc-model w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" value="{{ cfg.model_name }}" placeholder="sonnet / deepseek-chat / kimi2.5">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">API Key</label>
+              <input type="password" class="mc-apikey w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" placeholder="留空保持现有">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Base URL</label>
+              <input type="text" class="mc-baseurl w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" value="{{ cfg.base_url or '' }}" placeholder="https://api.example.com">
+            </div>
+            <div class="col-span-2">
+              <label class="block text-[10px] text-slate-500 font-bold uppercase mb-1">Key 引用名 <span class="text-slate-600 normal-case font-normal">(留空则自动用 {厂商}_api_key)</span></label>
+              <input type="text" class="mc-keyref w-full bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none" value="{{ cfg.api_key_ref or '' }}" placeholder="如 deepseek_api_key">
+            </div>
+          </div>
+          <div class="flex gap-2 mt-3">
+            <button onclick="saveModelConfig('{{ cfg.stage }}', this)" class="flex-1 bg-primary/10 hover:bg-primary/20 text-primary px-2 py-1.5 rounded text-xs font-semibold transition border border-primary/20">
+              <span class="material-icons-round text-xs align-middle">save</span> 保存
+            </button>
+            <button onclick="testModel('{{ cfg.stage }}', this)" class="flex-1 border border-slate-700 hover:border-primary text-slate-400 hover:text-primary px-2 py-1.5 rounded text-xs font-semibold transition">
+              <span class="material-icons-round text-xs align-middle">wifi_tethering</span> 测试
+            </button>
+          </div>
+          <div class="mc-msg hidden mt-2 text-xs text-center py-1 rounded"></div>
+        </div>
+        <!-- 右：该环节 Pipeline 日志 -->
+        <div class="p-5 bg-slate-950/30">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] text-slate-500 font-bold uppercase">Pipeline 日志</span>
+            {% if has_stage %}
+              {% set stage_logs_count = pipeline_logs | selectattr("stage", "equalto", cfg.stage) | list | length %}
+            {% else %}
+              {% set stage_logs_count = pipeline_logs | length %}
+            {% endif %}
+            <span class="text-[10px] text-slate-600 font-mono">{{ stage_logs_count }} 条</span>
+          </div>
+          <div class="max-h-[120px] overflow-y-auto bg-slate-950 rounded-lg p-2 font-mono text-[11px] custom-scrollbar">
+            {% if has_stage %}
+              {% set stage_logs = pipeline_logs | selectattr("stage", "equalto", cfg.stage) | list %}
+            {% else %}
+              {# 没有 stage 字段时，第一个环节（extraction）显示全部日志，其他显示暂无 #}
+              {% set is_first = (cfg.stage == 'extraction') %}
+              {% set stage_logs = pipeline_logs if is_first else [] %}
+            {% endif %}
+            {% if stage_logs %}
+            <div class="space-y-0.5">
+              {% for log in stage_logs[:10] %}
+              <div class="flex gap-2 log-line px-1 py-0.5 rounded">
+                <span class="text-slate-600 shrink-0 text-[10px]">{{ log.started_at.strftime('%m-%d %H:%M') if log.started_at else '-' }}</span>
+                {% if log.status == 'success' %}
+                <span class="text-emerald-500 font-bold shrink-0">OK</span>
+                {% elif log.status == 'failed' %}
+                <span class="text-rose-500 font-bold shrink-0">FAIL</span>
+                {% elif log.status == 'running' %}
+                <span class="text-amber-500 font-bold shrink-0">RUN</span>
+                {% else %}
+                <span class="text-slate-500 font-bold shrink-0">{{ log.status|upper if log.status else '-' }}</span>
+                {% endif %}
+                <span class="text-slate-400 truncate">{{ log.pipeline_name }}</span>
+                {% if log.error_message %}
+                <span class="text-rose-400 truncate text-[10px]">{{ log.error_message[:50] }}</span>
+                {% endif %}
+              </div>
+              {% endfor %}
+            </div>
+            {% elif has_stage %}
+            <div class="text-slate-600 text-center py-2 text-[10px]">暂无该环节日志</div>
+            {% else %}
+            <div class="text-slate-600 text-center py-2 text-[10px]">日志未按环节区分</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not model_configs %}
+    <div class="text-center py-8 text-slate-500 text-sm">加载模型配置失败，请刷新页面重试</div>
+    {% endif %}
+  </div>
+
+  <!-- 全部 Pipeline 日志 -->
+  <div class="mt-8 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
+      <h3 class="font-bold flex items-center gap-2 text-sm">
         <span class="material-icons-round text-slate-400">subject</span>
-        Pipeline 日志
+        全部 Pipeline 日志
       </h3>
       <div class="flex items-center gap-2">
         {% set success_count = pipeline_logs|selectattr("status", "equalto", "success")|list|length %}
@@ -157,24 +253,27 @@
         <span class="px-2 py-1 rounded text-[10px] font-bold bg-rose-500/10 text-rose-500">FAIL: {{ failed_count }}</span>
       </div>
     </div>
-    <div class="max-h-[400px] overflow-y-auto bg-slate-950 p-4 font-mono text-[12px] custom-scrollbar">
-      <div class="space-y-1">
+    <div class="max-h-[300px] overflow-y-auto bg-slate-950 p-4 font-mono text-[11px] custom-scrollbar">
+      <div class="space-y-0.5">
         {% for log in pipeline_logs %}
-        <div class="flex gap-4 log-line p-0.5 rounded">
-          <span class="text-slate-600 shrink-0">{{ log.started_at }}</span>
+        <div class="flex gap-3 log-line px-1 py-0.5 rounded">
+          <span class="text-slate-600 shrink-0 text-[10px]">{{ (log.started_at|string)[-8:] if log.started_at else '-' }}</span>
           {% if log.status == 'success' %}
-          <span class="text-emerald-500 font-bold shrink-0">[OK]</span>
+          <span class="text-emerald-500 font-bold shrink-0">OK</span>
           {% elif log.status == 'failed' %}
-          <span class="text-rose-500 font-bold shrink-0">[FAIL]</span>
+          <span class="text-rose-500 font-bold shrink-0">FAIL</span>
           {% elif log.status == 'running' %}
-          <span class="text-amber-500 font-bold shrink-0">[RUN]</span>
+          <span class="text-amber-500 font-bold shrink-0">RUN</span>
           {% else %}
-          <span class="text-slate-500 font-bold shrink-0">[{{ log.status|upper }}]</span>
+          <span class="text-slate-500 font-bold shrink-0">{{ log.status|upper if log.status else '-' }}</span>
           {% endif %}
-          <span class="text-slate-300">{{ log.pipeline_name }}</span>
-          <span class="text-slate-500">items={{ log.items_processed }}</span>
+          {% if log.stage %}
+          <span class="text-primary text-[10px] shrink-0">[{{ log.stage }}]</span>
+          {% endif %}
+          <span class="text-slate-300 truncate">{{ log.pipeline_name }}</span>
+          <span class="text-slate-600 text-[10px]">items={{ log.items_processed|default(0) }}</span>
           {% if log.error_message %}
-          <span class="text-rose-400">{{ log.error_message[:80] }}</span>
+          <span class="text-rose-400 truncate text-[10px]">{{ log.error_message[:60] }}</span>
           {% endif %}
         </div>
         {% endfor %}
@@ -184,311 +283,338 @@
       </div>
     </div>
   </div>
-</div>
 
-<!-- ==================== Tab 2: 非结构化信息源 ==================== -->
-{% elif tab == 'sources' %}
-<div>
-  <!-- 采集时间窗口 -->
-  <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6 flex items-center gap-6">
-    <div class="flex items-center gap-3">
-      <span class="material-icons-round text-primary">schedule</span>
-      <span class="text-sm font-semibold">新闻回溯窗口</span>
-    </div>
-    <div class="flex items-center gap-2">
-      <input type="number" id="newsHours" value="{{ fetch_settings.news_hours }}" min="1" max="168"
-             class="w-20 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white text-center font-mono focus:border-primary focus:outline-none">
-      <span class="text-sm text-slate-400">小时</span>
-    </div>
-    <div class="flex items-center gap-3 ml-auto">
-      <span class="material-icons-round text-primary">vpn_key</span>
-      <span class="text-sm font-semibold">知识星球 Cookie</span>
-    </div>
-    <input type="password" id="zsxqCookie" value="{{ zsxq_cookie }}"
-           class="flex-1 max-w-xs bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
-           placeholder="从浏览器复制 Cookie">
-  </div>
+  <!-- Claude CLI 默认配置 + API用量（折叠区） -->
+  <details class="mt-8 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <summary class="px-5 py-3 cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition select-none bg-slate-950/50">
+      <span class="material-icons-round text-sm">key</span>
+      Claude CLI 默认配置 + API 用量
+      <span class="material-icons-round text-xs ml-auto">expand_more</span>
+    </summary>
+    <div class="p-5 border-t border-slate-800">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Claude CLI 配置 -->
+        <div>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">API Key</label>
+              <input type="password" id="cfgApiKey" value="{{ config.claude_api_key }}"
+                     class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
+                     placeholder="sk-...">
+            </div>
+            <div>
+              <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Model</label>
+              <input type="text" id="cfgModel" value="{{ config.claude_model }}"
+                     class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
+                     placeholder="claude-sonnet-4-20250514">
+            </div>
+            <div>
+              <button type="button" onclick="document.getElementById('advancedApi').classList.toggle('hidden')" class="text-[10px] text-slate-500 hover:text-primary font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
+                <span class="material-icons-round text-xs">tune</span>高级选项
+              </button>
+              <div id="advancedApi" class="hidden mt-3">
+                <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Base URL</label>
+                <input type="text" id="cfgBaseUrl" value="{{ config.claude_base_url }}"
+                       class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"
+                       placeholder="留空用默认">
+              </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button onclick="saveConfig()" id="saveBtn"
+                      class="flex-1 bg-primary hover:bg-primary/90 text-white py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition">
+                <span class="material-icons-round text-sm">save</span> 保存
+              </button>
+              <button onclick="testClaude()" id="testBtn"
+                      class="flex-1 border border-slate-700 hover:border-primary text-slate-300 hover:text-primary py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition">
+                <span class="material-icons-round text-sm">wifi_tethering</span> 测试连通
+              </button>
+            </div>
+            <div id="configMsg" class="hidden text-center text-xs py-2 rounded-lg"></div>
+          </div>
+        </div>
 
-  <!-- 添加信息源 -->
-  <div class="flex items-center gap-3 mb-6">
-    <div class="relative" id="addSourceWrap">
-      <button onclick="toggleAddSource()" id="addSourceBtn"
-              class="border border-dashed border-slate-700 hover:border-primary text-slate-400 hover:text-primary px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-        <span class="material-icons-round text-sm">add</span> 添加信息源
-      </button>
-      <div id="addSourceDropdown" class="hidden absolute left-0 top-full mt-1 z-50 w-72 bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
-        <div id="addSourceList" class="max-h-64 overflow-y-auto custom-scrollbar divide-y divide-slate-800/50">
-          <div class="p-4 text-xs text-slate-500 text-center">加载中...</div>
+        <!-- API 用量 -->
+        <div class="lg:col-span-2">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold flex items-center gap-2 text-sm">
+              <span class="material-icons-round text-primary">analytics</span>
+              Claude API 用量
+            </h3>
+            {% if api_usage %}
+            <div class="text-right">
+              <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">今日调用</p>
+              <p class="text-lg font-mono text-primary font-bold">{{ api_usage[0].call_count if api_usage else 0 }}</p>
+            </div>
+            {% endif %}
+          </div>
+          <div class="overflow-x-auto">
+            <table class="w-full text-xs">
+              <thead>
+                <tr class="border-b border-slate-800">
+                  <th class="px-3 py-2 text-left text-slate-500 font-bold">日期</th>
+                  <th class="px-3 py-2 text-left text-slate-500 font-bold">API</th>
+                  <th class="px-3 py-2 text-right text-slate-500 font-bold">调用次数</th>
+                  <th class="px-3 py-2 text-right text-slate-500 font-bold">Input</th>
+                  <th class="px-3 py-2 text-right text-slate-500 font-bold">Output</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for u in api_usage[:8] %}
+                <tr class="border-b border-slate-800/50 hover:bg-slate-800/30">
+                  <td class="px-3 py-2 text-slate-400 font-mono">{{ u.call_date }}</td>
+                  <td class="px-3 py-2 text-white font-bold">{{ u.api_name }}</td>
+                  <td class="px-3 py-2 text-right text-white">{{ u.call_count }}</td>
+                  <td class="px-3 py-2 text-right text-slate-400 font-mono">{{ "{:,}".format(u.input_tokens) }}</td>
+                  <td class="px-3 py-2 text-right text-slate-400 font-mono">{{ "{:,}".format(u.output_tokens) }}</td>
+                </tr>
+                {% endfor %}
+                {% if not api_usage %}
+                <tr><td colspan="5" class="px-3 py-6 text-center text-slate-600">暂无用量记录</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
-    <button onclick="toggleCustomSourceForm()" id="customSourceBtn"
-            class="border border-dashed border-slate-700 hover:border-emerald-500 text-slate-400 hover:text-emerald-400 px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-      <span class="material-icons-round text-sm">edit_note</span> 自定义添加
-    </button>
-    <span id="addDeleteMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+  </details>
+</div>
+
+<!-- ==================== Tab 3: 结构化数据监控 ==================== -->
+{% elif tab == 'structured' %}
+<div>
+  <!-- 数据新鲜度 -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+    <h3 class="font-bold flex items-center gap-2 mb-4">
+      <span class="material-icons-round text-primary">water_drop</span>
+      数据新鲜度
+    </h3>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {% set freshness_labels = {'daily':'日线行情','capital':'资金流向','financial':'财务报告','northbound':'北向资金'} %}
+      {% for key, label in freshness_labels.items() %}
+      {% set val = data_freshness.get(key) %}
+      <div class="bg-slate-800/50 rounded-lg p-3 flex items-center gap-3">
+        {% if val %}
+        <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+        {% else %}
+        <span class="w-2 h-2 rounded-full bg-rose-500 shrink-0"></span>
+        {% endif %}
+        <div>
+          <p class="text-[10px] text-slate-500 uppercase font-bold">{{ label }}</p>
+          <p class="text-xs font-mono text-white mt-0.5">{{ val or '无数据' }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 
-  <!-- 自定义添加表单 -->
-  <div id="customSourceForm" class="hidden mb-6 bg-slate-900 border border-slate-800 rounded-xl p-5">
-    <h4 class="text-sm font-bold text-white mb-4 flex items-center gap-2">
-      <span class="material-icons-round text-sm text-emerald-400">edit_note</span> 自定义添加信息源
+  <!-- 监控规则表 -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+    <div class="p-4 border-b border-slate-800 flex items-center justify-between">
+      <h3 class="font-bold flex items-center gap-2">
+        <span class="material-icons-round text-primary">monitor_heart</span>
+        监控规则
+      </h3>
+      <button onclick="openAddRule()" class="border border-dashed border-slate-700 hover:border-primary text-slate-400 hover:text-primary px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1 transition">
+        <span class="material-icons-round text-xs">add</span> 新增规则
+      </button>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-slate-800 bg-slate-950/50">
+            <th class="px-4 py-2.5 text-left text-slate-500 font-bold">业务模块</th>
+            <th class="px-4 py-2.5 text-left text-slate-500 font-bold">数据类型</th>
+            <th class="px-4 py-2.5 text-left text-slate-500 font-bold">Stock Pool</th>
+            <th class="px-4 py-2.5 text-right text-slate-500 font-bold">回溯天数</th>
+            <th class="px-4 py-2.5 text-left text-slate-500 font-bold">调度</th>
+            <th class="px-4 py-2.5 text-left text-slate-500 font-bold">上次执行</th>
+            <th class="px-4 py-2.5 text-center text-slate-500 font-bold">状态</th>
+            <th class="px-4 py-2.5 text-center text-slate-500 font-bold">操作</th>
+          </tr>
+        </thead>
+        <tbody id="monitorRulesTbody">
+          {% for r in monitor_rules %}
+          <tr class="border-b border-slate-800/40 hover:bg-slate-800/20" id="rule-row-{{ r.id }}">
+            <td class="px-4 py-2.5 font-semibold text-white">{{ r.module_name }}</td>
+            <td class="px-4 py-2.5">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary">{{ r.data_type }}</span>
+            </td>
+            <td class="px-4 py-2.5 text-slate-400">{{ r.stock_pool }}</td>
+            <td class="px-4 py-2.5 text-right font-mono text-slate-300">{{ r.lookback_days }}</td>
+            <td class="px-4 py-2.5 font-mono text-slate-400">{{ r.schedule_cron|replace("0 16 * * 1-5", "每日16:00")|replace("0 17 * * 1-5", "每日17:00")|replace("0 18 * * 1-5", "每日18:00")|replace("0 19 * * 1-5", "每日19:00")|replace("0 20 * * 5", "每周五20:00")|replace("0 9 * * 1", "每周一09:00") if r.schedule_cron else '手动' }}</td>
+            <td class="px-4 py-2.5 text-slate-500 font-mono">{{ r.last_run_at or '-' }}</td>
+            <td class="px-4 py-2.5 text-center">
+              {% if r.enabled %}
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400">启用</span>
+              {% else %}
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/50 text-slate-500">停用</span>
+              {% endif %}
+              {% if r.last_status %}
+              <span class="text-[10px] text-slate-600 block mt-0.5">{{ r.last_status }}</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-center">
+              <div class="flex items-center justify-center gap-2">
+                <button onclick="triggerRule({{ r.id }})" title="立即触发"
+                        class="text-slate-500 hover:text-primary transition text-xs flex items-center gap-1">
+                  <span class="material-icons-round text-sm">play_circle</span>
+                </button>
+                <button onclick="deleteRule({{ r.id }})" title="删除"
+                        class="text-slate-500 hover:text-rose-400 transition">
+                  <span class="material-icons-round text-sm">delete_outline</span>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+          {% if not monitor_rules %}
+          <tr><td colspan="8" class="px-4 py-8 text-center text-slate-600">暂无规则，点击上方"新增规则"添加</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div id="monitorMsg" class="hidden mb-4 text-xs text-center py-2 rounded-lg"></div>
+
+  <!-- 添加规则表单（折叠） -->
+  <div id="addRuleForm" class="hidden bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+    <h4 class="text-sm font-bold mb-4 flex items-center gap-2">
+      <span class="material-icons-round text-sm text-primary">add_circle</span> 新增监控规则
     </h4>
-    <div class="grid grid-cols-2 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
       <div>
-        <label class="block text-xs text-slate-400 mb-1">源标识 (key) <span class="text-rose-400">*</span></label>
-        <input type="text" id="csKey" placeholder="如 my_source（英文/下划线）"
-               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+        <label class="block text-xs text-slate-400 mb-1">业务模块 *</label>
+        <input type="text" id="ruleModule" placeholder="如 heatmap" class="w-full bg-slate-800/50 border border-slate-700 rounded px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
       </div>
       <div>
-        <label class="block text-xs text-slate-400 mb-1">名称 (label) <span class="text-rose-400">*</span></label>
-        <input type="text" id="csLabel" placeholder="显示名称"
-               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
-      </div>
-      <div>
-        <label class="block text-xs text-slate-400 mb-1">分组</label>
-        <select id="csGroup" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
-          <option value="news">新闻资讯</option>
-          <option value="report">研报数据</option>
-          <option value="community">社群舆情</option>
+        <label class="block text-xs text-slate-400 mb-1">数据类型 *</label>
+        <select id="ruleDtype" class="w-full bg-slate-800/50 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+          <option value="daily">daily — 日线行情</option>
+          <option value="capital">capital — 资金流向</option>
+          <option value="financial">financial — 财务数据</option>
+          <option value="northbound">northbound — 北向资金</option>
+          <option value="macro">macro — 宏观数据</option>
         </select>
       </div>
       <div>
-        <label class="block text-xs text-slate-400 mb-1">采集器类型</label>
-        <select id="csFetcher" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
-          <option value="jasper">jasper</option>
-          <option value="djyanbao">djyanbao</option>
-          <option value="fxbaogao">fxbaogao</option>
-          <option value="em_report">em_report</option>
-          <option value="zsxq">zsxq</option>
+        <label class="block text-xs text-slate-400 mb-1">Stock Pool</label>
+        <select id="rulePool" class="w-full bg-slate-800/50 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+          <option value="watchlist">watchlist — 自选股</option>
+          <option value="all">all — 全市场</option>
+          <option value="custom">custom — 自定义</option>
         </select>
       </div>
-      <div class="col-span-2">
-        <label class="block text-xs text-slate-400 mb-1">描述</label>
-        <input type="text" id="csDesc" placeholder="可选，简要描述此信息源"
-               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">回溯天数</label>
+        <input type="number" id="ruleLookback" value="7" min="1" max="365" class="w-full bg-slate-800/50 border border-slate-700 rounded px-3 py-2 text-sm text-white font-mono focus:border-primary focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">调度时间</label>
+        <select id="ruleCron" class="w-full bg-slate-800/50 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+          <option value="">手动触发（不自动）</option>
+          <option value="0 16 * * 1-5">每个交易日 16:00</option>
+          <option value="0 17 * * 1-5">每个交易日 17:00</option>
+          <option value="0 18 * * 1-5" selected>每个交易日 18:00</option>
+          <option value="0 19 * * 1-5">每个交易日 19:00</option>
+          <option value="0 20 * * 5">每周五 20:00</option>
+          <option value="0 9 * * 1">每周一 09:00</option>
+        </select>
       </div>
     </div>
     <div class="flex items-center gap-3 mt-4">
-      <button onclick="submitCustomSource()" id="csSubmitBtn"
-              class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
-        <span class="material-icons-round text-sm">add_circle</span> 添加
-      </button>
-      <button onclick="toggleCustomSourceForm()" class="text-slate-400 hover:text-white text-sm transition">取消</button>
-      <span id="csMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+      <button onclick="saveRule()" class="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">保存</button>
+      <button onclick="document.getElementById('addRuleForm').classList.add('hidden')" class="text-slate-400 hover:text-white text-sm transition">取消</button>
     </div>
   </div>
 
-  <!-- 源分组 -->
-  <div class="space-y-6 mb-6">
-    {% for group in source_groups %}
-    <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-      <div class="p-4 border-b border-slate-800 flex items-center gap-3">
-        <span class="material-icons-round text-{{ group.color }}-400">{{ group.icon }}</span>
-        <h3 class="font-bold">{{ group.label }}</h3>
-        <span class="text-xs text-slate-500 ml-auto">{{ group.sources|selectattr("enabled")|list|length }}/{{ group.sources|length }} 已启用</span>
-      </div>
-      <div class="divide-y divide-slate-800/50">
-        {% for src in group.sources %}
-        <div class="flex items-center gap-4 px-5 py-3.5 hover:bg-slate-800/20 transition" id="source-row-{{ src.key }}">
-          <label class="toggle-switch">
-            <input type="checkbox" data-source="{{ src.key }}" {{ 'checked' if src.enabled }}>
-            <div class="toggle-track"></div>
-            <div class="toggle-knob"></div>
-          </label>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-white">{{ src.label }}</p>
-            <p class="text-xs text-slate-500 truncate">{{ src.desc }}</p>
-          </div>
-          {% if src.limit is not none %}
-          <div class="flex items-center gap-1.5">
-            <span class="text-[10px] text-slate-500 uppercase">Limit</span>
-            <input type="number" data-source-limit="{{ src.key }}" value="{{ src.limit }}" min="1" max="500"
-                   class="w-16 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-primary focus:outline-none">
-          </div>
-          {% endif %}
-          {% if src.max_pages is not none %}
-          <div class="flex items-center gap-1.5">
-            <span class="text-[10px] text-slate-500 uppercase">Pages</span>
-            <input type="number" data-source-pages="{{ src.key }}" value="{{ src.max_pages }}" min="1" max="50"
-                   class="w-16 bg-slate-800/50 border border-slate-700 rounded px-2 py-1 text-xs text-white text-center font-mono focus:border-primary focus:outline-none">
-          </div>
-          {% endif %}
-          <button onclick="deleteSource('{{ src.key }}', '{{ src.label }}')" title="删除此信息源"
-                  class="p-1.5 rounded-lg text-slate-600 hover:text-rose-400 hover:bg-rose-500/10 transition">
-            <span class="material-icons-round text-sm">close</span>
-          </button>
-        </div>
-        {% endfor %}
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-
-  <div class="flex gap-3">
-    <button onclick="saveSources()" id="saveSourcesBtn"
-            class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition">
-      <span class="material-icons-round text-sm">save</span> 保存信息源配置
-    </button>
-    <div id="sourcesMsg" class="hidden flex items-center text-xs px-4 py-2 rounded-lg"></div>
-  </div>
-</div>
-
-<!-- ==================== Tab 3: 结构化信息源 ==================== -->
-{% elif tab == 'structured' %}
-<div>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <!-- 左侧：配置面板 -->
-    <div class="lg:col-span-2 space-y-6">
-      <!-- Stock Pool -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-        <h3 class="font-bold flex items-center gap-2 mb-4">
-          <span class="material-icons-round text-primary">inventory_2</span>
-          Stock Pool
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-          <input type="radio" name="pool" value="watchlist" id="poolWatchlist" class="pool-radio hidden" checked>
-          <label for="poolWatchlist" class="border border-slate-700 rounded-xl p-4 cursor-pointer transition hover:border-slate-500">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-3 h-3 rounded-full border-2 border-slate-600 dot"></div>
-              <span class="text-sm font-bold text-white">Watchlist</span>
-            </div>
-            <p class="text-xs text-slate-500">自选股列表 ({{ watchlist|length }} 只)</p>
-          </label>
-
-          <input type="radio" name="pool" value="all" id="poolAll" class="pool-radio hidden">
-          <label for="poolAll" class="border border-slate-700 rounded-xl p-4 cursor-pointer transition hover:border-slate-500">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-3 h-3 rounded-full border-2 border-slate-600 dot"></div>
-              <span class="text-sm font-bold text-white">All Tickers</span>
-            </div>
-            <p class="text-xs text-slate-500">全部 A 股</p>
-          </label>
-
-          <input type="radio" name="pool" value="custom" id="poolCustom" class="pool-radio hidden">
-          <label for="poolCustom" class="border border-slate-700 rounded-xl p-4 cursor-pointer transition hover:border-slate-500">
-            <div class="flex items-center gap-2 mb-1">
-              <div class="w-3 h-3 rounded-full border-2 border-slate-600 dot"></div>
-              <span class="text-sm font-bold text-white">Custom List</span>
-            </div>
-            <p class="text-xs text-slate-500">手动输入代码</p>
-          </label>
-        </div>
-        <!-- Custom codes input (hidden by default) -->
-        <div id="customCodesWrap" class="hidden">
-          <textarea id="customCodes" rows="2" placeholder="输入股票代码，逗号分隔，如: 600519,000858,601318"
-                    class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"></textarea>
-        </div>
-      </div>
-
-      <!-- Data Types & Date Range -->
-      <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <!-- Data Types -->
+  <!-- 批量下载（折叠） -->
+  <details class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <summary class="p-4 cursor-pointer flex items-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition select-none">
+      <span class="material-icons-round text-sm">download</span>
+      批量下载（手动触发）
+      <span class="material-icons-round text-xs ml-auto">expand_more</span>
+    </summary>
+    <div class="p-5 border-t border-slate-800">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-2 space-y-5">
+          <!-- Stock Pool -->
           <div>
-            <h3 class="font-bold flex items-center gap-2 mb-4">
-              <span class="material-icons-round text-primary">dataset</span>
-              数据类型
-            </h3>
-            <div class="flex flex-wrap gap-2">
-              <button class="dtype-btn active px-4 py-2 rounded-lg text-sm font-semibold border border-slate-700 transition" data-type="daily">
-                <span class="material-icons-round text-sm align-middle mr-1">candlestick_chart</span>日线行情
-              </button>
-              <button class="dtype-btn active px-4 py-2 rounded-lg text-sm font-semibold border border-slate-700 transition" data-type="capital">
-                <span class="material-icons-round text-sm align-middle mr-1">account_balance</span>资金流向
-              </button>
-              <button class="dtype-btn active px-4 py-2 rounded-lg text-sm font-semibold border border-slate-700 transition" data-type="financial">
-                <span class="material-icons-round text-sm align-middle mr-1">receipt_long</span>财务数据
-              </button>
+            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Stock Pool</h4>
+            <div class="grid grid-cols-3 gap-3">
+              <input type="radio" name="pool" value="watchlist" id="poolWatchlist" class="pool-radio hidden" checked>
+              <label for="poolWatchlist" class="border border-slate-700 rounded-xl p-3 cursor-pointer transition hover:border-slate-500 text-center">
+                <div class="flex items-center justify-center gap-1.5 mb-1"><div class="w-2.5 h-2.5 rounded-full border-2 border-slate-600 dot"></div><span class="text-xs font-bold text-white">Watchlist</span></div>
+                <p class="text-[10px] text-slate-500">自选股 ({{ watchlist|length }}只)</p>
+              </label>
+              <input type="radio" name="pool" value="all" id="poolAll" class="pool-radio hidden">
+              <label for="poolAll" class="border border-slate-700 rounded-xl p-3 cursor-pointer transition hover:border-slate-500 text-center">
+                <div class="flex items-center justify-center gap-1.5 mb-1"><div class="w-2.5 h-2.5 rounded-full border-2 border-slate-600 dot"></div><span class="text-xs font-bold text-white">All Tickers</span></div>
+                <p class="text-[10px] text-slate-500">全部 A 股</p>
+              </label>
+              <input type="radio" name="pool" value="custom" id="poolCustom" class="pool-radio hidden">
+              <label for="poolCustom" class="border border-slate-700 rounded-xl p-3 cursor-pointer transition hover:border-slate-500 text-center">
+                <div class="flex items-center justify-center gap-1.5 mb-1"><div class="w-2.5 h-2.5 rounded-full border-2 border-slate-600 dot"></div><span class="text-xs font-bold text-white">Custom</span></div>
+                <p class="text-[10px] text-slate-500">手动输入</p>
+              </label>
+            </div>
+            <div id="customCodesWrap" class="hidden mt-3">
+              <textarea id="customCodes" rows="2" placeholder="股票代码，逗号分隔，如: 600519,000858"
+                        class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-slate-600 focus:border-primary focus:outline-none"></textarea>
             </div>
           </div>
-          <!-- Date Range -->
-          <div>
-            <h3 class="font-bold flex items-center gap-2 mb-4">
-              <span class="material-icons-round text-primary">date_range</span>
-              日期范围
-            </h3>
-            <div class="flex items-center gap-3">
-              <input type="date" id="structStartDate" value="2024-01-01"
-                     class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-primary focus:outline-none">
-              <span class="text-slate-500">—</span>
-              <input type="date" id="structEndDate" value="{{ now_date if now_date else '' }}"
-                     class="bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:border-primary focus:outline-none">
+          <!-- Data Types + Date Range -->
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">数据类型</h4>
+              <div class="flex flex-wrap gap-2">
+                <button class="dtype-btn active px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 transition" data-type="daily">日线</button>
+                <button class="dtype-btn active px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 transition" data-type="capital">资金</button>
+                <button class="dtype-btn active px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-700 transition" data-type="financial">财务</button>
+              </div>
+            </div>
+            <div>
+              <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">日期范围</h4>
+              <div class="flex items-center gap-2">
+                <input type="date" id="structStartDate" value="2024-01-01" class="bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none">
+                <span class="text-slate-500">—</span>
+                <input type="date" id="structEndDate" value="{{ now_date if now_date else '' }}" class="bg-slate-800/50 border border-slate-700 rounded px-2 py-1.5 text-xs text-white font-mono focus:border-primary focus:outline-none">
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Run Button -->
-      <div class="flex items-center gap-4">
-        <button onclick="runStructBatch()" id="structBatchBtn"
-                class="bg-primary hover:bg-primary/90 text-white px-8 py-3 rounded-xl font-bold text-sm flex items-center gap-2 transition">
-          <span class="material-icons-round">download</span> Run Batch Download
-        </button>
-        <div id="structMsg" class="hidden text-xs px-4 py-2 rounded-lg"></div>
-      </div>
-
-      <!-- Progress -->
-      <div id="structProgress" class="hidden bg-slate-900 border border-slate-800 p-5 rounded-xl">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-sm font-semibold text-white">下载进度</span>
-          <span id="structProgressText" class="text-xs text-slate-400 font-mono">0 / 0</span>
-        </div>
-        <div class="progress-bar mb-2">
-          <div id="structProgressBar" class="progress-fill bg-primary" style="width:0%"></div>
-        </div>
-        <p id="structCurrentItem" class="text-xs text-slate-500"></p>
-      </div>
-    </div>
-
-    <!-- 右侧：信息面板 -->
-    <div class="space-y-6">
-      <!-- Watchlist Preview -->
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-        <h3 class="font-bold flex items-center gap-2 mb-4">
-          <span class="material-icons-round text-primary">bookmark</span>
-          Watchlist
-          <span class="text-xs text-slate-500 ml-auto">{{ watchlist|length }} 只</span>
-        </h3>
-        <div class="max-h-[300px] overflow-y-auto custom-scrollbar space-y-1">
-          {% for w in watchlist[:30] %}
-          <div class="flex items-center justify-between py-1.5 px-2 rounded hover:bg-slate-800/30">
-            <span class="text-xs font-mono text-primary">{{ w.stock_code }}</span>
-            <span class="text-xs text-slate-400">{{ w.stock_name }}</span>
+          <!-- Run Button -->
+          <div class="flex items-center gap-4">
+            <button onclick="runStructBatch()" id="structBatchBtn"
+                    class="bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition">
+              <span class="material-icons-round text-sm">download</span> Run Batch
+            </button>
+            <div id="structMsg" class="hidden text-xs px-4 py-2 rounded-lg"></div>
           </div>
-          {% endfor %}
-          {% if watchlist|length > 30 %}
-          <p class="text-xs text-slate-600 text-center py-2">... 还有 {{ watchlist|length - 30 }} 只</p>
-          {% endif %}
-          {% if not watchlist %}
-          <p class="text-xs text-slate-600 text-center py-4">暂无自选股</p>
-          {% endif %}
+          <!-- Progress -->
+          <div id="structProgress" class="hidden bg-slate-950 border border-slate-800 p-4 rounded-xl">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-semibold">下载进度</span>
+              <span id="structProgressText" class="text-xs text-slate-400 font-mono">0 / 0</span>
+            </div>
+            <div class="progress-bar mb-2"><div id="structProgressBar" class="progress-fill bg-primary" style="width:0%"></div></div>
+            <p id="structCurrentItem" class="text-xs text-slate-500"></p>
+          </div>
         </div>
-      </div>
-
-      <!-- Last Fetch Info -->
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
-        <h3 class="font-bold flex items-center gap-2 mb-4">
-          <span class="material-icons-round text-slate-400">info</span>
-          数据状态
-        </h3>
-        <div class="space-y-3 text-xs">
-          <div class="flex justify-between">
-            <span class="text-slate-500">日线数据量</span>
-            <span class="text-white font-mono">{{ "{:,}".format(db_stats.get("stock_daily", 0)) }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-500">资金流向</span>
-            <span class="text-white font-mono">{{ "{:,}".format(db_stats.get("capital_flow", 0)) }}</span>
-          </div>
-          <div class="flex justify-between">
-            <span class="text-slate-500">最新日线日期</span>
-            <span class="text-white font-mono">{{ last_daily_date or '无' }}</span>
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">当前自选股</h4>
+          <div class="max-h-[200px] overflow-y-auto custom-scrollbar space-y-1">
+            {% for w in watchlist[:20] %}
+            <div class="flex items-center justify-between py-1 px-2 rounded hover:bg-slate-800/30">
+              <span class="text-xs font-mono text-primary">{{ w.stock_code }}</span>
+              <span class="text-xs text-slate-400">{{ w.stock_name }}</span>
+            </div>
+            {% endfor %}
+            {% if not watchlist %}<p class="text-xs text-slate-600 py-4 text-center">暂无自选股</p>{% endif %}
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </details>
 </div>
 
 <!-- ==================== Tab 4: Skill 配置 ==================== -->
@@ -531,8 +657,12 @@
               <span class="text-[10px] text-slate-500 font-mono">{{ "{:,}".format(item.skill_status.chars) }} chars</span>
               {% else %}
               <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400">Skill</span>
-              <span class="text-xs text-amber-400 font-mono">{{ item.skill_name }}</span>
-              <span class="text-[10px] text-rose-400">文件缺失</span>
+              <button onclick="toggleSkill('{{ item.skill_name }}')"
+                      class="text-xs text-amber-400 hover:text-amber-300 font-mono cursor-pointer flex items-center gap-1 transition">
+                {{ item.skill_name }}
+                <span class="material-icons-round text-xs skill-chevron" id="chevron-{{ item.skill_name }}">expand_more</span>
+              </button>
+              <span class="text-[10px] text-rose-400">文件缺失 · 点击新建</span>
               {% endif %}
               {% if item.prompt_var %}
               <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-700/50 text-slate-400 ml-1">fallback: {{ item.prompt_var }}</span>
@@ -544,8 +674,34 @@
           </div>
           {% if item.skill_name and item.skill_status and item.skill_status.exists %}
           <div id="skill-panel-{{ item.skill_name }}" class="hidden mt-3 bg-slate-950 border border-slate-800 rounded-lg overflow-hidden">
-            <div class="p-3 max-h-[300px] overflow-y-auto custom-scrollbar">
-              <pre id="skill-content-{{ item.skill_name }}" class="text-xs text-slate-400 font-mono whitespace-pre-wrap leading-relaxed">点击加载...</pre>
+            <div class="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/60">
+              <span class="text-[10px] text-slate-500 font-mono flex-1">{{ item.skill_status.path if item.skill_status.path else '' }}</span>
+              <button onclick="saveSkill('{{ item.skill_name }}')"
+                      class="flex items-center gap-1 px-3 py-1 bg-primary/10 hover:bg-primary/20 border border-primary/30 rounded text-xs font-bold text-primary transition">
+                <span class="material-icons-round text-xs">save</span>保存
+              </button>
+              <span id="skill-save-msg-{{ item.skill_name }}" class="text-[10px] text-slate-500 hidden"></span>
+            </div>
+            <div class="p-3">
+              <textarea id="skill-content-{{ item.skill_name }}"
+                        class="w-full h-64 bg-transparent text-xs text-slate-300 font-mono whitespace-pre leading-relaxed resize-y focus:outline-none"
+                        spellcheck="false">点击加载...</textarea>
+            </div>
+          </div>
+          {% elif item.skill_name and not (item.skill_status and item.skill_status.exists) %}
+          <div id="skill-panel-{{ item.skill_name }}" class="hidden mt-3 bg-slate-950 border border-slate-800 rounded-lg overflow-hidden">
+            <div class="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-900/60">
+              <span class="text-[10px] text-amber-400/70 flex-1">新建 Skill 文件</span>
+              <button onclick="saveSkill('{{ item.skill_name }}')"
+                      class="flex items-center gap-1 px-3 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 rounded text-xs font-bold text-emerald-400 transition">
+                <span class="material-icons-round text-xs">add</span>创建
+              </button>
+              <span id="skill-save-msg-{{ item.skill_name }}" class="text-[10px] text-slate-500 hidden"></span>
+            </div>
+            <div class="p-3">
+              <textarea id="skill-content-{{ item.skill_name }}"
+                        class="w-full h-64 bg-transparent text-xs text-slate-300 font-mono whitespace-pre leading-relaxed resize-y focus:outline-none"
+                        spellcheck="false" placeholder="在此输入 Skill prompt 内容..."></textarea>
             </div>
           </div>
           {% endif %}
@@ -556,7 +712,236 @@
     {% endfor %}
   </div>
 </div>
+{% elif tab == 'strategy' %}
+<div id="strategyTab">
+  <!-- 顶部统计栏 -->
+  <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 mb-5 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <span class="material-icons-round text-primary text-2xl">rule</span>
+      <div>
+        <div class="text-sm font-bold text-white">选股策略规则库</div>
+        <div class="text-xs text-slate-400 mt-0.5">
+          系统预置 <span id="sysCount" class="text-emerald-400 font-semibold">{{ system_count }}</span> 条
+          · 自定义 <span id="customCount" class="text-primary font-semibold">{{ custom_count }}</span> 条
+        </div>
+      </div>
+    </div>
+    <button onclick="seedRules(this)" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white px-4 py-2 rounded-lg text-xs font-semibold transition">
+      <span class="material-icons-round text-sm">download</span>初始化系统规则
+    </button>
+  </div>
+
+  <!-- 分类标签栏 -->
+  <div class="flex flex-wrap gap-2 mb-5" id="categoryTabs">
+    <button onclick="filterCategory('all', this)"
+      class="cat-tab active px-3 py-1.5 rounded-full text-xs font-semibold border border-primary bg-primary/10 text-primary transition">
+      全部
+    </button>
+    {% for key, cat in rule_categories.items() %}
+    <button onclick="filterCategory('{{ key }}', this)"
+      class="cat-tab px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200 transition"
+      data-cat="{{ key }}">
+      {{ cat.label }}
+    </button>
+    {% endfor %}
+    <button onclick="filterCategory('custom', this)"
+      class="cat-tab px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-200 transition"
+      data-cat="custom">
+      自定义
+    </button>
+  </div>
+
+  <!-- 规则卡片网格 -->
+  <div id="rulesGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-6">
+    {% for rule in rules %}
+    <div class="rule-card bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2"
+         data-id="{{ rule.id }}" data-cat="{{ rule.category }}" data-system="{{ rule.is_system }}">
+      <div class="flex items-start justify-between gap-2">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="material-icons-round text-primary text-base flex-shrink-0">label</span>
+          <span class="text-sm font-bold text-white truncate rule-name-display">{{ rule.rule_name }}</span>
+        </div>
+        <div class="flex items-center gap-1 flex-shrink-0">
+          {% if rule.is_system %}
+          <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">系统</span>
+          {% else %}
+          <button onclick="editRule(this.closest('.rule-card'))" class="p-1 text-slate-600 hover:text-primary transition" title="编辑">
+            <span class="material-icons-round text-sm">edit</span>
+          </button>
+          <button onclick="deleteRule(this.closest('.rule-card'))" class="p-1 text-slate-600 hover:text-red-400 transition" title="删除">
+            <span class="material-icons-round text-sm">delete</span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed line-clamp-3 rule-def-display">{{ rule.definition[:120] }}{% if rule.definition|length > 120 %}…{% endif %}</p>
+      <div class="flex items-center gap-2 mt-auto pt-1">
+        <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-500 border border-slate-700">
+          {{ rule_categories.get(rule.category, {}).get('label', rule.category) }}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- 新增自定义规则表单 -->
+  <div class="bg-slate-900 border border-dashed border-slate-700 rounded-xl p-5">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="material-icons-round text-primary text-base">add_circle</span>
+      <span class="text-sm font-bold text-white">新增自定义规则</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+      <div>
+        <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">分类</label>
+        <select id="newRuleCategory" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-primary focus:outline-none">
+          {% for key, cat in rule_categories.items() %}
+          <option value="{{ key }}">{{ cat.label }}</option>
+          {% endfor %}
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">规则名称</label>
+        <input type="text" id="newRuleName" placeholder="简洁的规则名称，如「ROE持续优秀」"
+          class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+      </div>
+    </div>
+    <div class="mb-3">
+      <label class="block text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">规则定义（AI 选股 prompt 模板）</label>
+      <textarea id="newRuleDefinition" rows="4" placeholder="详细描述筛选范畴、超额逻辑、排除条件和推荐排序..."
+        class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none resize-y"></textarea>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="addCustomRule()" class="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+        <span class="material-icons-round text-sm">save</span>保存规则
+      </button>
+      <span id="addRuleMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+    </div>
+  </div>
+
+  <!-- 标签计算引擎 -->
+  <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mt-5">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="material-icons-round text-violet-400 text-xl">label</span>
+      <div>
+        <div class="text-sm font-bold text-white">标签计算引擎</div>
+        <div class="text-xs text-slate-400 mt-0.5">分层触发，先测试单只股票再全量执行</div>
+      </div>
+    </div>
+
+    <!-- 状态统计 -->
+    <div id="taggingStats" class="grid grid-cols-3 gap-3 mb-4">
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">L1 量化</div>
+        <div id="l1Stats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">L2 AI轻量</div>
+        <div id="l2Stats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">L3 AI深度</div>
+        <div id="l3Stats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 测试股票输入 -->
+    <div class="flex items-center gap-3 mb-4">
+      <input id="taggingStockCode" type="text" placeholder="测试股票代码（如 600519），留空则跑 watchlist"
+        class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+    </div>
+
+    <!-- 三个触发按钮 -->
+    <div class="flex flex-wrap gap-3">
+      <button onclick="runTagging(1, this)" class="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/40 text-blue-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">calculate</span>L1 量化计算
+      </button>
+      <button onclick="runTagging(2, this)" class="flex items-center gap-2 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-600/40 text-violet-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">psychology</span>L2 AI轻量标注
+      </button>
+      <button onclick="runTagging(3, this)" class="flex items-center gap-2 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 text-amber-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">biotech</span>L3 AI深度分析
+      </button>
+    </div>
+
+    <!-- 结果展示 -->
+    <div id="taggingResult" class="hidden mt-4 bg-slate-800/50 rounded-lg p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto"></div>
+  </div>
+
+  <!-- 股票标签体系批量更新 -->
+  <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-5 mt-5">
+    <div class="flex items-center gap-3 mb-4">
+      <span class="material-icons-round text-emerald-400 text-xl">local_offer</span>
+      <div>
+        <div class="text-sm font-bold text-white">股票标签体系批量更新</div>
+        <div class="text-xs text-slate-400 mt-0.5">三类标签：选股规则 / KG行业 / KG投资主题，分层更新全量股票库</div>
+      </div>
+    </div>
+
+    <!-- 覆盖统计 -->
+    <div id="stockTagStats" class="grid grid-cols-3 gap-3 mb-4">
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">选股标签</div>
+        <div id="selTagStats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">KG行业标签</div>
+        <div id="indTagStats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+      <div class="bg-slate-800/60 rounded-lg p-3 text-center">
+        <div class="text-xs text-slate-400 mb-1">KG主题标签</div>
+        <div id="themeTagStats" class="text-xs text-slate-300">加载中...</div>
+      </div>
+    </div>
+
+    <!-- 分层说明 -->
+    <div class="grid grid-cols-3 gap-2 mb-4 text-xs">
+      <div class="bg-blue-900/20 border border-blue-800/40 rounded-lg p-2">
+        <div class="text-blue-300 font-semibold mb-1">Tier A — 全量</div>
+        <div class="text-slate-400">~5000只股票，L1量化规则，无AI调用</div>
+      </div>
+      <div class="bg-violet-900/20 border border-violet-800/40 rounded-lg p-2">
+        <div class="text-violet-300 font-semibold mb-1">Tier B — 有新闻</div>
+        <div class="text-slate-400">近30天有提及的股票，L2 AI轻量标注</div>
+      </div>
+      <div class="bg-amber-900/20 border border-amber-800/40 rounded-lg p-2">
+        <div class="text-amber-300 font-semibold mb-1">Tier C — 重点</div>
+        <div class="text-slate-400">watchlist + 持仓 + 已有≥2标签，L3 AI深度</div>
+      </div>
+    </div>
+
+    <!-- 单只股票测试 -->
+    <div class="flex items-center gap-3 mb-4">
+      <input id="batchTagStockCode" type="text" placeholder="单只股票代码（如 600519），留空则全量更新"
+        class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+    </div>
+
+    <!-- 触发按钮 -->
+    <div class="flex flex-wrap gap-3">
+      <button onclick="runBatchTagUpdate(['A'], this)"
+        class="flex items-center gap-2 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-600/40 text-blue-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">calculate</span>Tier A 量化
+      </button>
+      <button onclick="runBatchTagUpdate(['B'], this)"
+        class="flex items-center gap-2 bg-violet-600/20 hover:bg-violet-600/30 border border-violet-600/40 text-violet-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">psychology</span>Tier B AI轻量
+      </button>
+      <button onclick="runBatchTagUpdate(['C'], this)"
+        class="flex items-center gap-2 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-600/40 text-amber-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">biotech</span>Tier C AI深度
+      </button>
+      <button onclick="runBatchTagUpdate(['A','B','C'], this)"
+        class="flex items-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-600/40 text-emerald-300 px-4 py-2 rounded-lg text-xs font-semibold transition">
+        <span class="material-icons-round text-sm">sync</span>全量更新 A+B+C
+      </button>
+    </div>
+
+    <!-- 进度展示 -->
+    <div id="batchTagResult" class="hidden mt-4 bg-slate-800/50 rounded-lg p-3 text-xs text-slate-300 font-mono whitespace-pre-wrap max-h-64 overflow-y-auto"></div>
+  </div>
+</div>
 {% endif %}
+
 {% endblock %}
 
 {% block scripts %}
@@ -584,7 +969,77 @@ function setApiStatus(ok) {
 fetch('/settings/api/test-claude', { method: 'POST' }).then(r => r.json()).then(d => setApiStatus(d.ok)).catch(() => setApiStatus(false));
 
 {% if tab == 'api' %}
-// ==================== API Config ====================
+// ==================== 多模型配置 ====================
+async function saveModelConfig(stage, btn) {
+  const card = btn.closest('[id^="model-card-"]');
+  const msg = card.querySelector('.mc-msg');
+  btn.disabled = true;
+  const body = {
+    stage,
+    provider: card.querySelector('.mc-provider').value,
+    model_name: card.querySelector('.mc-model').value.trim(),
+    api_key: card.querySelector('.mc-apikey').value.trim(),
+    base_url: card.querySelector('.mc-baseurl').value.trim(),
+    api_key_ref: card.querySelector('.mc-keyref').value.trim(),
+  };
+  try {
+    const resp = await fetch('/settings/api/save-model-config', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+    });
+    const d = await resp.json();
+    msg.classList.remove('hidden');
+    msg.className = 'mc-msg mt-2 text-xs text-center py-1 rounded ' + (d.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400');
+    msg.textContent = d.ok ? '已保存' : d.error;
+    setTimeout(() => msg.classList.add('hidden'), 2000);
+  } catch(e) {
+    msg.classList.remove('hidden'); msg.className = 'mc-msg mt-2 text-xs text-center py-1 rounded bg-rose-500/10 text-rose-400';
+    msg.textContent = '请求失败'; setTimeout(() => msg.classList.add('hidden'), 2000);
+  }
+  btn.disabled = false;
+}
+
+async function testModel(stage, btn) {
+  const card = btn.closest('[id^="model-card-"]');
+  const msg = card.querySelector('.mc-msg');
+  btn.disabled = true; btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin">refresh</span>';
+  try {
+    const resp = await fetch('/settings/api/test-model/' + stage, { method: 'POST' });
+    const d = await resp.json();
+    msg.classList.remove('hidden');
+    msg.className = 'mc-msg mt-2 text-xs text-center py-1 rounded ' + (d.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400');
+    msg.textContent = d.ok ? 'OK: ' + d.response : d.error;
+    setTimeout(() => msg.classList.add('hidden'), 4000);
+  } catch(e) {
+    msg.classList.remove('hidden'); msg.className = 'mc-msg mt-2 text-xs text-center py-1 rounded bg-rose-500/10 text-rose-400';
+    msg.textContent = '请求失败';
+  }
+  btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-xs align-middle">wifi_tethering</span> 测试';
+}
+
+async function saveKey(btn) {
+  const name = document.getElementById('newKeyName').value.trim();
+  const value = document.getElementById('newKeyValue').value.trim();
+  const msg = document.getElementById('keyMsg');
+  if (!name || !value) { msg.classList.remove('hidden'); msg.className = 'mt-2 text-xs text-center py-1 rounded bg-amber-500/10 text-amber-400'; msg.textContent = 'Key 名称和值不能为空'; return; }
+  btn.disabled = true;
+  try {
+    const resp = await fetch('/settings/api/save-key', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({key_name: name, key_value: value})
+    });
+    const d = await resp.json();
+    msg.classList.remove('hidden');
+    msg.className = 'mt-2 text-xs text-center py-1 rounded ' + (d.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400');
+    msg.textContent = d.ok ? '已保存，刷新页面查看' : d.error;
+    if (d.ok) { document.getElementById('newKeyName').value = ''; document.getElementById('newKeyValue').value = ''; }
+    setTimeout(() => msg.classList.add('hidden'), 3000);
+  } catch(e) {
+    msg.classList.remove('hidden'); msg.className = 'mt-2 text-xs text-center py-1 rounded bg-rose-500/10 text-rose-400';
+    msg.textContent = '请求失败';
+  }
+  btn.disabled = false;
+}
+
+
 async function saveConfig() {
   const btn = document.getElementById('saveBtn');
   const msg = document.getElementById('configMsg');
@@ -631,176 +1086,54 @@ async function testClaude() {
   btn.innerHTML = '<span class="material-icons-round text-sm">wifi_tethering</span> 测试连通';
 }
 
-{% elif tab == 'sources' %}
-// ==================== Non-Structured Sources ====================
-async function saveSources() {
-  const btn = document.getElementById('saveSourcesBtn');
-  const msg = document.getElementById('sourcesMsg');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 保存中';
-
-  const sources = {};
-  document.querySelectorAll('[data-source]').forEach(el => {
-    sources[el.dataset.source] = sources[el.dataset.source] || {};
-    sources[el.dataset.source].enabled = el.checked;
-  });
-  document.querySelectorAll('[data-source-limit]').forEach(el => {
-    const key = el.dataset.sourceLimit;
-    sources[key] = sources[key] || {};
-    sources[key].limit = parseInt(el.value) || 100;
-  });
-  document.querySelectorAll('[data-source-pages]').forEach(el => {
-    const key = el.dataset.sourcePages;
-    sources[key] = sources[key] || {};
-    sources[key].max_pages = parseInt(el.value) || 5;
-  });
-
-  const body = {
-    news_hours: parseInt(document.getElementById('newsHours').value) || 24,
-    sources: sources,
-    zsxq_cookie: document.getElementById('zsxqCookie').value.trim(),
-  };
-
-  try {
-    const resp = await fetch('/settings/api/save-sources', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
-    });
-    const data = await resp.json();
-    showMsg(msg, data.ok, data.ok ? '信息源配置已保存' : '保存失败');
-  } catch(e) {
-    showMsg(msg, false, '请求失败: ' + e.message);
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<span class="material-icons-round text-sm">save</span> 保存信息源配置';
-}
-
-// ==================== Add / Delete Source ====================
-let _addDropdownOpen = false;
-
-function toggleAddSource() {
-  const dd = document.getElementById('addSourceDropdown');
-  _addDropdownOpen = !_addDropdownOpen;
-  dd.classList.toggle('hidden', !_addDropdownOpen);
-  if (_addDropdownOpen) loadAvailableSources();
-}
-
-// 点击外部关闭
-document.addEventListener('click', (e) => {
-  if (_addDropdownOpen && !document.getElementById('addSourceWrap').contains(e.target)) {
-    document.getElementById('addSourceDropdown').classList.add('hidden');
-    _addDropdownOpen = false;
-  }
-});
-
-async function loadAvailableSources() {
-  const list = document.getElementById('addSourceList');
-  try {
-    const resp = await fetch('/settings/api/available-sources');
-    const data = await resp.json();
-    const sources = data.sources || {};
-    const keys = Object.keys(sources);
-    if (!keys.length) {
-      list.innerHTML = '<div class="p-4 text-xs text-slate-500 text-center">所有源已添加</div>';
-      return;
-    }
-    list.innerHTML = keys.map(k => {
-      const s = sources[k];
-      return `<button onclick="addSource('${k}')" class="w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-800/40 transition text-left">
-        <span class="material-icons-round text-sm text-slate-400">${s.icon || 'article'}</span>
-        <div class="flex-1 min-w-0">
-          <p class="text-sm font-semibold text-white">${s.label}</p>
-          <p class="text-xs text-slate-500 truncate">${s.desc || ''}</p>
-        </div>
-        <span class="material-icons-round text-sm text-primary">add_circle</span>
-      </button>`;
-    }).join('');
-  } catch(e) {
-    list.innerHTML = '<div class="p-4 text-xs text-red-400 text-center">加载失败</div>';
-  }
-}
-
-async function addSource(key) {
-  const msg = document.getElementById('addDeleteMsg');
-  try {
-    const resp = await fetch('/settings/api/add-source', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({key})
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      showMsg(msg, true, '已添加');
-      setTimeout(() => location.reload(), 600);
-    } else {
-      showMsg(msg, false, data.error || '添加失败');
-    }
-  } catch(e) {
-    showMsg(msg, false, '请求失败');
-  }
-}
-
-// ==================== Custom Source ====================
-function toggleCustomSourceForm() {
-  const form = document.getElementById('customSourceForm');
-  form.classList.toggle('hidden');
-}
-
-async function submitCustomSource() {
-  const key = document.getElementById('csKey').value.trim();
-  const label = document.getElementById('csLabel').value.trim();
-  const group = document.getElementById('csGroup').value;
-  const desc = document.getElementById('csDesc').value.trim();
-  const fetcher_type = document.getElementById('csFetcher').value;
-  const msgEl = document.getElementById('csMsg');
-
-  if (!key || !label) {
-    showMsg(msgEl, false, '源标识和名称为必填项');
-    return;
-  }
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(key)) {
-    showMsg(msgEl, false, 'key 只能包含英文、数字和下划线');
-    return;
-  }
-
-  const btn = document.getElementById('csSubmitBtn');
-  btn.disabled = true;
-  try {
-    const resp = await fetch('/settings/api/add-custom-source', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({key, label, group, desc, icon: 'article', fetcher_type})
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      showMsg(msgEl, true, '已添加');
-      setTimeout(() => location.reload(), 600);
-    } else {
-      showMsg(msgEl, false, data.error || '添加失败');
-    }
-  } catch(e) {
-    showMsg(msgEl, false, '请求失败');
-  }
-  btn.disabled = false;
-}
-
-async function deleteSource(key, label) {
-  if (!confirm(`确定删除「${label}」？删除后可重新添加。`)) return;
-  const msg = document.getElementById('addDeleteMsg');
-  try {
-    const resp = await fetch(`/settings/api/delete-source/${key}`, { method: 'DELETE' });
-    const data = await resp.json();
-    if (data.ok) {
-      showMsg(msg, true, '已删除');
-      const row = document.getElementById('source-row-' + key);
-      if (row) row.remove();
-    } else {
-      showMsg(msg, false, data.error || '删除失败');
-    }
-  } catch(e) {
-    showMsg(msg, false, '请求失败');
-  }
-}
-
 {% elif tab == 'structured' %}
-// ==================== Structured Data ====================
+// ==================== 监控规则 ====================
+function openAddRule() {
+  document.getElementById('addRuleForm').classList.remove('hidden');
+  document.getElementById('addRuleForm').scrollIntoView({behavior:'smooth'});
+}
+
+async function saveRule() {
+  const body = {
+    module_name: document.getElementById('ruleModule').value.trim(),
+    data_type: document.getElementById('ruleDtype').value,
+    stock_pool: document.getElementById('rulePool').value,
+    lookback_days: parseInt(document.getElementById('ruleLookback').value) || 7,
+    schedule_cron: document.getElementById('ruleCron').value.trim() || null,
+    enabled: true,
+  };
+  if (!body.module_name) { alert('请填写业务模块'); return; }
+  const resp = await fetch('/settings/api/save-monitor-rule', {
+    method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  const d = await resp.json();
+  const msg = document.getElementById('monitorMsg');
+  msg.classList.remove('hidden');
+  msg.className = 'mb-4 text-xs text-center py-2 rounded-lg ' + (d.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400');
+  msg.textContent = d.ok ? '规则已保存，刷新页面查看' : d.error;
+  if (d.ok) document.getElementById('addRuleForm').classList.add('hidden');
+}
+
+async function triggerRule(id) {
+  const btn = event.currentTarget;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span>';
+  const resp = await fetch('/settings/api/trigger-monitor/' + id, { method: 'POST' });
+  const d = await resp.json();
+  const msg = document.getElementById('monitorMsg');
+  msg.classList.remove('hidden');
+  msg.className = 'mb-4 text-xs text-center py-2 rounded-lg ' + (d.ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400');
+  msg.textContent = d.ok ? d.message : d.error;
+  btn.innerHTML = '<span class="material-icons-round text-sm">play_circle</span>';
+}
+
+async function deleteRule(id) {
+  if (!confirm('确认删除此规则？')) return;
+  const resp = await fetch('/settings/api/delete-monitor/' + id, { method: 'DELETE' });
+  const d = await resp.json();
+  if (d.ok) document.getElementById('rule-row-' + id)?.remove();
+}
+
+// ==================== Structured Batch ====================
 document.querySelectorAll('[name="pool"]').forEach(r => {
   r.addEventListener('change', () => {
     document.getElementById('customCodesWrap').classList.toggle('hidden', r.value !== 'custom');
@@ -885,7 +1218,6 @@ if (!document.getElementById('structEndDate').value) {
 }
 {% elif tab == 'skills' %}
 // ==================== Skills Config ====================
-const _skillCache = {};
 
 async function toggleSkill(name) {
   const panel = document.getElementById('skill-panel-' + name);
@@ -893,38 +1225,343 @@ async function toggleSkill(name) {
   if (!panel) return;
 
   const isHidden = panel.classList.contains('hidden');
-  // Close all other panels first
-  document.querySelectorAll('[id^="skill-panel-"]').forEach(p => {
-    p.classList.add('hidden');
-  });
-  document.querySelectorAll('.skill-chevron').forEach(c => {
-    c.textContent = 'expand_more';
-  });
+  document.querySelectorAll('[id^="skill-panel-"]').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.skill-chevron').forEach(c => c.textContent = 'expand_more');
 
   if (isHidden) {
     panel.classList.remove('hidden');
-    chevron.textContent = 'expand_less';
-    // Load content if not cached
+    if (chevron) chevron.textContent = 'expand_less';
+    const ta = document.getElementById('skill-content-' + name);
+    if (!ta) return;
     if (!_skillCache[name]) {
-      const pre = document.getElementById('skill-content-' + name);
-      pre.textContent = '加载中...';
+      ta.value = '加载中...';
       try {
         const resp = await fetch('/settings/api/skill-content/' + encodeURIComponent(name));
         const data = await resp.json();
         if (data.ok) {
           _skillCache[name] = data.content;
-          pre.textContent = data.content;
+          ta.value = data.content;
         } else {
-          pre.textContent = '加载失败: ' + (data.error || '未知错误');
+          ta.value = '加载失败: ' + (data.error || '未知错误');
         }
       } catch(e) {
-        pre.textContent = '请求失败: ' + e.message;
+        ta.value = '请求失败: ' + e.message;
       }
     } else {
-      document.getElementById('skill-content-' + name).textContent = _skillCache[name];
+      ta.value = _skillCache[name];
     }
+  }
+}
+
+async function saveSkill(name) {
+  const ta = document.getElementById('skill-content-' + name);
+  const msg = document.getElementById('skill-save-msg-' + name);
+  if (!ta) return;
+  const content = ta.value;
+  msg.classList.remove('hidden');
+  msg.textContent = '保存中...';
+  msg.className = 'text-[10px] text-slate-400';
+  try {
+    const resp = await fetch('/settings/api/skill-save/' + encodeURIComponent(name), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({content}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      _skillCache[name] = content;
+      msg.textContent = `已保存 ${data.chars.toLocaleString()} chars`;
+      msg.className = 'text-[10px] text-emerald-400';
+    } else {
+      msg.textContent = '保存失败: ' + (data.error || '');
+      msg.className = 'text-[10px] text-red-400';
+    }
+  } catch(e) {
+    msg.textContent = '请求失败: ' + e.message;
+    msg.className = 'text-[10px] text-red-400';
+  }
+}
+{% elif tab == 'strategy' %}
+// ==================== 选股策略规则库 ====================
+let _currentCat = 'all';
+
+function filterCategory(cat, btn) {
+  _currentCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(b => {
+    b.classList.remove('active', 'border-primary', 'bg-primary/10', 'text-primary');
+    b.classList.add('border-slate-700', 'text-slate-400');
+  });
+  btn.classList.add('active', 'border-primary', 'bg-primary/10', 'text-primary');
+  btn.classList.remove('border-slate-700', 'text-slate-400');
+
+  document.querySelectorAll('.rule-card').forEach(card => {
+    if (cat === 'all') {
+      card.style.display = '';
+    } else if (cat === 'custom') {
+      card.style.display = card.dataset.system === '0' ? '' : 'none';
+    } else {
+      card.style.display = card.dataset.cat === cat ? '' : 'none';
+    }
+  });
+}
+
+async function seedRules(btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span>初始化中...';
+  try {
+    const resp = await fetch('/settings/api/selection-rules/seed', {method: 'POST'});
+    const d = await resp.json();
+    if (d.ok) {
+      btn.innerHTML = '<span class="material-icons-round text-sm">check</span>完成，刷新页面';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-round text-sm">download</span>初始化系统规则';
+      alert('失败: ' + d.error);
+    }
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-sm">download</span>初始化系统规则';
+  }
+}
+
+async function addCustomRule() {
+  const category = document.getElementById('newRuleCategory').value;
+  const rule_name = document.getElementById('newRuleName').value.trim();
+  const definition = document.getElementById('newRuleDefinition').value.trim();
+  const msg = document.getElementById('addRuleMsg');
+  if (!rule_name || !definition) {
+    showRuleMsg(msg, false, '名称和定义不能为空'); return;
+  }
+  try {
+    const resp = await fetch('/settings/api/selection-rules', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({category, rule_name, definition})
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      showRuleMsg(msg, true, '已保存，刷新页面生效');
+      document.getElementById('newRuleName').value = '';
+      document.getElementById('newRuleDefinition').value = '';
+      // 动态插入卡片
+      const grid = document.getElementById('rulesGrid');
+      const catLabel = document.getElementById('newRuleCategory').options[document.getElementById('newRuleCategory').selectedIndex].text;
+      grid.insertAdjacentHTML('beforeend', buildRuleCardHtml(d.id, category, catLabel, rule_name, definition, false));
+      const cnt = parseInt(document.getElementById('customCount').textContent || '0');
+      document.getElementById('customCount').textContent = cnt + 1;
+    } else {
+      showRuleMsg(msg, false, d.error || '保存失败');
+    }
+  } catch(e) { showRuleMsg(msg, false, '请求失败'); }
+}
+
+function buildRuleCardHtml(id, cat, catLabel, name, def, isSystem) {
+  const defShort = def.length > 120 ? def.slice(0, 120) + '…' : def;
+  const badge = isSystem
+    ? `<span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400 border border-emerald-800/50">系统</span>`
+    : `<button onclick="editRule(this.closest('.rule-card'))" class="p-1 text-slate-600 hover:text-primary transition" title="编辑"><span class="material-icons-round text-sm">edit</span></button>
+       <button onclick="deleteRule(this.closest('.rule-card'))" class="p-1 text-slate-600 hover:text-red-400 transition" title="删除"><span class="material-icons-round text-sm">delete</span></button>`;
+  return `<div class="rule-card bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-2"
+       data-id="${id}" data-cat="${cat}" data-system="${isSystem ? 1 : 0}">
+    <div class="flex items-start justify-between gap-2">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="material-icons-round text-primary text-base flex-shrink-0">label</span>
+        <span class="text-sm font-bold text-white truncate rule-name-display">${name}</span>
+      </div>
+      <div class="flex items-center gap-1 flex-shrink-0">${badge}</div>
+    </div>
+    <p class="text-xs text-slate-400 leading-relaxed line-clamp-3 rule-def-display">${defShort}</p>
+    <div class="flex items-center gap-2 mt-auto pt-1">
+      <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-500 border border-slate-700">${catLabel}</span>
+    </div>
+  </div>`;
+}
+
+function editRule(card) {
+  const id = card.dataset.id;
+  const name = card.querySelector('.rule-name-display').textContent.trim();
+  const defEl = card.querySelector('.rule-def-display');
+  // 展开内联编辑
+  const existing = card.querySelector('.rule-edit-form');
+  if (existing) { existing.remove(); return; }
+  const form = document.createElement('div');
+  form.className = 'rule-edit-form mt-2 space-y-2';
+  form.innerHTML = `
+    <input type="text" class="edit-name w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-white focus:border-primary focus:outline-none" value="${name.replace(/"/g,'&quot;')}">
+    <textarea class="edit-def w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:border-primary focus:outline-none resize-y" rows="4"></textarea>
+    <div class="flex gap-2">
+      <button onclick="saveEditRule(this.closest('.rule-card'))" class="bg-primary hover:bg-primary/90 text-white px-4 py-1.5 rounded-lg text-xs font-semibold transition">保存</button>
+      <button onclick="this.closest('.rule-edit-form').remove()" class="border border-slate-700 text-slate-400 px-3 py-1.5 rounded-lg text-xs transition">取消</button>
+      <span class="edit-msg hidden text-xs py-1.5 px-2 rounded"></span>
+    </div>`;
+  card.appendChild(form);
+  // 异步加载完整 definition
+  fetch('/settings/api/selection-rules').then(r=>r.json()).then(d => {
+    const rule = (d.rules||[]).find(r => String(r.id) === id);
+    if (rule) form.querySelector('.edit-def').value = rule.definition;
+  });
+}
+
+async function saveEditRule(card) {
+  const id = card.dataset.id;
+  const form = card.querySelector('.rule-edit-form');
+  const name = form.querySelector('.edit-name').value.trim();
+  const def = form.querySelector('.edit-def').value.trim();
+  const msg = form.querySelector('.edit-msg');
+  const cat = card.dataset.cat;
+  if (!name || !def) { showRuleMsg(msg, false, '不能为空'); return; }
+  try {
+    const resp = await fetch(`/settings/api/selection-rules/${id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({rule_name: name, definition: def, category: cat})
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      card.querySelector('.rule-name-display').textContent = name;
+      card.querySelector('.rule-def-display').textContent = def.slice(0, 120) + (def.length > 120 ? '…' : '');
+      form.remove();
+    } else { showRuleMsg(msg, false, d.error || '失败'); }
+  } catch(e) { showRuleMsg(msg, false, '请求失败'); }
+}
+
+async function deleteRule(card) {
+  const id = card.dataset.id;
+  if (!confirm('确定删除此自定义规则？')) return;
+  try {
+    const resp = await fetch(`/settings/api/selection-rules/${id}`, {method: 'DELETE'});
+    const d = await resp.json();
+    if (d.ok) {
+      card.remove();
+      const cnt = parseInt(document.getElementById('customCount').textContent || '1');
+      document.getElementById('customCount').textContent = Math.max(0, cnt - 1);
+    } else { alert(d.error || '删除失败'); }
+  } catch(e) { alert('请求失败'); }
+}
+
+function showRuleMsg(el, ok, text) {
+  el.classList.remove('hidden');
+  el.className = ok
+    ? 'text-xs px-3 py-1.5 rounded-lg bg-emerald-900/40 text-emerald-400'
+    : 'text-xs px-3 py-1.5 rounded-lg bg-red-900/40 text-red-400';
+  el.textContent = text;
+  setTimeout(() => el.classList.add('hidden'), 4000);
+}
+
+// ── 标签计算引擎 ──
+async function loadTaggingStats() {
+  try {
+    const d = await fetch('/settings/api/tagging-status').then(r => r.json());
+    if (!d.ok) return;
+    ['1','2','3'].forEach(l => {
+      const s = d.stats[`L${l}`] || {};
+      const el = document.getElementById(`l${l}Stats`);
+      if (el) el.textContent = `${s.stocks||0}只股票 · ${s.rules||0}条规则` + (s.last_run ? `\n${s.last_run.slice(0,16)}` : '');
+    });
+  } catch(e) {}
+}
+
+async function runTagging(layer, btn) {
+  const stockCode = (document.getElementById('taggingStockCode')?.value || '').trim();
+  const resultEl = document.getElementById('taggingResult');
+  btn.disabled = true;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span>计算中...';
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = `L${layer} 计算中...`;
+  try {
+    const resp = await fetch('/settings/api/run-tagging', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({layer, stock_code: stockCode || null, mode: stockCode ? 'test' : 'full'}),
+    });
+    const d = await resp.json();
+    if (!d.ok) { resultEl.textContent = '启动失败: ' + (d.error || ''); return; }
+    // 轮询结果
+    const taskId = d.task_id;
+    let tries = 0;
+    const poll = setInterval(async () => {
+      tries++;
+      if (tries > 60) { clearInterval(poll); resultEl.textContent += '\n超时'; return; }
+      try {
+        const t = await fetch(`/settings/api/tagging-task/${taskId}`).then(r => r.json());
+        if (t.status === 'done' || t.status === 'error') {
+          clearInterval(poll);
+          resultEl.textContent = JSON.stringify(t.result, null, 2);
+          loadTaggingStats();
+        }
+      } catch(e) {}
+    }, 2000);
+  } catch(e) {
+    resultEl.textContent = '请求失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origText;
+  }
+}
+
+// 页面加载时获取统计
+loadTaggingStats();
+loadStockTagStats();
+
+// ── 股票标签体系批量更新 ──
+async function loadStockTagStats() {
+  try {
+    const d = await fetch('/settings/api/stock-tag-stats').then(r => r.json());
+    if (!d.ok) return;
+    const sel = d.selection || {};
+    const selText = Object.entries(sel).map(([l, s]) => `${l}: ${s.stocks}只`).join(' · ') || '暂无';
+    const selEl = document.getElementById('selTagStats');
+    if (selEl) selEl.textContent = selText;
+    const indEl = document.getElementById('indTagStats');
+    if (indEl) indEl.textContent = `${d.industry_kg_stocks || 0} 只股票`;
+    const themeEl = document.getElementById('themeTagStats');
+    if (themeEl) themeEl.textContent = `${d.theme_kg_stocks || 0} 只股票`;
+  } catch(e) {}
+}
+
+async function runBatchTagUpdate(tiers, btn) {
+  const stockCode = (document.getElementById('batchTagStockCode')?.value || '').trim();
+  const resultEl = document.getElementById('batchTagResult');
+  btn.disabled = true;
+  const origText = btn.innerHTML;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span>更新中...';
+  resultEl.classList.remove('hidden');
+  resultEl.textContent = `启动 Tier ${tiers.join('+')} 更新...`;
+  try {
+    const resp = await fetch('/settings/api/run-batch-tag-update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tiers, stock_code: stockCode || null}),
+    });
+    const d = await resp.json();
+    if (!d.ok) { resultEl.textContent = '启动失败: ' + (d.error || ''); return; }
+    const taskId = d.task_id;
+    let tries = 0;
+    const poll = setInterval(async () => {
+      tries++;
+      if (tries > 300) { clearInterval(poll); resultEl.textContent += '\n超时'; return; }
+      try {
+        const t = await fetch(`/settings/api/batch-tag-task/${taskId}`).then(r => r.json());
+        // 显示最新进度
+        const progress = (t.progress || []).slice(-5);
+        const lines = progress.map(p => `[${p.stage}] ${p.message}`).join('\n');
+        resultEl.textContent = lines || '处理中...';
+        if (t.status === 'done' || t.status === 'error') {
+          clearInterval(poll);
+          resultEl.textContent = lines + '\n\n' + JSON.stringify(t.result, null, 2);
+          loadStockTagStats();
+          loadTaggingStats();
+        }
+      } catch(e) {}
+    }, 3000);
+  } catch(e) {
+    resultEl.textContent = '请求失败: ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = origText;
   }
 }
 {% endif %}
 </script>
+
 {% endblock %}

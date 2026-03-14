@@ -2,16 +2,173 @@
 
 从 MySQL 导出的 SQL dump 导入 source_documents 表，
 按 file_type 分发提取逻辑，提取后灌入 raw_items 进入 cleaning pipeline。
+
+Extract+Clean 合并架构：
+  _extract_single() 纯提取 → _semantic_clean() DeepSeek 清洗/理解
+  根据 file_type 和是否过了 Qwen 视觉模型，选择不同的清洗策略：
+  - 过了 Qwen 的 (PDF图表描述、image/mixed 视觉降级) → 轻度清洗（去格式噪音）
+  - 没过 Qwen 的 OCR/裸文本 → 深度理解整理（重新组织信息结构）
 """
 import json
 import logging
 import os
 import re
 import tempfile
+import threading
 
 from utils.db_utils import execute_cloud_query, execute_cloud_insert, get_db
 
 logger = logging.getLogger(__name__)
+
+# ==================== DeepSeek 清洗客户端（lazy singleton）====================
+
+_deepseek_client = None
+_deepseek_lock = threading.Lock()
+
+
+def _get_deepseek():
+    global _deepseek_client
+    if _deepseek_client is None:
+        with _deepseek_lock:
+            if _deepseek_client is None:
+                from openai import OpenAI
+                rows = execute_cloud_query(
+                    "SELECT value FROM system_config WHERE config_key='deepseek_api_key'"
+                )
+                if not rows:
+                    raise RuntimeError("system_config 中未找到 deepseek_api_key")
+                _deepseek_client = OpenAI(
+                    api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1"
+                )
+    return _deepseek_client
+
+
+def _call_deepseek(system_prompt: str, text: str, max_tokens=4096, timeout=90) -> str:
+    if len(text) > 12000:
+        text = text[:12000] + "\n\n[文本已截断]"
+    client = _get_deepseek()
+    resp = client.chat.completions.create(
+        model="deepseek-chat",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": text},
+        ],
+        max_tokens=max_tokens,
+        temperature=0.3,
+        timeout=timeout,
+    )
+    return resp.choices[0].message.content
+
+
+# ==================== 清洗 Prompts ====================
+
+# --- 理解整理型（没过 Qwen 的 OCR / 裸文本） ---
+_UNDERSTAND_PROMPT = """你是金融信息整理助手。以下文本从截图OCR/帖子中提取，包含大量UI残留、导航文字、按钮、乱码等噪音。
+
+请执行：
+1. 去掉所有UI元素（搜索框、导航栏、按钮、页码、网速显示、App界面文字等）
+2. 去掉乱码和无意义字符
+3. 理解内容后重新组织成结构清晰的信息摘要
+4. 保留所有关键数据（涨跌幅、市占率、产能数字、公司名、股票代码等）
+5. 如果是表格类数据，用 Markdown 表格格式整理
+6. 如果文本已经很干净且结构清晰，直接原样返回
+
+直接输出整理后的文本，不要加任何前缀说明。"""
+
+# --- 轻度清洗型（已过 Qwen 或文本本身较干净） ---
+_CLEAN_PROMPTS = {
+    "pdf": """你是金融研报文本清洗专家。以下文本从PDF提取，由于多栏布局，侧边栏信息（分析师信息、股价评级、表现数据、免责声明等）可能被混入正文中间，打断了原本连贯的句子。
+
+请执行：
+1. 找到所有打断正文语义的异物文字（通常出现在句子中间，与前后文不连贯）
+2. 删除这些异物文字
+3. 修复被打断的句子，使其恢复连贯
+4. 删除页眉页脚、页码、免责声明等重复出现的模板文字
+5. 保留所有正文内容、数据、表格、图表描述、目录
+
+如果文本已经很干净，直接原样返回。只做删除和修复，不添加任何新内容。直接输出清洗后的文本。""",
+
+    "audio": """你是金融电话会议/音频转写文本清洗专家。以下文本由语音识别转写而来，包含口语噪音。
+
+请执行：
+1. 删除无意义的口语填充词和重复（"嗯"、"啊"、"那个"、"就是说"、连续重复的词句）
+2. 修复被打断的句子——电话会中常有人插话打断，导致一句话被切成两段夹着别人的话
+3. 合并说话人的断续表达，使其成为完整连贯的句子
+4. 删除主持人的程序性话术（"下面有请XX回答"、"感谢XX的提问"等）
+5. 保留所有实质性内容：观点、数据、问答、业务讨论
+6. 保留说话人标识（如有）
+
+不要改变原意，不要添加新内容，不要总结。直接输出清洗后的文本。""",
+}
+_CLEAN_PROMPTS["mp3"] = _CLEAN_PROMPTS["audio"]
+
+
+def _split_long_text(text: str, chunk_size: int = 5000, overlap: int = 300) -> list:
+    """长文本分段，优先按自然段落切分"""
+    if len(text) <= chunk_size:
+        return [text]
+    try:
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=chunk_size, chunk_overlap=overlap,
+            separators=["\n\n", "\n", "。", "；", " "],
+        )
+        return splitter.split_text(text)
+    except ImportError:
+        chunks = []
+        for i in range(0, len(text), chunk_size - overlap):
+            chunks.append(text[i:i + chunk_size])
+        return chunks
+
+
+def _semantic_clean(raw_text: str, file_type: str, doc_id, needs_understanding: bool = False) -> str:
+    """Extract+Clean 合并清洗入口
+
+    Args:
+        raw_text: 提取后的原始文本
+        file_type: 文件类型
+        doc_id: source_documents.id（日志用）
+        needs_understanding: True=没过Qwen，需要深度理解整理；False=轻度清洗
+    Returns:
+        清洗后的文本
+    """
+    if not raw_text or len(raw_text.strip()) < 50:
+        return raw_text
+
+    # xlsx 不清洗
+    if file_type in ("xlsx", "xls"):
+        return raw_text
+
+    # 选择 prompt
+    if needs_understanding:
+        prompt = _UNDERSTAND_PROMPT
+    elif file_type in _CLEAN_PROMPTS:
+        prompt = _CLEAN_PROMPTS[file_type]
+    else:
+        # 兜底：理解整理
+        prompt = _UNDERSTAND_PROMPT
+
+    chunks = _split_long_text(raw_text)
+    cleaned_parts = []
+    for i, chunk in enumerate(chunks):
+        try:
+            result = _call_deepseek(prompt, chunk, max_tokens=4096, timeout=60)
+            cleaned_parts.append(result if result else chunk)
+        except Exception as e:
+            logger.warning(f"[S] 语义清洗第{i+1}/{len(chunks)}段失败 doc_id={doc_id}: {e}")
+            cleaned_parts.append(chunk)
+
+    cleaned = "\n\n".join(cleaned_parts)
+
+    if cleaned and len(cleaned) > 50:
+        logger.info(
+            f"[S] 语义清洗完成 doc_id={doc_id} type={file_type} "
+            f"understand={needs_understanding} ({len(raw_text)}→{len(cleaned)}字, {len(chunks)}段)"
+        )
+        return cleaned
+
+    logger.info(f"[S] 语义清洗结果过短，保留原文 doc_id={doc_id}")
+    return raw_text
 
 
 # ==================== SQL 导入 ====================
@@ -167,7 +324,7 @@ def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> d
 
     for i, row in enumerate(rows):
         try:
-            extracted = _extract_single(row)
+            extracted = _extract_and_clean_single(row)
             from config.doc_types import classify_doc_type
             new_doc_type = classify_doc_type(
                 row.get("title") or "",
@@ -175,7 +332,7 @@ def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> d
             )
             execute_cloud_insert(
                 """UPDATE source_documents
-                   SET extracted_text=%s, extract_status='done', doc_type=%s
+                   SET extracted_text=%s, extract_status='extracted', doc_type=%s
                    WHERE id=%s""",
                 [extracted, new_doc_type, row["id"]],
             )
@@ -208,29 +365,69 @@ def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> d
 
 
 def _extract_single(row: dict) -> str:
-    """按 file_type 分发提取"""
+    """按 file_type 分发提取（纯提取，不含清洗）"""
+    text, _ = _extract_single_with_meta(row)
+    return text
+
+
+def _extract_single_with_meta(row: dict) -> tuple:
+    """按 file_type 分发提取，返回 (text, needs_understanding)
+
+    needs_understanding=True 表示内容没过 Qwen 视觉理解，需要 DeepSeek 深度理解整理
+    needs_understanding=False 表示已过 Qwen 或是结构化数据，轻度清洗即可
+    """
     ft = row["file_type"]
     if ft == "txt":
-        return _extract_txt(row)
+        return _extract_txt(row), True  # 裸文本，需要理解整理
     elif ft == "mp3":
-        return _extract_mp3(row)
+        return _extract_mp3(row), False  # 音频转写，用 audio 清洗 prompt
     elif ft == "image":
-        return _extract_image(row)
+        return _extract_image_with_meta(row)  # 取决于是否走了 Qwen
     elif ft == "mixed":
-        return _extract_mixed(row)
+        return _extract_mixed_with_meta(row)  # 取决于是否走了 Qwen
     elif ft == "pdf":
-        return _extract_pdf(row)
+        return _extract_pdf_with_meta(row)  # 正常 PDF=False，扫描件=True
     elif ft == "audio":
-        return _extract_audio(row)
+        return _extract_audio(row), False  # 音频转写，用 audio 清洗 prompt
     elif ft in ("xlsx", "xls"):
-        return _extract_xlsx(row)
+        return _extract_xlsx(row), False  # 结构化数据，不清洗
     else:
         raise ValueError(f"未知 file_type: {ft}")
 
 
+def _extract_and_clean_single(row: dict) -> str:
+    """提取 + 清洗一体化：提取后立即做语义清洗"""
+    text, needs_understanding = _extract_single_with_meta(row)
+    if not text or len(text.strip()) < 20:
+        return text
+    return _semantic_clean(text, row["file_type"], row["id"], needs_understanding)
+
+
 def _extract_txt(row: dict) -> str:
-    """txt: 直接使用 text_content"""
-    return row.get("text_content") or ""
+    """txt: 直接使用 text_content，并解析 ZSXQ 富文本标签"""
+    import re
+    from urllib.parse import unquote
+    text = row.get("text_content") or ""
+
+    def replace_tag(m):
+        tag_type = m.group(1)
+        attrs = m.group(2)
+        if tag_type == "web":
+            href = re.search(r'href="([^"]+)"', attrs)
+            title = re.search(r'title="([^"]+)"', attrs)
+            url = unquote(href.group(1)) if href else ""
+            label = unquote(title.group(1)) if title else url
+            return f"[{label}]({url})"
+        elif tag_type == "hashtag":
+            title = re.search(r'title="([^"]+)"', attrs)
+            return unquote(title.group(1)) if title else ""
+        elif tag_type == "mention":
+            title = re.search(r'title="([^"]+)"', attrs)
+            return f"@{unquote(title.group(1))}" if title else ""
+        return ""
+
+    text = re.sub(r'<e\s+type="(\w+)"([^/]*)/?>', replace_tag, text)
+    return text
 
 
 def _forward_fill(rows: list[list[str]]) -> list[list[str]]:
@@ -400,11 +597,14 @@ def _transcribe_funasr(audio_path: str, model_name: str = "iic/SenseVoiceSmall")
 
 
 def _extract_mp3(row: dict) -> str:
-    """mp3: text_content 是下载 URL，下载后转写
+    """mp3: 下载 URL 后转写（兼容两种存储方式）
 
+    旧格式: oss_url=下载URL, text_content=帖子原文
+    新格式: text_content=下载URL
     优先级: FunASR（本地）→ Groq → Gemini
     """
-    url = (row.get("text_content") or "").strip()
+    tc = (row.get("text_content") or "").strip()
+    url = tc if tc.startswith("http") else (row.get("oss_url") or "").strip()
     if not url or not url.startswith("http"):
         return ""
 
@@ -538,14 +738,22 @@ def _transcribe_gemini(audio_data: bytes, api_key: str) -> str:
 
 
 def _extract_image(row: dict) -> str:
-    """image: 解析 [图片N] url 格式
+    """image: 解析 [图片N] url 格式（兼容旧调用）"""
+    text, _ = _extract_image_with_meta(row)
+    return text
+
+
+def _extract_image_with_meta(row: dict) -> tuple:
+    """image: 解析 [图片N] url 格式，返回 (text, needs_understanding)
 
     策略：PaddleOCR 提取文字 → 文字太少时降级到视觉模型描述
+    needs_understanding=True 当所有图片都走了 OCR（没过 Qwen）
+    needs_understanding=False 当有图片走了 Qwen 视觉模型
     """
     text_content = row.get("text_content") or ""
     urls = _parse_image_urls(text_content)
     if not urls:
-        return text_content
+        return text_content, True  # 无图片URL，纯文本，需要理解
 
     ocr_parts = []
     non_text_urls = []
@@ -566,6 +774,7 @@ def _extract_image(row: dict) -> str:
             non_text_indices.append(idx)
 
     result_parts = ocr_parts[:]
+    used_qwen = False
 
     # 无文字的图片降级到视觉模型
     if non_text_urls:
@@ -579,21 +788,31 @@ def _extract_image(row: dict) -> str:
             if vision_desc:
                 idx_label = ",".join(str(i+1) for i in non_text_indices)
                 result_parts.append(f"### [图片{idx_label} 图表描述]\n{vision_desc}")
+                used_qwen = True
         except Exception as e:
             logger.warning(f"视觉模型降级失败: {e}")
 
-    return "\n\n".join(result_parts)
+    text = "\n\n".join(result_parts)
+    # 如果没走 Qwen（全是 OCR），需要 DeepSeek 理解整理
+    needs_understanding = not used_qwen
+    return text, needs_understanding
 
 
 def _extract_mixed(row: dict) -> str:
-    """mixed: 分离文本和图片URL，文本保留 + 图片用 PaddleOCR（或视觉模型）"""
+    """mixed: 分离文本和图片URL，文本保留 + 图片用 PaddleOCR（或视觉模型）（兼容旧调用）"""
+    text, _ = _extract_mixed_with_meta(row)
+    return text
+
+
+def _extract_mixed_with_meta(row: dict) -> tuple:
+    """mixed: 分离文本和图片URL，返回 (text, needs_understanding)"""
     text_content = row.get("text_content") or ""
     urls = _parse_image_urls(text_content)
 
     pure_text = re.sub(r"\[图片\d+\]\s*https?://\S+", "", text_content).strip()
 
     if not urls:
-        return pure_text
+        return pure_text, True  # 纯文本，需要理解
 
     ocr_parts = []
     non_text_urls = []
@@ -614,6 +833,7 @@ def _extract_mixed(row: dict) -> str:
             non_text_indices.append(idx)
 
     img_parts = ocr_parts[:]
+    used_qwen = False
 
     if non_text_urls:
         try:
@@ -626,24 +846,64 @@ def _extract_mixed(row: dict) -> str:
             if vision_desc:
                 idx_label = ",".join(str(i+1) for i in non_text_indices)
                 img_parts.append(f"### [图片{idx_label} 图表描述]\n{vision_desc}")
+                used_qwen = True
         except Exception as e:
             logger.warning(f"视觉模型降级失败: {e}")
 
     if not img_parts:
-        return pure_text
-    return f"{pure_text}\n\n--- 图片内容 ---\n" + "\n\n".join(img_parts)
+        return pure_text, True  # 图片全失败，纯文本
+
+    text = f"{pure_text}\n\n--- 图片内容 ---\n" + "\n\n".join(img_parts)
+    needs_understanding = not used_qwen
+    return text, needs_understanding
 
 
-def _download_file(url: str, timeout: int = 60) -> bytes:
-    """下载文件，SSL 失败时降级重试"""
-    import requests
+def _get_zsxq_auth() -> dict:
+    """获取知识星球认证信息（cookie + 请求头）"""
     try:
-        resp = requests.get(url, timeout=timeout)
+        from utils.db_utils import get_config as _gc
+        token = _gc("zsxq_cookie") or os.getenv("ZSXQ_COOKIE", "")
+    except Exception:
+        token = os.getenv("ZSXQ_COOKIE", "")
+    if not token:
+        try:
+            from config import ZSXQ_COOKIE
+            token = ZSXQ_COOKIE
+        except Exception:
+            pass
+    return {
+        "cookies": {"zsxq_access_token": token} if token else {},
+        "headers": {
+            "origin": "https://wx.zsxq.com",
+            "referer": "https://wx.zsxq.com/",
+            "user-agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/144.0.0.0 Safari/537.36"
+            ),
+        } if token else {},
+    }
+
+
+def _download_file(url: str, timeout: int = 60, cookies: dict = None, headers: dict = None) -> bytes:
+    """下载文件，SSL 失败时降级重试。知识星球域名自动带认证。"""
+    import requests
+    from urllib.parse import urlparse
+    _cookies = dict(cookies or {})
+    _headers = dict(headers or {})
+    # 知识星球文件自动注入认证
+    host = urlparse(url).hostname or ""
+    if ("zsxq.com" in host or "zqimg.com" in host) and not _cookies:
+        auth = _get_zsxq_auth()
+        _cookies.update(auth["cookies"])
+        _headers.update(auth["headers"])
+    try:
+        resp = requests.get(url, timeout=timeout, cookies=_cookies or None, headers=_headers or None)
         resp.raise_for_status()
         return resp.content
     except requests.exceptions.SSLError:
         logger.warning(f"SSL 错误，降级重试: {url[:80]}")
-        resp = requests.get(url, timeout=timeout, verify=False)
+        resp = requests.get(url, timeout=timeout, verify=False, cookies=_cookies or None, headers=_headers or None)
         resp.raise_for_status()
         return resp.content
 
@@ -899,17 +1159,44 @@ def _extract_pdf_page_structured(page) -> str:
     return _filter_sidebar_lines(raw_text)
 
 
+def _describe_pdf_page_chart(page_img_path: str, page_num: int, title: str) -> str:
+    """用视觉模型描述 PDF 某页中的图表，无图表则返回空字符串"""
+    try:
+        from utils.model_router import call_model_vision
+        prompt = (
+            f"这是一份研报「{title}」的第{page_num}页截图。"
+            "请详细描述页面中所有图表的内容，包括图表类型、数据、趋势、关键数字。"
+            '如果没有图表只有文字，回复"无图表"。用中文回复。'
+        )
+        result = call_model_vision("vision", prompt, [page_img_path],
+                                   max_tokens=2000, timeout=60)
+        if not result or result.strip().startswith("无图表"):
+            return ""
+        return result.strip()
+    except Exception as e:
+        logger.warning(f"视觉模型描述第{page_num}页失败: {e}")
+        return ""
+
+
 def _extract_pdf(row: dict) -> str:
-    """pdf: 下载 oss_url 并提取全文（结构化富文本）
+    """pdf: 下载 oss_url 并提取全文（兼容旧调用）"""
+    text, _ = _extract_pdf_with_meta(row)
+    return text
+
+
+def _extract_pdf_with_meta(row: dict) -> tuple:
+    """pdf: 下载 oss_url 并提取全文，返回 (text, needs_understanding)
 
     策略：
     - 检测文件头，PK 开头说明是 Office 格式（docx/pptx），转用 python-docx/python-pptx
     - 否则用 pdfplumber 结构化提取（标题+表格+段落 Markdown 标记）
-    - 若文字密度过低（扫描件），改用 PaddleOCR
+    - 每页截图送视觉模型（Qwen-VL-Max）描述图表内容
+    - 若文字密度过低（扫描件），改用 PaddleOCR → needs_understanding=True
+    - 正常 PDF 有 Qwen 图表描述 → needs_understanding=False
     """
     oss_url = row.get("oss_url")
     if not oss_url:
-        return ""
+        return "", False
 
     import pdfplumber
 
@@ -917,25 +1204,65 @@ def _extract_pdf(row: dict) -> str:
 
     # 检测文件头：PK 是 ZIP/Office Open XML
     if data[:2] == b'PK':
-        return _extract_office(data, oss_url)
+        return _extract_office(data, oss_url), True  # Office 文档，需要理解
 
     with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
         tmp.write(data)
         tmp_path = tmp.name
 
     try:
+        # 1. 截图所有页面（用于视觉模型）
+        page_images = {}  # page_num(1-based) -> tmp_path
+        try:
+            from pdf2image import convert_from_path
+            imgs = convert_from_path(tmp_path, dpi=150)
+            for i, img in enumerate(imgs):
+                img_path = f"{tmp_path}_page{i+1}.png"
+                img.save(img_path, "PNG")
+                page_images[i + 1] = img_path
+
+            # 保存前2页低分辨率缩略图（供预览用，链接过期后仍可查看）
+            doc_id = row.get("id")
+            if doc_id:
+                import pathlib
+                thumb_dir = pathlib.Path(__file__).parent.parent / "static" / "uploads"
+                thumb_dir.mkdir(parents=True, exist_ok=True)
+                for pi in range(min(2, len(imgs))):
+                    thumb = imgs[pi].copy()
+                    thumb.thumbnail((800, 1200))
+                    thumb_path = thumb_dir / f"thumb_{doc_id}_p{pi+1}.jpg"
+                    thumb.save(str(thumb_path), "JPEG", quality=70)
+        except Exception as e:
+            logger.warning(f"PDF 截图失败，跳过图表提取: {e}")
+
+        # 2. pdfplumber 提取文字+表格 + 视觉模型描述图表
         texts = []
         page_count = 0
+        title = row.get("title") or "研报"
+
         with pdfplumber.open(tmp_path) as pdf:
             page_count = len(pdf.pages)
-            for page in pdf.pages:
+            for i, page in enumerate(pdf.pages):
+                page_num = i + 1
+                # 文字+表格提取
                 try:
                     page_text = _extract_pdf_page_structured(page)
                 except Exception:
-                    # 降级到原有逻辑
                     page_text = _extract_page_main_column(page)
-                if page_text:
+
+                # 视觉模型描述图表
+                chart_desc = ""
+                if page_num in page_images:
+                    chart_desc = _describe_pdf_page_chart(
+                        page_images[page_num], page_num, title)
+
+                # 拼合
+                if page_text and chart_desc:
+                    texts.append(f"{page_text}\n\n### [第{page_num}页 图表描述]\n{chart_desc}")
+                elif page_text:
                     texts.append(page_text)
+                elif chart_desc:
+                    texts.append(f"### [第{page_num}页 图表描述]\n{chart_desc}")
 
         full_text = "\n\n".join(texts)
         char_density = len(full_text) / max(page_count, 1)
@@ -944,13 +1271,21 @@ def _extract_pdf(row: dict) -> str:
         if char_density < 100:
             logger.info(f"PDF 文字密度低（{char_density:.0f} 字/页），切换 PaddleOCR")
             try:
-                return _ocr_pdf_with_paddle(tmp_path)
+                ocr_text = _ocr_pdf_with_paddle(tmp_path)
+                return ocr_text, True  # 扫描件 OCR，没过 Qwen，需要理解
             except Exception as e:
                 logger.warning(f"PaddleOCR 失败，返回 pdfplumber 结果: {e}")
 
-        return full_text
+        # 正常 PDF：pdfplumber + Qwen 图表描述，轻度清洗即可
+        return full_text, False
     finally:
+        # 清理临时文件
         os.unlink(tmp_path)
+        for img_path in page_images.values():
+            try:
+                os.unlink(img_path)
+            except OSError:
+                pass
 
 
 
@@ -1083,7 +1418,7 @@ def push_to_raw_items(limit: int = 50) -> dict:
         """SELECT id, doc_type, file_type, title, extracted_text,
                   publish_date, source
            FROM source_documents
-           WHERE extract_status='done' AND raw_item_id IS NULL
+           WHERE extract_status IN ('extracted','ready_to_pipe','done') AND raw_item_id IS NULL
            LIMIT %s""",
         [limit],
     )
@@ -1155,7 +1490,7 @@ def push_to_extracted_texts(limit: int = 50, on_progress=None) -> dict:
         """SELECT id, doc_type, file_type, title, extracted_text,
                   publish_date, source
            FROM source_documents
-           WHERE extract_status='done'
+           WHERE extract_status IN ('extracted','ready_to_pipe','done','remix')
              AND id NOT IN (
                SELECT source_doc_id FROM extracted_texts
                WHERE source_doc_id IS NOT NULL
@@ -1211,8 +1546,8 @@ def push_to_extracted_texts(limit: int = 50, on_progress=None) -> dict:
             execute_cloud_insert(
                 """INSERT INTO extracted_texts
                    (source, source_format, publish_time, full_text,
-                    source_doc_id, source_ref, extract_quality)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    source_doc_id, source_ref, extract_quality, semantic_clean_status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, 'done')""",
                 [source_name, source_format, row.get("publish_date"),
                  full_text, row["id"], source_ref, quality],
             )
@@ -1265,12 +1600,9 @@ def extract_by_ids(doc_ids: list[int]) -> dict:
     failed = 0
     skipped = 0
 
-    for row in rows:
-        if row.get("extract_status") == "done":
-            skipped += 1
-            continue
+    for i, row in enumerate(rows):
         try:
-            extracted = _extract_single(row)
+            extracted = _extract_and_clean_single(row)
             from config.doc_types import classify_doc_type
             new_doc_type = classify_doc_type(
                 row.get("title") or "",
@@ -1278,7 +1610,7 @@ def extract_by_ids(doc_ids: list[int]) -> dict:
             )
             execute_cloud_insert(
                 """UPDATE source_documents
-                   SET extracted_text=%s, extract_status='done', doc_type=%s
+                   SET extracted_text=%s, extract_status='extracted', doc_type=%s
                    WHERE id=%s""",
                 [extracted, new_doc_type, row["id"]],
             )
@@ -1320,7 +1652,7 @@ def push_to_extracted_texts_by_ids(doc_ids: list[int]) -> dict:
     rows = execute_cloud_query(
         f"""SELECT id, doc_type, file_type, title, extracted_text, publish_date, source
             FROM source_documents
-            WHERE id IN ({placeholders}) AND extract_status='done'""",
+            WHERE id IN ({placeholders}) AND extract_status IN ('extracted','ready_to_pipe','done','remix')""",
         doc_ids,
     )
 
@@ -1345,17 +1677,21 @@ def push_to_extracted_texts_by_ids(doc_ids: list[int]) -> dict:
                 skipped += 1
                 continue
 
-            quality = _check_text_quality(full_text)
+            # 注意：extracted_text 已在 _extract_and_clean_single 阶段完成清洗
+            # 此处直接入管线，不再重复清洗
+            cleaned_text = full_text
+
+            quality = _check_text_quality(cleaned_text)
             source_name = row.get("source") or "source_doc"
             source_format = _file_type_to_format(row.get("file_type", "txt"))
 
             execute_cloud_insert(
                 """INSERT INTO extracted_texts
                    (source, source_format, publish_time, full_text,
-                    source_doc_id, source_ref, extract_quality)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    source_doc_id, source_ref, extract_quality, semantic_clean_status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, 'done')""",
                 [source_name, source_format, row.get("publish_date"),
-                 full_text, row["id"], source_ref, quality],
+                 cleaned_text, row["id"], source_ref, quality],
             )
             pushed += 1
         except Exception as e:

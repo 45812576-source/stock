@@ -134,6 +134,11 @@
           <div id="ovTagChips" class="hidden flex flex-wrap gap-1.5 mb-2"></div>
           <div id="ovSearchStatus" class="text-xs text-slate-500 mb-2 hidden"></div>
           <div id="ovStockTable" class="overflow-x-auto mb-4 hidden"></div>
+          <!-- 驱动因子提醒区 -->
+          <div id="driver-alerts-area" class="mb-3 hidden">
+            <div class="text-[10px] text-red-400 font-bold mb-1">⚡ 驱动因子命中</div>
+            <div id="driver-alerts-list" class="space-y-1"></div>
+          </div>
           {% if portfolio_holdings %}
           <div class="wl-container">
             <!-- 左侧：股票列表（自动滚动） -->
@@ -204,9 +209,15 @@
             {% endfor %}
           </div>
 
-          <!-- 指数走势图（单条，跟随点击切换） -->
+          <!-- 指数走势图 -->
           <div class="card p-3 mb-4">
-            <h4 class="text-[10px] font-bold text-slate-400 mb-2" id="capIndexTrendTitle">主要指数走势（近20日）</h4>
+            <div class="flex items-center justify-between mb-2">
+              <h4 class="text-[10px] font-bold text-slate-400" id="capIndexTrendTitle">主要指数走势（近60日）</h4>
+              <span class="chart-drag-handle text-slate-600 hover:text-slate-300 transition cursor-grab"
+                    draggable="true" data-chart-type="index_trend" title="拖拽到AI助手分析">
+                <span class="material-icons-round text-xs">drag_indicator</span>
+              </span>
+            </div>
             <div id="capIndexTrendChart" style="height:160px;"></div>
           </div>
 
@@ -217,6 +228,10 @@
                 <div class="flex items-center gap-2">
                   <span class="material-icons-round text-amber-500 text-sm">grid_view</span>
                   <h4 class="font-bold text-xs">行业资金热度</h4>
+                  <span class="chart-drag-handle text-slate-600 hover:text-slate-300 transition cursor-grab ml-1"
+                        draggable="true" data-chart-type="heatmap" title="拖拽到AI助手分析">
+                    <span class="material-icons-round text-xs">drag_indicator</span>
+                  </span>
                 </div>
                 <div class="flex gap-1" id="cap-heat-tabs">
                   <button class="heat-tab active" data-mode="net" onclick="switchHeatTab('net')">净流入/出</button>
@@ -255,12 +270,26 @@
             </div>
           </div>
 
-          <!-- 资金面图表（JS 懒加载） -->
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
-            <div class="card p-3"><h4 class="text-[10px] font-bold text-slate-400 mb-2">成交额 + 主力资金</h4><div id="capFlowChart" style="height:180px;"></div></div>
-            <div class="card p-3"><h4 class="text-[10px] font-bold text-slate-400 mb-2">融资余额</h4><div id="capMarginChart2" style="height:180px;"></div></div>
-            <div class="card p-3"><h4 class="text-[10px] font-bold text-slate-400 mb-2">南向资金</h4><div id="capSouthChart2" style="height:180px;"></div></div>
-            <div class="card p-3"><h4 class="text-[10px] font-bold text-slate-400 mb-2">ETF 成交量</h4><div id="capEtfChart2" style="height:180px;"></div></div>
+          <!-- 陆港通成交量 -->
+          <div class="card p-3 mb-4">
+            <div class="flex items-center gap-2 mb-3">
+              <span class="material-icons-round text-blue-400 text-sm">swap_horiz</span>
+              <h4 class="font-bold text-xs flex-1">陆港通 · 近15交易日成交净买额（亿元）</h4>
+              <span class="chart-drag-handle text-slate-600 hover:text-slate-300 transition cursor-grab"
+                    draggable="true" data-chart-type="hsgt" title="拖拽到AI助手分析">
+                <span class="material-icons-round text-xs">drag_indicator</span>
+              </span>
+            </div>
+            <div id="hsgtChart" style="height:200px;"></div>
+          </div>
+
+          <!-- 海外ETF -->
+          <div class="mb-2 flex items-center gap-2">
+            <span class="material-icons-round text-violet-400 text-sm">language</span>
+            <h4 class="font-bold text-xs">海外中国ETF · 近15交易日（KWEB / FXI / ASHR）</h4>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-4" id="overseasEtfGrid">
+            <div class="card p-4 text-center text-xs text-slate-600 animate-pulse col-span-3">加载中...</div>
           </div>
         </div>
         <div id="tab-news" class="ov-tab-pane hidden p-6 h-full">
@@ -311,10 +340,13 @@
          style="width: 320px" id="ai-chat-panel">
       <div class="px-4 py-3 border-b border-border-dark flex items-center gap-2">
         <span class="material-icons-round text-sm text-primary">smart_toy</span>
-        <span class="text-xs font-bold text-slate-400">AI 分析助理</span>
+        <span class="text-xs font-bold text-slate-400 flex-1">AI 分析助理</span>
+        <button onclick="resetOvChat()" title="清空对话" class="text-slate-600 hover:text-slate-300 transition">
+          <span class="material-icons-round text-sm">refresh</span>
+        </button>
       </div>
       <div class="flex-1 overflow-y-auto px-3 py-3" id="ovChatMessages">
-        <div class="text-center text-xs text-slate-600 py-4">拖拽新闻到此处，或直接提问</div>
+        <div class="text-center text-xs text-slate-600 py-4" id="ovChatEmpty">拖拽新闻或图表到此处，或直接提问</div>
       </div>
       <!-- Drop zone overlay（拖拽时显示） -->
       <div id="chatDropOverlay" class="hidden absolute inset-0 bg-primary/10 border-2 border-dashed border-primary rounded-lg z-10 flex items-center justify-center pointer-events-none">
@@ -449,6 +481,82 @@ function bindDragEvents() {
   });
 }
 
+// ── 图表拖拽到 Chatbot ──
+function getChartDragData(el) {
+  var type = el.dataset.chartType;
+  if (type === 'index_trend') {
+    var titleEl = document.getElementById('capIndexTrendTitle');
+    var title = titleEl ? titleEl.textContent : '指数走势';
+    var code = window._activeIndexCode || '';
+    // 从 Plotly 图表获取近期数据点
+    var chartEl = document.getElementById('capIndexTrendChart');
+    var summary = '（暂无数据）';
+    if (chartEl && chartEl.data && chartEl.data.length) {
+      var trace = chartEl.data[0];
+      var dates = trace.x || [];
+      var closes = trace.close || trace.y || [];
+      var last5 = dates.slice(-5).map(function(d, i) {
+        return d + ':' + (closes[closes.length - 5 + i] || '');
+      });
+      if (last5.length) summary = last5.join(', ');
+    }
+    return '【指数趋势图】' + title + '（' + code + '）近5日收盘: ' + summary;
+  }
+  if (type === 'heatmap') {
+    var rows = document.querySelectorAll('#tab-capital .heatmap-table tbody tr');
+    var lines = [];
+    rows.forEach(function(tr) {
+      var cells = tr.querySelectorAll('td');
+      if (cells.length >= 2) {
+        lines.push(cells[0].textContent.trim() + ': ' + cells[1].textContent.trim());
+      }
+    });
+    var summary = lines.slice(0, 10).join(' | ') || '（暂无数据）';
+    return '【行业热力图】近7日行业资金热度: ' + summary;
+  }
+  if (type === 'hsgt') {
+    var chartEl = document.getElementById('hsgtChart');
+    var summary = '（暂无数据）';
+    if (chartEl && chartEl.data && chartEl.data.length) {
+      var trace = chartEl.data[0];
+      var dates = trace.x || [];
+      var vals = trace.y || [];
+      var last5 = dates.slice(-5).map(function(d, i) {
+        var v = vals[vals.length - 5 + i];
+        return d + ':' + (v !== undefined ? (+v).toFixed(1) : '') + '亿';
+      });
+      if (last5.length) summary = last5.join(', ');
+    }
+    return '【陆港通净买额】近5日（亿元）: ' + summary;
+  }
+  return el.title || '图表数据';
+}
+
+function bindChartDragEvents() {
+  document.querySelectorAll('.chart-drag-handle').forEach(function(el) {
+    if (el._chartDragBound) return;
+    el._chartDragBound = true;
+    el.addEventListener('dragstart', function(e) {
+      var text = getChartDragData(el);
+      e.dataTransfer.setData('text/plain', text);
+      e.dataTransfer.effectAllowed = 'copy';
+      document.getElementById('chatDropOverlay').classList.remove('hidden');
+    });
+    el.addEventListener('dragend', function() {
+      document.getElementById('chatDropOverlay').classList.add('hidden');
+    });
+  });
+}
+
+// 页面加载后绑定图表拖拽（延迟等待 DOM 就绪）
+document.addEventListener('DOMContentLoaded', function() { bindChartDragEvents(); });
+// tab 切换后重新绑定（图表 tab 可能是懒加载）
+var _origSwitchOvTab = window.switchOvTab;
+window.switchOvTab = function(tab) {
+  _origSwitchOvTab && _origSwitchOvTab(tab);
+  setTimeout(bindChartDragEvents, 100);
+};
+
 // ── Chat Drop Zone ──
 (function() {
   var panel = document.getElementById('ai-chat-panel');
@@ -461,22 +569,28 @@ function bindDragEvents() {
   panel.addEventListener('drop', function(e) {
     e.preventDefault();
     document.getElementById('chatDropOverlay').classList.add('hidden');
+    var rawData = e.dataTransfer.getData('text/plain');
+    var ctx = '';
+    var isChart = false;
     try {
-      var data = JSON.parse(e.dataTransfer.getData('text/plain'));
-      var ctx = '';
+      var data = JSON.parse(rawData);
       if (data.fact) ctx += '【事实】' + data.fact + '\n';
       if (data.opinion) ctx += '【观点】' + data.opinion + '\n';
       if (data.evidence) ctx += '【证据】' + data.evidence + '\n';
       if (data.info_gaps) ctx += '【信息缺口】' + data.info_gaps + '\n';
       if (!ctx && data.summary) ctx = data.summary;
-      window._chatContextData = ctx;
-      document.getElementById('chatContextText').textContent = ctx.slice(0, 200) + (ctx.length > 200 ? '...' : '');
-      document.getElementById('chatContext').classList.remove('hidden');
-      document.getElementById('ovChatInput').focus();
-      document.getElementById('ovChatInput').placeholder = '针对这条新闻提问...';
-      // 立即显示 context 预览气泡
-      appendOvChatMsg('user', '', null, false, ctx);
-    } catch(err) { console.error('Drop parse error:', err); }
+    } catch(err) {
+      // 非 JSON → 图表描述文本
+      ctx = rawData;
+      isChart = true;
+    }
+    if (!ctx) return;
+    window._chatContextData = ctx;
+    document.getElementById('chatContextText').textContent = ctx.slice(0, 200) + (ctx.length > 200 ? '...' : '');
+    document.getElementById('chatContext').classList.remove('hidden');
+    document.getElementById('ovChatInput').focus();
+    document.getElementById('ovChatInput').placeholder = isChart ? '请AI解读此图表...' : '针对这条新闻提问...';
+    appendOvChatMsg('user', '', null, false, ctx);
   });
 })();
 
@@ -491,7 +605,7 @@ window.switchOvTab = function(tab) {
   else if (tab === 'capital') {
     // 重新触发 Plotly resize，修复 tab 切换后图表尺寸错乱
     setTimeout(function() {
-      ['capIndexTrendChart','capFlowChart','capMarginChart2','capSouthChart2','capEtfChart2'].forEach(function(id) {
+      ['capIndexTrendChart','hsgtChart'].forEach(function(id) {
         var el = document.getElementById(id);
         if (el && el.data) Plotly.Plots.resize(el);
       });
@@ -579,8 +693,6 @@ async function loadCapitalTab() {
   try {
     var data = await fetch('/market/api/indices?days=20').then(function(r) { return r.json(); });
     _indexData = data;
-
-    // 填充指数卡片数值
     for (var i = 0; i < data.length; i++) {
       var idx = data[i];
       var priceEl = document.getElementById('cap-idx-' + idx.code);
@@ -591,22 +703,108 @@ async function loadCapitalTab() {
         pctEl.className = 'text-[10px] font-bold cap-idx-pct ' + (idx.change_pct >= 0 ? 'text-red-400' : 'text-emerald-400');
       }
     }
-
-    // 默认显示第一个指数
-    if (data.length > 0) {
-      _activeIndexCode = data[0].code;
-      selectIndex(data[0].code);
-    }
+    if (data.length > 0) { _activeIndexCode = data[0].code; selectIndex(data[0].code); }
   } catch(e) { console.error('loadCapitalTab index error:', e); }
 
-  // 绑定 insight 卡片拖拽
   bindDragEvents();
+  loadHsgtChart();
+  loadOverseasEtf();
+}
 
-  var qs = '?start=' + new Date(Date.now() - 30*86400000).toISOString().slice(0,10) + '&end=' + new Date().toISOString().slice(0,10);
-  loadCapChart('/market/api/capital/market-flow' + qs, 'capFlowChart', 'flow');
-  loadCapChart('/market/api/capital/margin' + qs, 'capMarginChart2', 'margin');
-  loadCapChart('/market/api/capital/southbound' + qs, 'capSouthChart2', 'south');
-  loadCapChart('/market/api/capital/etf-shares' + qs, 'capEtfChart2', 'etf');
+async function loadHsgtChart() {
+  try {
+    var data = await fetch('/capital/api/hsgt-flow').then(function(r) { return r.json(); });
+    if (!data || !data.length) return;
+    var dates = data.map(function(d) { return d.trade_date; });
+    var northSh = data.map(function(d) { return d.sh_north; });
+    var northSz = data.map(function(d) { return d.sz_north; });
+    var southTotal = data.map(function(d) { return d.south_total; });
+    var xaxis = {gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:8}, type:'category'};
+    var layout = {
+      margin:{t:5,b:30,l:50,r:10}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+      font:{color:'#94a3b8',size:9}, barmode:'stack',
+      xaxis: xaxis,
+      yaxis:{gridcolor:'rgba(100,116,139,0.1)', title:{text:'亿元',font:{size:8}}},
+      showlegend:true, legend:{font:{size:8},orientation:'h',x:0,y:1.08,xanchor:'left'},
+      hovermode:'x unified',
+    };
+    Plotly.newPlot('hsgtChart', [
+      {x:dates, y:northSh, type:'bar', name:'沪股通(北向)', marker:{color:'rgba(239,68,68,0.7)'}},
+      {x:dates, y:northSz, type:'bar', name:'深股通(北向)', marker:{color:'rgba(239,68,68,0.4)'}},
+      {x:dates, y:southTotal, type:'scatter', mode:'lines+markers', name:'南向合计',
+       line:{color:'#10b981',width:1.5}, marker:{size:4}},
+    ], layout, {displayModeBar:false, responsive:true});
+  } catch(e) { console.error('hsgt chart error:', e); }
+}
+
+async function loadOverseasEtf() {
+  var grid = document.getElementById('overseasEtfGrid');
+  try {
+    var data = await fetch('/capital/api/overseas-etf').then(function(r) { return r.json(); });
+    if (!data || !Object.keys(data).length) {
+      grid.innerHTML = '<div class="card p-4 text-center text-xs text-slate-600 col-span-3">暂无数据</div>';
+      return;
+    }
+    var html = '';
+    var plotIds = [];
+    Object.entries(data).forEach(function(entry) {
+      var sym = entry[0], etf = entry[1];
+      var chgCls = etf.chg_pct >= 0 ? 'text-red-400' : 'text-emerald-400';
+      var chgSign = etf.chg_pct >= 0 ? '+' : '';
+      var volM = (etf.latest_volume / 1e6).toFixed(1);
+      var chartId = 'etf-chart-' + sym;
+      plotIds.push({id: chartId, sym: sym, etf: etf});
+      // 持仓表格
+      var holdHtml = '';
+      if (etf.holdings && etf.holdings.length) {
+        holdHtml = '<div class="mt-2 border-t border-border-dark pt-2">';
+        holdHtml += '<p class="text-[9px] text-slate-500 mb-1">Top持仓</p>';
+        holdHtml += '<div class="space-y-0.5">';
+        etf.holdings.forEach(function(h) {
+          var barW = Math.min(h.pct * 10, 100);
+          holdHtml += '<div class="flex items-center gap-1">';
+          holdHtml += '<span class="text-[9px] text-slate-400 w-20 truncate" title="' + h.name + '">' + h.name + '</span>';
+          holdHtml += '<div class="flex-1 h-1 bg-slate-700 rounded overflow-hidden"><div class="h-full rounded" style="width:' + barW + '%;background:' + etf.color + '80"></div></div>';
+          holdHtml += '<span class="text-[9px] text-slate-400 w-8 text-right">' + h.pct.toFixed(1) + '%</span>';
+          holdHtml += '</div>';
+        });
+        holdHtml += '</div></div>';
+      }
+      html += '<div class="card p-3">';
+      html += '<div class="flex items-center justify-between mb-1">';
+      html += '<div><span class="text-xs font-bold text-white">' + sym + '</span><span class="text-[9px] text-slate-500 ml-1">' + etf.name + '</span></div>';
+      html += '<div class="text-right"><span class="text-sm font-bold text-white">$' + etf.latest_close + '</span><span class="text-[10px] font-bold ml-1 ' + chgCls + '">' + chgSign + etf.chg_pct + '%</span></div>';
+      html += '</div>';
+      html += '<div class="text-[9px] text-slate-500 mb-2">成交量 ' + volM + 'M</div>';
+      html += '<div id="' + chartId + '" style="height:100px;"></div>';
+      html += holdHtml;
+      html += '</div>';
+    });
+    grid.innerHTML = html;
+    // 渲染各 ETF 图表
+    plotIds.forEach(function(item) {
+      var records = item.etf.history;
+      var dates = records.map(function(r) { return r.trade_date; });
+      var closes = records.map(function(r) { return r.close; });
+      var vols = records.map(function(r) { return r.volume / 1e6; });
+      Plotly.newPlot(item.id, [
+        {x:dates, y:closes, type:'scatter', mode:'lines', name:'收盘价',
+         line:{color:item.etf.color, width:1.5}, yaxis:'y'},
+        {x:dates, y:vols, type:'bar', name:'成交量(M)',
+         marker:{color:item.etf.color + '40'}, yaxis:'y2'},
+      ], {
+        margin:{t:2,b:20,l:40,r:30}, paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)',
+        font:{color:'#94a3b8',size:8},
+        xaxis:{gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:7}, type:'category', nticks:5},
+        yaxis:{gridcolor:'rgba(100,116,139,0.1)', tickfont:{size:7}},
+        yaxis2:{overlaying:'y', side:'right', showgrid:false, tickfont:{size:7}},
+        showlegend:false, hovermode:'x unified',
+      }, {displayModeBar:false, responsive:true});
+    });
+  } catch(e) {
+    console.error('overseas etf error:', e);
+    grid.innerHTML = '<div class="card p-4 text-center text-xs text-red-500 col-span-3">加载失败</div>';
+  }
 }
 
 async function loadCapChart(url, elId, type) {
@@ -699,7 +897,7 @@ function renderNewsList(listId, countId, items) {
         (item.evidence_assessment ? '<div><span class="text-[9px] font-bold text-emerald-400">证据</span><p class="text-[10px] text-slate-400 mt-0.5">' + _escHtml(item.evidence_assessment) + '</p></div>' : '') +
         (item.info_gaps ? '<div><span class="text-[9px] font-bold text-violet-400">信息缺口</span><p class="text-[10px] text-slate-500 mt-0.5 italic">' + _escHtml(item.info_gaps) + '</p></div>' : '') +
         '<div class="flex gap-2 pt-1 border-t border-slate-800/50">' +
-          '<button onclick="likeToHotspot(' + item.id + ')" class="text-[9px] text-slate-500 hover:text-amber-400 flex items-center gap-0.5"><span class="material-icons-round text-xs">favorite_border</span>收藏到热点</button>' +
+          '<button onclick="likeToHotspot(' + item.id + ', this)" class="text-[9px] text-slate-500 hover:text-amber-400 flex items-center gap-0.5"><span class="material-icons-round text-xs">favorite_border</span>收藏到机会发现</button>' +
           '<button onclick="linkToPortfolio(' + item.id + ')" class="text-[9px] text-slate-500 hover:text-primary flex items-center gap-0.5"><span class="material-icons-round text-xs">link</span>关联项目</button>' +
         '</div>' +
       '</div>' +
@@ -709,7 +907,26 @@ function renderNewsList(listId, countId, items) {
 
 function _escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function _escAttr(s) { return s.replace(/'/g, '&#39;').replace(/"/g, '&quot;'); }
-function likeToHotspot(newsId) { showToast && showToast('已收藏到热点（待实现完整逻辑）'); }
+function likeToHotspot(newsId, btn) {
+  var card = btn ? btn.closest('.foe-card') : null;
+  var snap = {};
+  if (card) {
+    try { snap = JSON.parse(card.dataset.foe || '{}'); } catch(e) {}
+  }
+  var title = snap.summary || '';
+  fetch('/hotspot/api/pool/add', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({item_type: 'news', ref_id: newsId, title: title, snapshot: snap})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      showToast && showToast('已收藏到机会发现');
+      if (btn) { btn.classList.add('text-amber-400'); btn.querySelector('span')?.setAttribute('class', 'material-icons-round text-xs'); btn.querySelector('span').textContent = 'favorite'; }
+    } else {
+      showToast && showToast(data.msg || '收藏失败', true);
+    }
+  }).catch(() => showToast && showToast('收藏失败', true));
+}
 function linkToPortfolio(newsId) { showToast && showToast('关联项目（待实现完整逻辑）'); }
 
 // ── Chat 发送 ──
@@ -842,6 +1059,54 @@ function clearChatContext() {
   document.getElementById('chatContextText').textContent = '';
   window._chatContextData = null;
 }
+
+function resetOvChat() {
+  _ovChatHistory = [];
+  var el = document.getElementById('ovChatMessages');
+  el.innerHTML = '<div class="text-center text-xs text-slate-600 py-4" id="ovChatEmpty">拖拽新闻或图表到此处，或直接提问</div>';
+  clearChatContext();
+  document.getElementById('ovChatInput').placeholder = '输入问题...';
+}
+
+// ── 驱动因子提醒 ──
+(function() {
+  async function loadDriverAlerts() {
+    try {
+      var data = await fetch('/overview/api/driver-alerts').then(function(r) { return r.json(); });
+      var alerts = data.alerts || [];
+      if (!alerts.length) return;
+      var area = document.getElementById('driver-alerts-area');
+      var list = document.getElementById('driver-alerts-list');
+      if (!area || !list) return;
+      var dirMap = {'正向': 'text-red-400', '负向': 'text-emerald-400', '正面': 'text-red-400', '负面': 'text-emerald-400'};
+      var html = '';
+      alerts.forEach(function(a) {
+        var dirCls = dirMap[a.direction] || 'text-slate-400';
+        var ctx = '【' + a.stock_name + '】' + a.driver_name + '（' + a.type + '）\n' + (a.news_summary || '');
+        html += '<div class="flex items-start gap-2 p-2 bg-slate-800/50 rounded-lg border border-red-900/30 cursor-pointer hover:border-red-500/40 transition" '
+              + 'onclick="ovDriverAlertClick(' + JSON.stringify(ctx).replace(/'/g, "&#39;") + ')">'
+              + '<span class="material-icons-round text-xs text-red-400 flex-shrink-0 mt-0.5">bolt</span>'
+              + '<div class="flex-1 min-w-0">'
+              + '<span class="text-[10px] font-bold text-white">' + _escHtml(a.stock_name) + '</span>'
+              + '<span class="text-[10px] text-slate-400 ml-1">' + _escHtml(a.driver_name) + '</span>'
+              + '<span class="text-[10px] font-bold ml-1 ' + dirCls + '">' + _escHtml(a.direction || '') + '</span>'
+              + (a.news_summary ? '<p class="text-[9px] text-slate-500 mt-0.5 truncate">' + _escHtml(a.news_summary.slice(0, 80)) + '</p>' : '')
+              + '</div></div>';
+      });
+      list.innerHTML = html;
+      area.classList.remove('hidden');
+    } catch(e) { /* silent fail */ }
+  }
+  window.ovDriverAlertClick = function(ctx) {
+    window._chatContextData = ctx;
+    document.getElementById('chatContextText').textContent = ctx.slice(0, 200) + (ctx.length > 200 ? '...' : '');
+    document.getElementById('chatContext').classList.remove('hidden');
+    document.getElementById('ovChatInput').focus();
+    document.getElementById('ovChatInput').placeholder = '针对此驱动因子提问...';
+  };
+  // 页面加载后异步获取
+  setTimeout(loadDriverAlerts, 1500);
+})();
 
 // ── FOE card toggle ──
 function toggleFoeCard(summaryEl) {
@@ -1052,9 +1317,10 @@ function renderSparklines() {
 }
 renderSparklines();
 
-// 预加载新闻和资金面数据（不等用户点击 tab）
+// 预加载新闻数据
 window._newsLoaded = true; loadNewsTab();
-window._capitalLoaded = true; loadCapitalTab();
+// 资金面数据延迟到 tab 切换时加载（Plotly 在 hidden 容器中无法正确渲染）
+// window._capitalLoaded = true; loadCapitalTab();
 
 // ── 加入Portfolio ──
 var _ovAddStock = null;

@@ -134,7 +134,16 @@
       <!-- K-line chart -->
       <div class="card mb-6">
         <div class="px-4 pt-3 space-y-2">
-          <!-- Row 1: K-type + Zoom +/- + Vol/Amount -->
+          <!-- Row 0: View mode tabs -->
+          <div class="flex items-center gap-1.5">
+            <button class="tb-btn active" onclick="setKlineView('chart',this)" data-group="kview">K线图</button>
+            <button class="tb-btn" onclick="setKlineView('analysis',this)" data-group="kview">
+              <span class="material-icons-round" style="font-size:13px;vertical-align:middle">auto_graph</span>
+              阶段分析
+            </button>
+          </div>
+          <!-- Row 1: K-type + Zoom +/- + Vol/Amount (hidden in analysis mode) -->
+          <div id="kline-toolbar-rows">
           <div class="flex items-center gap-1.5 flex-wrap">
             <button class="tb-btn active" onclick="setPeriodType('day',this)" data-group="ktype">日K</button>
             <button class="tb-btn" onclick="setPeriodType('week',this)" data-group="ktype">周K</button>
@@ -163,8 +172,16 @@
             <button class="tb-btn" onclick="setSub('rsi',this)" data-group="sub">RSI</button>
             <button class="tb-btn" onclick="setSub('capital',this)" data-group="sub">资金流</button>
           </div>
+          </div>{# end kline-toolbar-rows #}
         </div>
-        <div id="kline-chart" class="kline-wrap"></div>
+        <!-- 普通K线图 -->
+        <div id="kline-view-chart">
+          <div id="kline-chart" class="kline-wrap"></div>
+        </div>
+        <!-- 阶段分析视图 -->
+        <div id="kline-view-analysis" class="hidden px-4 pb-4 pt-2">
+          {% include "partials/_chart_analysis_tab.html" %}
+        </div>
       </div>
 
       <!-- Research section -->
@@ -254,31 +271,52 @@
       </div>
       {% endif %}
 
-      <!-- Related news -->
-      {% if news %}
-      <div class="card p-5 mb-6">
-        <div class="flex items-center gap-2 mb-3">
-          <span class="material-icons-round text-primary text-base">newspaper</span>
-          <span class="text-sm font-semibold text-slate-200">关联新闻</span>
+      <!-- Related chunks + KG (lazy loaded) -->
+      <div id="related-chunks-card" class="card p-5 mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-2">
+            <span class="material-icons-round text-primary text-base">hub</span>
+            <span class="text-sm font-semibold text-slate-200">关联内容 · KG</span>
+          </div>
+          <span id="rc-stock-label" class="text-[10px] text-slate-600"></span>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {% for n in news[:8] %}
-          <div class="flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-slate-800/30 transition">
-            <span class="mt-1 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-red-400' if n.sentiment == 'positive' else 'bg-emerald-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
-            <div class="min-w-0">
-              <p class="text-xs text-slate-300 leading-relaxed truncate">{{ n.summary[:100] if n.summary else '' }}</p>
-              <div class="flex items-center gap-2 mt-0.5">
-                <span class="text-[10px] text-slate-600">{{ n.cleaned_at.strftime('%Y-%m-%d') if n.cleaned_at else '' }}</span>
-                {% if n.importance %}
-                <span class="text-[10px] {{ 'text-amber-500' if n.importance >= 4 else 'text-slate-600' }}">{{ '★' * (n.importance or 0) }}</span>
-                {% endif %}
-              </div>
+        <!-- KG 实体标签行 -->
+        <div id="rc-kg-entities" class="flex flex-wrap gap-1.5 mb-3 min-h-[20px]"></div>
+        <!-- KG 三元组 -->
+        <div id="rc-kg-triples" class="mb-3"></div>
+        <!-- Chunk 列表 -->
+        <div id="rc-chunks" class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- skeleton -->
+          <div class="rc-skeleton animate-pulse flex items-start gap-2 py-2 px-3 rounded-lg bg-slate-800/20">
+            <div class="mt-1 w-2 h-2 rounded-full bg-slate-700 flex-shrink-0"></div>
+            <div class="flex-1 space-y-1.5">
+              <div class="h-2.5 bg-slate-700 rounded w-full"></div>
+              <div class="h-2 bg-slate-700 rounded w-3/4"></div>
             </div>
           </div>
-          {% endfor %}
+          <div class="rc-skeleton animate-pulse flex items-start gap-2 py-2 px-3 rounded-lg bg-slate-800/20">
+            <div class="mt-1 w-2 h-2 rounded-full bg-slate-700 flex-shrink-0"></div>
+            <div class="flex-1 space-y-1.5">
+              <div class="h-2.5 bg-slate-700 rounded w-5/6"></div>
+              <div class="h-2 bg-slate-700 rounded w-2/3"></div>
+            </div>
+          </div>
         </div>
+        <p id="rc-empty" class="text-xs text-slate-600 text-center py-4 hidden">暂无关联内容</p>
+        <!-- L3 在线补充 -->
+        <div id="rc-online-bar" class="mt-3 pt-3 border-t border-slate-700/30 flex items-center gap-3">
+          <button id="rc-fetch-btn" onclick="fetchOnlineContent()"
+            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium
+                   bg-slate-700/40 text-slate-300 border border-slate-600/40
+                   hover:bg-blue-500/15 hover:border-blue-500/40 hover:text-blue-300 transition">
+            <span class="material-icons-round text-[13px]">cloud_download</span>
+            在线补充（东财 · 问财）
+          </button>
+          <span id="rc-fetch-status" class="text-[10px] text-slate-600"></span>
+        </div>
+        <!-- 在线结果列表 -->
+        <div id="rc-online-results" class="mt-2 space-y-1.5 hidden"></div>
       </div>
-      {% endif %}
 
     </div>
     {% else %}
@@ -709,27 +747,57 @@ function addTag() {
 function generateTags() {
   const btn = document.getElementById('genTagBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:14px">refresh</span> 生成中...';
-  fetch('/stock/' + stockCode + '/api/generate-tags')
+  btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:14px">refresh</span> 启动中...';
+
+  fetch('/stock/' + stockCode + '/api/generate-tags', { method: 'POST' })
     .then(r => r.json())
     .then(data => {
-      const existingCore = new Set(coreTags.map(t => t.name));
-      const existingMore = new Set(moreTags.map(t => t.name));
-      let added = 0;
-      (data.core || []).forEach(tag => {
-        if (!existingCore.has(tag.name)) { coreTags.push(tag); added++; }
-      });
-      (data.more || []).forEach(tag => {
-        if (!existingMore.has(tag.name)) { moreTags.push(tag); added++; }
-      });
-      if (added > 0) {
-        renderLayeredTags();
-        document.getElementById('saveTagBtn').classList.remove('hidden');
+      if (!data.task_id) throw new Error('no task_id');
+      const taskId = data.task_id;
+      const phaseLabels = { L1: 'L1量化', L2: 'L2 AI', L3: 'L3深度', done: '完成' };
+      let pollTimer = null;
+
+      function poll() {
+        fetch('/stock/' + stockCode + '/api/generate-tags/' + taskId)
+          .then(r => r.json())
+          .then(task => {
+            const phase = task.phase || '';
+            btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:14px">refresh</span> ' + (phaseLabels[phase] || phase) + '...';
+
+            if (task.status === 'done') {
+              clearInterval(pollTimer);
+              const result = task.result || {};
+              // Replace tags with fresh results
+              coreTags.length = 0;
+              moreTags.length = 0;
+              (result.core || []).forEach(t => coreTags.push(t));
+              (result.more || []).forEach(t => moreTags.push(t));
+              renderLayeredTags();
+              document.getElementById('saveTagBtn').classList.remove('hidden');
+              btn.disabled = false;
+              btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+            } else if (task.status === 'failed') {
+              clearInterval(pollTimer);
+              btn.disabled = false;
+              btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">error</span> 失败';
+              setTimeout(() => {
+                btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+              }, 3000);
+            }
+          })
+          .catch(() => {});
       }
+
+      pollTimer = setInterval(poll, 2000);
+      poll();
     })
-    .finally(() => {
+    .catch(err => {
+      console.error('generate-tags error:', err);
       btn.disabled = false;
-      btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+      btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">error</span> 请求失败';
+      setTimeout(() => {
+        btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+      }, 3000);
     });
 }
 
@@ -814,7 +882,7 @@ const STEP_META = {
   financial: { label: '财务分析', icon: 'analytics', color: '#f59e0b' },
   valuation: { label: '估值分析', icon: 'price_check', color: '#3b82f6' },
   sector_heat: { label: '板块热度', icon: 'local_fire_department', color: '#ec4899' },
-  policy_impact: { label: '政策与行业动向', icon: 'policy', color: '#ef4444' },
+  research_data: { label: '研究数据', icon: 'science', color: '#ef4444' },
 };
 let _renderedSteps = new Set();
 
@@ -974,5 +1042,186 @@ fetch('/stock/api/research-tasks').then(r => r.json()).then(tasks => {
 }).catch(() => {});
 
 {% endif %}
+
+/* ====== Related Chunks + KG (lazy load) ====== */
+(function() {
+  const DOC_TYPE_LABEL = {
+    social_post: '社群', research_report: '研报', strategy_report: '策略',
+    roadshow_notes: '路演', feature_news: '深度', flash_news: '快讯',
+    announcement: '公告', policy_doc: '政策', financial_report: '财报',
+    market_commentary: '点评', digest_news: '摘要', data_release: '数据', other: '其他',
+  };
+  const ENTITY_TYPE_COLOR = {
+    company: 'rgba(96,165,250,0.15)', industry: 'rgba(52,211,153,0.15)',
+    theme: 'rgba(167,139,250,0.15)', commodity: 'rgba(251,191,36,0.12)',
+    policy: 'rgba(248,113,113,0.12)',
+  };
+  const ENTITY_TYPE_TEXT = {
+    company: '#60a5fa', industry: '#34d399', theme: '#a78bfa',
+    commodity: '#fbbf24', policy: '#f87171',
+  };
+
+  function renderRelatedChunks(data) {
+    const chunksEl = document.getElementById('rc-chunks');
+    const entEl    = document.getElementById('rc-kg-entities');
+    const tripEl   = document.getElementById('rc-kg-triples');
+    const emptyEl  = document.getElementById('rc-empty');
+    const labelEl  = document.getElementById('rc-stock-label');
+
+    // 清除骨架
+    chunksEl.querySelectorAll('.rc-skeleton').forEach(el => el.remove());
+
+    if (data.stock_name) labelEl.textContent = data.stock_name;
+
+    // KG 实体标签
+    if (data.kg_entities && data.kg_entities.length) {
+      entEl.innerHTML = data.kg_entities.map(e => {
+        const bg  = ENTITY_TYPE_COLOR[e.type] || 'rgba(100,116,139,0.15)';
+        const col = ENTITY_TYPE_TEXT[e.type]  || '#94a3b8';
+        const badge = e.is_main ? ' •' : '';
+        const title = e.description ? ` title="${e.description}"` : '';
+        return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] cursor-default"
+                  style="background:${bg};color:${col};border:1px solid ${col}33"${title}>
+                  ${e.name}${badge}
+                </span>`;
+      }).join('');
+    }
+
+    // KG 三元组（最多5条）
+    if (data.kg_triples && data.kg_triples.length) {
+      const rows = data.kg_triples.slice(0, 5).map(t => {
+        const ev = t.evidence ? `<span class="text-slate-600 ml-1">— ${t.evidence}</span>` : '';
+        return `<div class="flex items-center gap-1.5 text-[10px] py-0.5">
+          <span class="text-slate-400">${t.subject}</span>
+          <span class="px-1 py-px rounded text-slate-500 bg-slate-800/50">${t.relation}</span>
+          <span class="text-slate-300">${t.object}</span>${ev}
+        </div>`;
+      }).join('');
+      tripEl.innerHTML = `<div class="border border-slate-700/30 rounded-lg px-3 py-2 mb-2 space-y-0.5">${rows}</div>`;
+    }
+
+    // Chunks
+    if (!data.chunks || !data.chunks.length) {
+      emptyEl.classList.remove('hidden');
+      return;
+    }
+    const items = data.chunks.map(c => {
+      const dtLabel = DOC_TYPE_LABEL[c.doc_type] || c.doc_type || '';
+      const dtBadge = dtLabel
+        ? `<span class="px-1 py-px rounded text-[9px] bg-slate-700/50 text-slate-400">${dtLabel}</span>`
+        : '';
+      const src = c.source ? `<span class="text-slate-600 truncate max-w-[120px]">${c.source}</span>` : '';
+      return `<div class="flex items-start gap-2 py-2 px-3 rounded-lg hover:bg-slate-800/30 transition">
+        <span class="mt-1 w-2 h-2 rounded-full flex-shrink-0 bg-blue-500/50"></span>
+        <div class="min-w-0 flex-1">
+          <p class="text-xs text-slate-300 leading-relaxed line-clamp-2">${c.text}</p>
+          <div class="flex items-center gap-2 mt-1 flex-wrap">
+            <span class="text-[10px] text-slate-600">${c.publish_time}</span>
+            ${dtBadge}${src}
+          </div>
+        </div>
+      </div>`;
+    });
+    chunksEl.innerHTML = items.join('');
+  }
+
+  // ── L3 在线补充 ──
+  window.fetchOnlineContent = async function() {
+    const btn    = document.getElementById('rc-fetch-btn');
+    const status = document.getElementById('rc-fetch-status');
+    const resEl  = document.getElementById('rc-online-results');
+    btn.disabled = true;
+    btn.classList.add('opacity-50', 'cursor-wait');
+    status.textContent = '正在拉取…';
+
+    try {
+      const r = await fetch(`/stock/${stockCode}/api/fetch-online`, { method: 'POST' });
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || '拉取失败');
+
+      status.textContent = `共 ${d.total} 条，${d.new_saved} 条新入库`;
+
+      const SOURCE_COLOR = {
+        '东财研报': { bg: 'rgba(139,92,246,0.1)', col: '#a78bfa', border: 'rgba(139,92,246,0.25)' },
+        '东财新闻': { bg: 'rgba(59,130,246,0.1)', col: '#60a5fa', border: 'rgba(59,130,246,0.2)' },
+        '问财':     { bg: 'rgba(251,191,36,0.08)', col: '#fbbf24', border: 'rgba(251,191,36,0.2)' },
+      };
+
+      if (d.items && d.items.length) {
+        resEl.innerHTML = d.items.map(item => {
+          const sc = SOURCE_COLOR[item.source] || { bg: 'rgba(100,116,139,0.1)', col: '#94a3b8', border: 'rgba(100,116,139,0.2)' };
+          const dot = item.saved
+            ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 mt-1.5" title="已入库"></span>`
+            : `<span class="w-1.5 h-1.5 rounded-full bg-slate-600 flex-shrink-0 mt-1.5" title="已存在"></span>`;
+          const link = item.url
+            ? `<a href="${item.url}" target="_blank" class="text-[9px] text-slate-600 hover:text-blue-400 transition ml-1">↗</a>`
+            : '';
+          return `<div class="flex items-start gap-2 px-3 py-2 rounded-lg" style="background:${sc.bg};border:1px solid ${sc.border}">
+            ${dot}
+            <div class="min-w-0 flex-1">
+              <p class="text-[11px] leading-snug line-clamp-2" style="color:${sc.col}">${item.title}${link}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-[9px] px-1 py-px rounded" style="background:${sc.border};color:${sc.col}">${item.source}</span>
+                ${item.meta ? `<span class="text-[9px] text-slate-600">${item.meta}</span>` : ''}
+                <span class="text-[9px] text-slate-700">${item.date}</span>
+              </div>
+            </div>
+          </div>`;
+        }).join('');
+        resEl.classList.remove('hidden');
+      } else {
+        status.textContent += '，无新内容';
+      }
+
+      btn.textContent = '已补充';
+      btn.disabled = true;
+    } catch(e) {
+      status.textContent = `失败: ${e.message}`;
+      btn.disabled = false;
+      btn.classList.remove('opacity-50', 'cursor-wait');
+    }
+  };
+
+  // IntersectionObserver 懒加载
+  const card = document.getElementById('related-chunks-card');
+  if (card && typeof stockCode !== 'undefined') {
+    const obs = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        obs.disconnect();
+        fetch(`/stock/${stockCode}/api/related-chunks?limit=8`)
+          .then(r => r.json())
+          .then(data => { if (data.ok) renderRelatedChunks(data); })
+          .catch(() => {
+            document.getElementById('rc-chunks').querySelectorAll('.rc-skeleton').forEach(el => el.remove());
+            document.getElementById('rc-empty').classList.remove('hidden');
+          });
+      }
+    }, { threshold: 0.1 });
+    obs.observe(card);
+  }
+})();
+
+/* ====== K线视图切换 ====== */
+function setKlineView(view, btn) {
+  document.querySelectorAll('[data-group="kview"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const chartView    = document.getElementById('kline-view-chart');
+  const analysisView = document.getElementById('kline-view-analysis');
+  const toolbarRows  = document.getElementById('kline-toolbar-rows');
+  if (view === 'analysis') {
+    chartView.classList.add('hidden');
+    analysisView.classList.remove('hidden');
+    toolbarRows.classList.add('hidden');
+    // 切换到阶段分析时触发渲染（div 现在可见，Plotly 才能正确计算尺寸）
+    setTimeout(function() {
+      if (typeof loadExistingAnalysis === 'function') loadExistingAnalysis();
+    }, 50);
+  } else {
+    chartView.classList.remove('hidden');
+    analysisView.classList.add('hidden');
+    toolbarRows.classList.remove('hidden');
+    renderChart();
+  }
+}
 </script>
 {% endblock %}

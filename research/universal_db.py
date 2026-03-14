@@ -149,3 +149,181 @@ def get_macro_data():
            ORDER BY cleaned_at DESC LIMIT 30"""
     )
     return {"indicators": indicators, "northbound": northbound, "news": macro_news}
+
+
+def get_sector_heat_detail(stock_code):
+    """获取板块热度详情 — 15日资金流时序 + 细分行业 + 投资主题"""
+    from tagging.stock_tag_service import get_theme_tags_from_kg, get_industry_tags_from_kg
+
+    # 公司市值
+    info = execute_query(
+        "SELECT market_cap, industry_l2, industry_l1 FROM stock_info WHERE stock_code=?",
+        [stock_code],
+    )
+    market_cap = info[0].get("market_cap") or 0 if info else 0
+    industry_l2 = info[0].get("industry_l2") or info[0].get("industry_l1") or "" if info else ""
+
+    # 公司15日资金流
+    flow_rows = execute_query(
+        """SELECT trade_date, main_net_inflow as net_inflow
+           FROM capital_flow WHERE stock_code=?
+           ORDER BY trade_date DESC LIMIT 15""",
+        [stock_code],
+    )
+    company_flow_15d = []
+    for r in (flow_rows or []):
+        net = r.get("net_inflow") or 0
+        ratio = round(net / market_cap, 6) if market_cap and market_cap > 0 else 0
+        company_flow_15d.append({
+            "date": str(r.get("trade_date", "")),
+            "net_inflow": net,
+            "market_cap": market_cap,
+            "ratio": ratio,
+        })
+
+    # 细分行业：从KG获取行业标签，再查行业资金流
+    sub_industries = []
+    try:
+        industry_tags = get_industry_tags_from_kg(stock_code)
+        if not industry_tags and industry_l2:
+            industry_tags = [industry_l2]
+        for ind_name in industry_tags[:3]:
+            # 行业市值（按industry_l2聚合）
+            ind_cap_rows = execute_query(
+                """SELECT SUM(market_cap) as total_cap FROM stock_info
+                   WHERE industry_l2 LIKE ? OR industry_l1 LIKE ?""",
+                [f"%{ind_name}%", f"%{ind_name}%"],
+            )
+            ind_cap = ind_cap_rows[0].get("total_cap") or 0 if ind_cap_rows else 0
+
+            # 行业15日资金流
+            ind_flow_rows = execute_query(
+                """SELECT trade_date, net_inflow FROM industry_capital_flow
+                   WHERE industry_name LIKE ?
+                   ORDER BY trade_date DESC LIMIT 15""",
+                [f"%{ind_name}%"],
+            )
+            flow_15d = []
+            for r in (ind_flow_rows or []):
+                net = r.get("net_inflow") or 0
+                ratio = round(net / ind_cap, 6) if ind_cap and ind_cap > 0 else 0
+                flow_15d.append({
+                    "date": str(r.get("trade_date", "")),
+                    "net_inflow": net,
+                    "ratio": ratio,
+                })
+            if flow_15d:
+                sub_industries.append({
+                    "industry_name": ind_name,
+                    "market_cap": ind_cap,
+                    "flow_15d": flow_15d,
+                })
+    except Exception:
+        pass
+
+    # 投资主题：从KG获取主题标签，聚合主题内股票市值和资金流
+    investment_themes = []
+    try:
+        theme_tags = get_theme_tags_from_kg(stock_code)
+        for theme_name in theme_tags[:3]:
+            # 主题内股票（通过KG关联）
+            theme_stocks = execute_query(
+                """SELECT DISTINCT ke_src.external_id as stock_code
+                   FROM kg_entities ke_src
+                   JOIN kg_relationships kr ON kr.source_entity_id = ke_src.id
+                   JOIN kg_entities ke_tgt ON kr.target_entity_id = ke_tgt.id
+                   WHERE ke_src.entity_type = 'company'
+                     AND ke_tgt.entity_type = 'theme'
+                     AND ke_tgt.entity_name = ?
+                     AND ke_src.external_id IS NOT NULL
+                   LIMIT 50""",
+                [theme_name],
+            )
+            theme_stock_codes = [r["stock_code"] for r in (theme_stocks or []) if r.get("stock_code")]
+            if not theme_stock_codes:
+                continue
+
+            # 主题市值
+            placeholders = ",".join(["?" for _ in theme_stock_codes])
+            cap_rows = execute_query(
+                f"SELECT SUM(market_cap) as total_cap FROM stock_info WHERE stock_code IN ({placeholders})",
+                theme_stock_codes,
+            )
+            theme_cap = cap_rows[0].get("total_cap") or 0 if cap_rows else 0
+
+            # 主题15日资金流（聚合主题内个股）
+            flow_rows_theme = execute_query(
+                f"""SELECT trade_date, SUM(main_net_inflow) as net_inflow
+                    FROM capital_flow
+                    WHERE stock_code IN ({placeholders})
+                    GROUP BY trade_date
+                    ORDER BY trade_date DESC LIMIT 15""",
+                theme_stock_codes,
+            )
+            flow_15d = []
+            for r in (flow_rows_theme or []):
+                net = r.get("net_inflow") or 0
+                ratio = round(net / theme_cap, 6) if theme_cap and theme_cap > 0 else 0
+                flow_15d.append({
+                    "date": str(r.get("trade_date", "")),
+                    "net_inflow": net,
+                    "ratio": ratio,
+                })
+            if flow_15d:
+                investment_themes.append({
+                    "theme_name": theme_name,
+                    "theme_market_cap": theme_cap,
+                    "flow_15d": flow_15d,
+                })
+    except Exception:
+        pass
+
+    # 行业7日逐日净流入（按与该股票匹配的 industry_l1/l2 过滤）
+    industry_daily_flow = []
+    industry_sub_breakdown = []
+    try:
+        ind_keyword = industry_l2 or ""
+        if ind_keyword:
+            # 7日逐日汇总（同一行业名前缀下所有子行业的总净流入）
+            daily_rows = execute_query(
+                """SELECT trade_date, SUM(net_inflow) as total_inflow
+                   FROM industry_capital_flow
+                   WHERE industry_name LIKE %s
+                   GROUP BY trade_date
+                   ORDER BY trade_date DESC LIMIT 7""",
+                [f"%{ind_keyword}%"],
+            ) or []
+            for r in daily_rows:
+                industry_daily_flow.append({
+                    "date": str(r.get("trade_date", "")),
+                    "net_inflow": r.get("total_inflow") or 0,
+                })
+
+            # 二级行业当日降序明细（最近一天，所有匹配子行业）
+            sub_rows = execute_query(
+                """SELECT industry_name, net_inflow, change_pct, leading_stock
+                   FROM industry_capital_flow
+                   WHERE industry_name LIKE %s
+                     AND trade_date = (
+                         SELECT MAX(trade_date) FROM industry_capital_flow WHERE industry_name LIKE %s
+                     )
+                   ORDER BY net_inflow DESC""",
+                [f"%{ind_keyword}%", f"%{ind_keyword}%"],
+            ) or []
+            for r in sub_rows:
+                industry_sub_breakdown.append({
+                    "name": r.get("industry_name", ""),
+                    "net_inflow": r.get("net_inflow") or 0,
+                    "change_pct": r.get("change_pct") or 0,
+                    "leading_stock": r.get("leading_stock") or "",
+                })
+    except Exception:
+        pass
+
+    return {
+        "company_flow_15d": company_flow_15d,
+        "sub_industries": sub_industries,
+        "investment_themes": investment_themes,
+        "industry_daily_flow": industry_daily_flow,
+        "industry_sub_breakdown": industry_sub_breakdown,
+    }

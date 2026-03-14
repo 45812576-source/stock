@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}知识图谱 — {% if tab == 'schema' %}Schema{% elif tab == 'visualization' %}可视化{% elif tab == 'entities' %}实体管理{% else %}推理引擎{% endif %}{% endblock %}
+{% block title %}知识图谱 — {% if tab == 'schema' %}Schema{% elif tab == 'visualization' %}可视化{% elif tab == 'entities' %}实体管理{% elif tab == 'annotate' %}审核工作台{% else %}推理引擎{% endif %}{% endblock %}
 
 {% block extra_styles %}
 .kg-canvas { background-image: radial-gradient(#1e293b 1px, transparent 1px); background-size: 40px 40px; position: relative; }
@@ -57,11 +57,17 @@
   <a href="/kg/inference" class="tab-btn {% if tab == 'inference' %}active{% endif %}">
     <span class="material-icons-round text-sm align-middle mr-1">psychology</span>推理引擎
   </a>
+  <a href="/kg/inspect" class="tab-btn {% if tab == 'inspect' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">manage_search</span>巡检
+  </a>
+  <a href="/kg/annotate" class="tab-btn {% if tab == 'annotate' %}active{% endif %}">
+    <span class="material-icons-round text-sm align-middle mr-1">rule</span>审核工作台
+  </a>
 </div>
 
 {% if tab == 'schema' %}
 <!-- ==================== Schema Designer ==================== -->
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6" style="min-height: calc(100vh - 150px);">
   <!-- 左侧：实体类型列表 -->
   <div class="lg:col-span-1 space-y-3">
     <div class="flex items-center justify-between mb-2">
@@ -90,7 +96,7 @@
   </div>
   <!-- 中间：Schema 可视化画布 -->
   <div class="lg:col-span-2">
-    <div class="card p-0 overflow-hidden" style="min-height: 500px;">
+    <div class="card p-0 overflow-hidden h-full">
       <div class="px-5 py-3 border-b border-slate-800 flex items-center justify-between">
         <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">Schema 概览</h3>
         <div class="flex gap-2">
@@ -99,7 +105,7 @@
         </div>
       </div>
       <div class="p-6">
-        <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="grid grid-cols-4 gap-4 mb-6">
           {% for etype, ecfg in entity_colors.items() %}
           <div class="text-center">
             <div class="w-16 h-16 mx-auto rounded-full flex items-center justify-center border-2 mb-2" style="border-color:{{ ecfg.bg }}; background:{{ ecfg.bg }}1a">
@@ -125,7 +131,7 @@
   </div>
   <!-- 右侧：属性编辑面板 -->
   <div class="lg:col-span-1">
-    <div class="card sticky top-4">
+    <div class="card sticky top-4 p-5">
       <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">属性定义</h3>
       <div id="schemaPropPanel">
         <div class="text-center py-8 text-slate-600">
@@ -134,7 +140,7 @@
         </div>
       </div>
     </div>
-    <div class="card mt-4">
+    <div class="card mt-4 p-5">
       <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">快速操作</h3>
       <div class="space-y-2">
         <a href="/kg/entities" class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 hover:border-primary/30 transition text-sm text-slate-300 hover:text-white">
@@ -153,7 +159,7 @@
 
 {% elif tab == 'visualization' %}
 <!-- ==================== 可视化 ==================== -->
-<div class="relative" style="height: calc(100vh - 280px); min-height: 400px;">
+<div class="relative" style="height: calc(100vh - 150px); min-height: 400px;">
   <!-- 图谱画布 -->
   <div class="kg-canvas rounded-xl overflow-hidden border border-slate-800 h-full" id="graphContainer">
     <div id="graphCanvas"></div>
@@ -169,7 +175,7 @@
 
   <!-- 左侧控制面板 -->
   {% if stats.total_entities > 0 %}
-  <div class="ctrl-panel absolute top-4 left-4 w-64 p-4 space-y-4 z-20">
+  <div class="ctrl-panel absolute top-4 left-4 w-64 p-4 space-y-4 z-20 max-h-[calc(100%-2rem)] overflow-y-auto">
     <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">图谱控制</h3>
     <div>
       <input type="text" id="graphSearch" placeholder="搜索实体..."
@@ -219,11 +225,14 @@
   </div>
   {% endif %}
 
-  <!-- 右侧实体详情面板 -->
-  <div id="detailPanel" class="detail-panel absolute top-0 right-0 w-80 h-full overflow-y-auto p-5 space-y-5 z-20 hidden rounded-r-xl">
+  <!-- 实体详情面板（位置动态计算） -->
+  <div id="detailPanel" class="detail-panel absolute top-0 w-80 h-full overflow-y-auto p-5 space-y-5 z-20 hidden rounded-xl">
     <div class="flex justify-between items-start">
       <div id="detailIcon" class="p-3 rounded-xl"></div>
-      <button onclick="closeDetail()" class="text-slate-500 hover:text-white"><span class="material-icons-round">close</span></button>
+      <div class="flex gap-1">
+        <button onclick="togglePinDetail()" id="pinDetailBtn" class="text-slate-500 hover:text-amber-400" title="固定面板"><span class="material-icons-round text-sm">push_pin</span></button>
+        <button onclick="closeDetail()" class="text-slate-500 hover:text-white"><span class="material-icons-round">close</span></button>
+      </div>
     </div>
     <h2 id="detailName" class="text-xl font-extrabold text-white"></h2>
     <p id="detailType" class="text-sm font-mono text-slate-500"></p>
@@ -243,8 +252,8 @@
     <div id="detailNews"></div>
   </div>
 
-  <!-- 底部工具栏 -->
-  <div class="absolute bottom-4 left-4 flex gap-2 z-20">
+  <!-- 底部工具栏（避开左侧控制面板 w-64 + left-4） -->
+  <div class="absolute bottom-4 left-72 flex gap-2 z-20">
     <button onclick="zoomIn()" class="w-9 h-9 bg-surface-card border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white">
       <span class="material-icons-round text-sm">add</span>
     </button>
@@ -259,11 +268,11 @@
 
 {% elif tab == 'entities' %}
 <!-- ==================== 实体管理 ==================== -->
-<div class="flex gap-6" style="min-height: calc(100vh - 280px);">
+<div class="flex gap-6" style="min-height: calc(100vh - 150px);">
   <!-- 主内容区 -->
   <div class="flex-1 min-w-0">
     <!-- 工具栏 -->
-    <div class="card flex flex-wrap gap-4 items-end mb-4">
+    <div class="card flex flex-wrap gap-4 items-end mb-4 p-4">
       <div>
         <label class="text-xs text-slate-500 font-semibold block mb-1">实体类型</label>
         <select id="filterType" onchange="applyEntityFilter()"
@@ -316,7 +325,7 @@
               </span>
             </td>
             <td class="px-4 py-3 hidden md:table-cell text-slate-500 text-xs truncate max-w-[200px]">{{ (e.description or '-')[:60] }}</td>
-            <td class="px-4 py-3 hidden lg:table-cell text-slate-600 text-xs font-mono">{{ (e.updated_at or e.created_at or '')[:10] }}</td>
+            <td class="px-4 py-3 hidden lg:table-cell text-slate-600 text-xs font-mono">{{ (e.updated_at or e.created_at)|string|truncate(10, True, '') if (e.updated_at or e.created_at) else '-' }}</td>
             <td class="px-4 py-3 text-right">
               <button onclick="event.stopPropagation(); viewInGraph({{ e.id }})" class="text-slate-500 hover:text-primary" title="在图谱中查看">
                 <span class="material-icons-round text-sm">hub</span>
@@ -352,7 +361,7 @@
   </div>
 
   <!-- 右侧编辑面板 -->
-  <div id="editSidebar" class="edit-sidebar w-80 rounded-xl p-5 space-y-4 hidden flex-shrink-0 overflow-y-auto" style="max-height: calc(100vh - 280px);">
+  <div id="editSidebar" class="edit-sidebar w-80 rounded-xl p-5 space-y-4 hidden flex-shrink-0 overflow-y-auto" style="max-height: calc(100vh - 150px);">
     <div class="flex justify-between items-center">
       <h3 class="text-sm font-bold text-white" id="editTitle">编辑实体</h3>
       <button onclick="closeEditSidebar()" class="text-slate-500 hover:text-white"><span class="material-icons-round text-sm">close</span></button>
@@ -385,56 +394,98 @@
 
 {% elif tab == 'inference' %}
 <!-- ==================== 推理引擎 ==================== -->
-<div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-  <!-- 左侧：推理规则 & 构建 -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6" style="min-height: calc(100vh - 150px);">
+  <!-- 左侧：构建 & 推理 & 统计 -->
   <div class="lg:col-span-1 space-y-4">
-    <!-- 构建图谱 -->
-    <div class="card">
+    <!-- 识别投资主题 -->
+    <div class="card p-5">
       <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
-        <span class="material-icons-round text-primary text-sm">build</span>构建图谱
+        <span class="material-icons-round text-amber-400 text-sm">lightbulb</span>识别投资主题
       </h3>
-      <p class="text-[10px] text-slate-500 mb-3">从清洗数据中提取实体和关系</p>
+      <p class="text-[10px] text-slate-500 mb-3">综合数据/政策/产业/资金/叙事 5 类信号，纯数据驱动识别投资主题</p>
+      <div class="flex gap-2 mb-3">
+        <div>
+          <label class="text-[10px] text-slate-500 block mb-1">回看天数</label>
+          <input type="number" id="themeDays" value="7" min="1" max="30"
+                 class="w-16 bg-surface border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-primary focus:outline-none">
+        </div>
+        <div>
+          <label class="text-[10px] text-slate-500 block mb-1">置信度门槛</label>
+          <input type="number" id="themeThreshold" value="0.6" min="0.1" max="1.0" step="0.1"
+                 class="w-16 bg-surface border border-slate-700 rounded px-2 py-1 text-xs text-white focus:border-primary focus:outline-none">
+        </div>
+      </div>
+      <button onclick="identifyThemes()" id="themeBtn"
+              class="w-full flex items-center justify-center gap-2 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-xs">
+        <span class="material-icons-round text-sm">lightbulb</span>识别投资主题
+      </button>
+      <div id="themeStatus" class="mt-2 text-[10px] text-slate-500 hidden"></div>
+      <div id="themeResults" class="mt-2 hidden"></div>
+    </div>
+
+    <!-- 提取实体关系 -->
+    <div class="card p-5">
+      <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
+        <span class="material-icons-round text-primary text-sm">hub</span>提取实体关系
+      </h3>
+      <p class="text-[10px] text-slate-500 mb-3">从清洗数据中提取公司/行业/政策等实体和关系，完成后自动运行推理</p>
       <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer mb-3">
         <input type="checkbox" id="useClaude" class="accent-primary">
         使用 Claude AI 深度提取
       </label>
       <button onclick="updateKG()" id="updateBtn"
               class="w-full flex items-center justify-center gap-2 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg font-bold text-xs">
-        <span class="material-icons-round text-sm">hub</span>开始构建
+        <span class="material-icons-round text-sm">hub</span>提取实体关系
       </button>
       <div id="updateStatus" class="mt-2 text-[10px] text-slate-500 hidden"></div>
+      <!-- 自动调度信息 -->
+      <div class="mt-3 pt-3 border-t border-slate-800">
+        <div class="flex items-center gap-1.5 mb-1">
+          <span class="material-icons-round text-emerald-400 text-[10px]">schedule</span>
+          <span class="text-[10px] font-bold text-emerald-400">自动调度</span>
+        </div>
+        <p class="text-[10px] text-slate-500 leading-relaxed">每天 06:00 / 20:00 自动增量构建（structured 模式），构建完成后自动运行推理并采纳高置信度结果</p>
+      </div>
     </div>
 
     <!-- 推理规则 -->
-    <div class="card">
+    <div class="card p-5">
       <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
         <span class="material-icons-round text-violet-400 text-sm">psychology</span>推理规则
       </h3>
       <div class="space-y-2">
-        <label class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
-          <input type="checkbox" name="inferRule" value="chain" checked class="accent-violet-500">
+        <label class="flex items-start gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
+          <input type="checkbox" name="inferRule" value="chain" checked class="accent-violet-500 mt-0.5">
           <div>
             <p class="text-xs font-semibold text-white">链式推理</p>
-            <p class="text-[10px] text-slate-500">A→B, B→C ⇒ A→C</p>
+            <p class="text-[10px] text-slate-500 leading-relaxed">A→B, B→C 且无 A→C ⇒ 补全间接关系</p>
           </div>
         </label>
-        <label class="flex items-center gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
-          <input type="checkbox" name="inferRule" value="similarity" checked class="accent-violet-500">
+        <label class="flex items-start gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50 cursor-pointer hover:border-violet-500/30 transition">
+          <input type="checkbox" name="inferRule" value="similarity" checked class="accent-violet-500 mt-0.5">
           <div>
-            <p class="text-xs font-semibold text-white">相似性推理</p>
-            <p class="text-[10px] text-slate-500">同行业公司关系发现</p>
+            <p class="text-xs font-semibold text-white">同行业竞争</p>
+            <p class="text-[10px] text-slate-500 leading-relaxed">两公司 belongs_to 同一行业 ⇒ 竞争关系</p>
           </div>
         </label>
+        <div class="flex items-start gap-2 p-2.5 rounded-lg bg-surface/30 border border-slate-800/50">
+          <span class="material-icons-round text-violet-400 text-[10px] mt-0.5">check_circle</span>
+          <div>
+            <p class="text-xs font-semibold text-white">行业传导</p>
+            <p class="text-[10px] text-slate-500 leading-relaxed">公司属于行业 + 行业关联主题 ⇒ 公司关联主题</p>
+          </div>
+        </div>
       </div>
       <button onclick="runInference()" id="inferBtn"
               class="w-full mt-3 flex items-center justify-center gap-2 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold text-xs">
         <span class="material-icons-round text-sm">auto_awesome</span>运行推理
       </button>
       <div id="inferStatus" class="mt-2 text-[10px] text-slate-500 hidden"></div>
+      <p class="text-[10px] text-slate-600 mt-2">手动推理结果需逐条审核，自动推理仅采纳置信度 ≥ 50% 的结果</p>
     </div>
 
     <!-- 统计概览 -->
-    <div class="card">
+    <div class="card p-5">
       <h3 class="font-bold text-white mb-3 flex items-center gap-2 text-sm">
         <span class="material-icons-round text-emerald-400 text-sm">analytics</span>图谱概览
       </h3>
@@ -460,33 +511,34 @@
   </div>
 
   <!-- 右侧：推理结果 & 日志 -->
-  <div class="lg:col-span-3 space-y-4">
+  <div class="lg:col-span-3 flex flex-col gap-4">
     <!-- 推理结果 -->
-    <div class="card">
+    <div class="card p-5 flex-1 flex flex-col">
       <div class="flex items-center justify-between mb-4">
         <h3 class="font-bold text-white flex items-center gap-2 text-sm">
           <span class="material-icons-round text-violet-400 text-sm">auto_awesome</span>发现的关系
         </h3>
         <span class="text-[10px] text-slate-500" id="inferCount">等待推理...</span>
       </div>
-      <div id="inferResults" class="space-y-2 max-h-[400px] overflow-y-auto">
-        <div class="text-center py-8 text-slate-600">
+      <div id="inferResults" class="space-y-2 flex-1 overflow-y-auto">
+        <div class="text-center py-12 text-slate-600">
           <span class="material-icons-round text-4xl mb-2">psychology</span>
           <p class="text-xs">点击「运行推理」发现隐含关系</p>
+          <p class="text-[10px] text-slate-700 mt-1">或等待每日自动构建后自动推理</p>
         </div>
       </div>
     </div>
 
     <!-- 变更日志 -->
-    <div class="card p-0 overflow-hidden">
+    <div class="card p-0 overflow-hidden" style="max-height: 320px;">
       <div class="px-5 py-3 border-b border-slate-800 flex items-center gap-2">
         <span class="material-icons-round text-primary text-sm">history</span>
         <h3 class="font-bold text-xs uppercase tracking-wider">变更日志</h3>
       </div>
-      <div class="max-h-[300px] overflow-y-auto">
+      <div class="overflow-y-auto" style="max-height: 270px;">
         {% for log in update_logs %}
         <div class="flex gap-4 px-5 py-2.5 border-b border-slate-800/50 text-xs">
-          <span class="text-slate-600 font-mono w-28 shrink-0">{{ (log.updated_at or '')[:16] }}</span>
+          <span class="text-slate-600 font-mono w-28 shrink-0">{{ log.updated_at|string|truncate(16, True, '') if log.updated_at else '' }}</span>
           <span class="{% if log.action == 'create' %}text-emerald-400{% elif log.action == 'delete' %}text-red-400{% else %}text-amber-400{% endif %} font-bold w-12">{{ log.action }}</span>
           <span class="text-slate-400 flex-1 truncate">
             {% if log.entity_id %}实体 #{{ log.entity_id }}{% endif %}
@@ -502,6 +554,405 @@
       </div>
     </div>
   </div>
+</div>
+
+{% elif tab == 'inspect' %}
+<!-- ==================== KG 巡检 ==================== -->
+<div id="kgInspectTab">
+  <div class="grid grid-cols-3 gap-4 mb-6">
+    <div class="card p-5 text-center">
+      <p class="text-xs text-slate-500 mb-1">实体数</p>
+      <p class="text-2xl font-bold text-white" id="kgEntityCount">—</p>
+    </div>
+    <div class="card p-5 text-center">
+      <p class="text-xs text-slate-500 mb-1">关系数</p>
+      <p class="text-2xl font-bold text-white" id="kgRelCount">—</p>
+    </div>
+    <div class="card p-5 text-center">
+      <p class="text-xs text-slate-500 mb-1">上次巡检</p>
+      <p class="text-sm font-semibold text-slate-300" id="kgLastInspect">—</p>
+    </div>
+  </div>
+  <div class="card p-5 mb-4">
+    <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+      <span class="material-icons-round text-violet-400">manage_search</span>KG 巡检
+    </h3>
+    <p class="text-xs text-slate-500 mb-4">清理矛盾关系和孤立实体，并从近期总结中补全缺失的实体/关系。</p>
+    <div class="flex gap-3">
+      <button onclick="runKgInspect(false)" id="inspectBtn"
+              class="flex items-center gap-2 px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-bold text-sm">
+        <span class="material-icons-round text-sm">play_arrow</span>运行巡检
+      </button>
+      <button onclick="runKgInspect(true)" id="dryRunBtn"
+              class="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold text-sm">
+        <span class="material-icons-round text-sm">preview</span>预览（不修改）
+      </button>
+    </div>
+  </div>
+
+  <!-- 进度面板 -->
+  <div id="inspectProgress" class="hidden space-y-3 mb-4">
+    <!-- Phase 1: Schema 扫描 -->
+    <div class="card p-4" id="phaseSchema">
+      <div class="flex items-center gap-3 mb-2">
+        <span id="schemaIcon" class="material-icons-round text-slate-500 text-lg">radio_button_unchecked</span>
+        <span class="text-sm font-semibold text-slate-300">Schema 扫描</span>
+        <span id="schemaStatus" class="text-xs text-slate-500 ml-auto"></span>
+      </div>
+      <div id="schemaSummary" class="hidden ml-8 grid grid-cols-3 gap-2 mt-2"></div>
+      <div id="schemaDetails" class="hidden ml-8 mt-2 max-h-40 overflow-y-auto"></div>
+    </div>
+    <!-- Phase 2: 清理 -->
+    <div class="card p-4" id="phaseCleanup">
+      <div class="flex items-center gap-3 mb-2">
+        <span id="cleanupIcon" class="material-icons-round text-slate-500 text-lg">radio_button_unchecked</span>
+        <span class="text-sm font-semibold text-slate-300">清理脏数据</span>
+        <span id="cleanupStatus" class="text-xs text-slate-500 ml-auto"></span>
+      </div>
+      <div id="cleanupSummary" class="hidden ml-8 mt-1"></div>
+    </div>
+    <!-- Phase 3: 交叉补全 -->
+    <div class="card p-4" id="phaseCross">
+      <div class="flex items-center gap-3 mb-2">
+        <span id="crossIcon" class="material-icons-round text-slate-500 text-lg">radio_button_unchecked</span>
+        <span class="text-sm font-semibold text-slate-300">交叉补全</span>
+        <span id="crossStatus" class="text-xs text-slate-500 ml-auto"></span>
+      </div>
+      <div id="crossBar" class="hidden ml-8 mt-2">
+        <div class="w-full bg-slate-700 rounded-full h-1.5">
+          <div id="crossBarFill" class="bg-violet-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <p id="crossBarLabel" class="text-xs text-slate-500 mt-1"></p>
+      </div>
+      <div id="crossSummary" class="hidden ml-8 mt-1"></div>
+    </div>
+  </div>
+
+  <!-- 深度语义校验区块 -->
+  <div class="card p-5 mb-4">
+    <h3 class="font-bold text-white mb-2 flex items-center gap-2">
+      <span class="material-icons-round text-amber-400">psychology</span>深度语义校验
+    </h3>
+    <p class="text-xs text-slate-500 mb-4">用 AI 判断每个实体名是否符合其类型定义，不符合则删除（连带删除关系）。全量约 $1.3，高风险类型约 $0.28。</p>
+    <div class="flex gap-3 flex-wrap">
+      <button onclick="runSemanticValidate(false)" id="semanticBtn"
+              class="flex items-center gap-2 px-5 py-2.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-bold text-sm">
+        <span class="material-icons-round text-sm">psychology</span>全量校验（删除）
+      </button>
+      <button onclick="runSemanticValidate(true)" id="semanticDryBtn"
+              class="flex items-center gap-2 px-5 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-bold text-sm">
+        <span class="material-icons-round text-sm">preview</span>预览（不删除）
+      </button>
+    </div>
+  </div>
+
+  <!-- 语义校验进度 -->
+  <div id="semanticProgress" class="hidden card p-5 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-sm font-semibold text-slate-300">校验进度</span>
+      <span id="semanticOverall" class="text-xs text-slate-500"></span>
+    </div>
+    <!-- 总进度条 -->
+    <div class="w-full bg-slate-700 rounded-full h-1.5 mb-4">
+      <div id="semanticBarFill" class="bg-amber-500 h-1.5 rounded-full transition-all" style="width:0%"></div>
+    </div>
+    <p id="semanticBatchMsg" class="text-xs text-slate-400 mb-4"></p>
+    <!-- 按类型结果列表 -->
+    <div id="semanticByType" class="space-y-2"></div>
+    <!-- 汇总 -->
+    <div id="semanticSummary" class="hidden mt-4 p-3 bg-slate-800 rounded-lg">
+      <p class="text-sm font-semibold text-white mb-1">校验完成</p>
+      <div id="semanticSummaryContent" class="text-xs text-slate-400 space-y-1"></div>
+    </div>
+  </div>
+</div>
+
+{% elif tab == 'annotate' %}
+<!-- ==================== KG 审核工作台 ==================== -->
+<div class="space-y-4">
+
+  <!-- 规范字典折叠面板 -->
+  <div class="card p-0 border border-slate-700">
+    <button onclick="toggleSchemaDict()" class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-slate-800/50 transition-colors" id="schemaDictToggle">
+      <div class="flex items-center gap-2">
+        <span class="material-icons-round text-sm text-sky-400">menu_book</span>
+        <span class="text-sm font-bold text-slate-300">实体 & 关系规范字典</span>
+        <span class="text-[10px] text-slate-500">（供审核员参考，可打印）</span>
+      </div>
+      <span class="material-icons-round text-slate-500 text-sm" id="schemaDictArrow">expand_more</span>
+    </button>
+    <div id="schemaDictBody" class="hidden">
+      <div class="border-t border-slate-700 p-4" id="schemaDictContent">
+
+        <!-- 打印按钮 -->
+        <div class="flex justify-end mb-4">
+          <button onclick="printSchemaDict()" class="text-xs px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white font-semibold flex items-center gap-1">
+            <span class="material-icons-round text-sm">print</span> 打印 / 导出
+          </button>
+        </div>
+
+        <!-- 实体类型定义 -->
+        <div class="mb-6" id="entityTypeDefs">
+          <h3 class="text-sm font-extrabold text-white mb-3 pb-2 border-b border-slate-700">
+            <span class="material-icons-round text-xs align-middle mr-1 text-sky-400">account_tree</span>实体类型定义（共 {{ entity_colors|length }} 种）
+          </h3>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% set entity_defs = {
+              'market':          {'desc': '资本市场整体（A股、港股、美股、大宗商品市场等），代表市场层面的宏观价格信号。示例：A股市场、港股市场、原油市场', 'layer': '市场层'},
+              'macro_indicator': {'desc': '宏观经济数据指标，如GDP、CPI、PMI、利率、汇率等。必须是可量化、有统计周期的数据。示例：CPI同比、PMI制造业', 'layer': '宏观层'},
+              'policy':          {'desc': '政府/监管机构发布的政策、法规、规划、补贴方案。必须是具体政策文件或政策方向。示例：新能源补贴政策、碳交易政策', 'layer': '宏观层'},
+              'industry':        {'desc': '行业分类，对应申万/中信行业体系。代表某一领域的企业集合。示例：新能源汽车、半导体、医疗器械', 'layer': '产业层'},
+              'industry_chain':  {'desc': '产业链环节，描述从原材料到终端消费的价值链节点。示例：锂电池产业链-正极材料、动力电池整体', 'layer': '产业层'},
+              'theme':           {'desc': '投资主题或概念，市场热点驱动的跨行业投资逻辑。示例：AI算力、低空经济、出海、固态电池', 'layer': '产业层'},
+              'company':         {'desc': '上市公司或重要非上市公司。必须有具体股票代码或知名度。示例：宁德时代（300750）、比亚迪（002594）', 'layer': '公司层'},
+              'strategy':        {'desc': '公司经营战略或商业模式，描述企业如何创造竞争优势。示例：垂直整合战略、平台化战略、出海战略', 'layer': '公司层'},
+              'commodity':       {'desc': '大宗商品，具有标准化、可交易特征。示例：铜、铝、钢铁、锂、碳酸锂', 'layer': '要素层'},
+              'energy':          {'desc': '能源品种，包括化石能源和新能源。示例：原油、天然气、动力煤、光伏组件', 'layer': '要素层'},
+              'intermediate':    {'desc': '工业中间品，作为上游原料与下游产品的中间环节。示例：乙烯、多晶硅、正极材料', 'layer': '要素层'},
+              'consumer_good':   {'desc': '最终消费品，面向终端消费者的产品。示例：电动汽车、手机、白色家电', 'layer': '要素层'},
+            } %}
+            {% for etype, ecfg in entity_colors.items() %}
+            {% set def_info = entity_defs.get(etype, {}) %}
+            <div class="p-3 rounded-lg border border-slate-700 bg-slate-800/40">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] px-2 py-0.5 rounded-full font-bold" style="background:{{ ecfg.bg }}33;color:{{ ecfg.bg }}">{{ ecfg.label }}</span>
+                <span class="text-[10px] font-mono text-slate-500">{{ etype }}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-400 ml-auto">{{ def_info.get('layer','') }}</span>
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">{{ def_info.get('desc', '—') }}</p>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <!-- 关系类型定义 -->
+        <div id="relationTypeDefs">
+          <h3 class="text-sm font-extrabold text-white mb-3 pb-2 border-b border-slate-700">
+            <span class="material-icons-round text-xs align-middle mr-1 text-amber-400">arrow_forward</span>关系类型定义（共 {{ relation_labels|length }} 种）
+          </h3>
+
+          {% set rel_categories = [
+            ('因果影响', ['causes_positive','causes_negative','cost_transmission','indicator_transmission','demand_driven','supply_driven','demand_source_of','demand_substitute']),
+            ('结构归属', ['belongs_to_industry','belongs_to_chain','policy_affects','supplier_of','customer_of','competitor','substitute_threat','controls','holds_stake','subsidiary_of']),
+            ('要素关联', ['major_cost_item','major_revenue_item','cost_affected_by','revenue_affected_by']),
+            ('政策关联', ['benefits','hurts','risk_factor','catalyst']),
+            ('指标关联', ['leading_indicator_of','coincident_indicator_of','lagging_indicator_of','correlated_with']),
+            ('兜底',     ['related']),
+          ] %}
+
+          {% set rel_defs = {
+            'causes_positive':         '正向驱动：A的上升/改善直接导致B的上升/改善。适用于有明确量化传导关系的场景。',
+            'causes_negative':         '负向影响：A的上升/改善直接导致B的下降/恶化。',
+            'cost_transmission':       '成本传导：上游成本变动传导至下游成本，方向为从要素/中间品到下游产业/公司。',
+            'indicator_transmission':  '指标传导：一个宏观指标的变化传导至另一指标，如M2→CPI。',
+            'demand_driven':           '需求驱动：需求方对供给方的拉动，如终端消费品带动上游材料需求。',
+            'supply_driven':           '供给驱动：供给侧变化影响下游，如原材料供应紧缺影响产业。',
+            'demand_source_of':        '需求来源：A是B需求的主要来源，如动力电池是碳酸锂的主要需求来源。',
+            'demand_substitute':       '需求替代：A可替代B的需求，具有竞争性。',
+            'belongs_to_industry':     '属于行业：公司归属于某一行业分类（申万/中信）。只用于 company→industry。',
+            'belongs_to_chain':        '属于产业链：公司/行业归属某产业链环节。',
+            'policy_affects':          '政策影响：政策对市场/产业/公司产生结构性影响（不明确是正向还是负向时使用）。',
+            'supplier_of':             '供应商：A是B的主要供应商，存在客户-供应商关系。',
+            'customer_of':             '客户：A是B的主要客户，B向A供货。',
+            'competitor':              '竞争：A和B在同一市场直接竞争，抢夺同一客户群。',
+            'substitute_threat':       '替代威胁：A对B构成替代威胁，但尚未形成直接竞争。',
+            'controls':                '控制：A对B具有控股/实际控制关系，如母公司控制子公司。',
+            'holds_stake':             '持股：A持有B的股权，但不构成控制（参股关系）。',
+            'subsidiary_of':           '子公司：A是B的子公司或控股子公司，方向为子→母。',
+            'major_cost_item':         '主要成本：A是B的主要成本构成项，影响B的利润空间。用于公司←要素关系。',
+            'major_revenue_item':      '主要收入：A是B的主要收入来源产品/服务。',
+            'cost_affected_by':        '成本受影响：B的成本受A价格影响，方向A→B。',
+            'revenue_affected_by':     '收入受影响：B的收入受A价格/需求影响。',
+            'benefits':                '受益：A从B中受益，B的出现/上升对A有利（政策/主题/市场→产业/公司）。',
+            'hurts':                   '受损：A因B而受损，B的出现/上升对A不利。',
+            'risk_factor':             '风险因素：A是B的潜在风险，但尚未造成实质损失。',
+            'catalyst':                '催化剂：A是B的催化剂，可能加速B的上涨/改善。',
+            'leading_indicator_of':    '领先指标：A是B的领先指标，A变化先于B变化数月。',
+            'coincident_indicator_of': '同步指标：A与B同步变化，作为彼此的同步验证指标。',
+            'lagging_indicator_of':    '滞后指标：A是B的滞后反映，B变化后A才响应。',
+            'correlated_with':         '相关性：A与B存在统计上的正相关或负相关，但无明确因果方向。',
+            'related':                 '相关（兜底）：无法归入以上类型时使用，表示存在关联但关系性质不明确。应尽量避免使用。',
+          } %}
+
+          <div class="space-y-4">
+            {% for cat_name, rtypes in rel_categories %}
+            <div>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">{{ cat_name }}</p>
+              <div class="space-y-1.5">
+                {% for rtype in rtypes %}
+                {% if rtype in relation_labels %}
+                <div class="flex gap-3 p-2 rounded bg-slate-800/40 border border-slate-700/50">
+                  <span class="text-[10px] px-2 py-0.5 rounded-full font-bold flex-shrink-0 h-fit mt-0.5"
+                        style="background:{{ relation_labels[rtype].color }}33;color:{{ relation_labels[rtype].color }}">
+                    {{ relation_labels[rtype].label }}
+                  </span>
+                  <div class="flex-1 min-w-0">
+                    <span class="text-[10px] font-mono text-slate-500">{{ rtype }}</span>
+                    <p class="text-xs text-slate-300 mt-0.5">{{ rel_defs.get(rtype, '—') }}</p>
+                  </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="reviewStatCards">
+    <div class="stat-card text-center">
+      <p class="text-xs text-slate-500 mb-1">待审核</p>
+      <p class="text-2xl font-extrabold text-amber-400" id="statPending">—</p>
+    </div>
+    <div class="stat-card text-center">
+      <p class="text-xs text-slate-500 mb-1">已通过</p>
+      <p class="text-2xl font-extrabold text-emerald-400" id="statApproved">—</p>
+    </div>
+    <div class="stat-card text-center">
+      <p class="text-xs text-slate-500 mb-1">已驳回</p>
+      <p class="text-2xl font-extrabold text-red-400" id="statRejected">—</p>
+    </div>
+    <div class="stat-card text-center">
+      <p class="text-xs text-slate-500 mb-1">今日审核</p>
+      <p class="text-2xl font-extrabold text-sky-400" id="statToday">—</p>
+    </div>
+  </div>
+
+  <!-- 主体：筛选面板 + 审核列表 -->
+  <div class="flex gap-4">
+
+    <!-- 左侧筛选面板 -->
+    <div class="w-48 flex-shrink-0 space-y-4">
+      <div class="card p-4 space-y-3">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">对象类型</p>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="radio" name="filterTargetType" value="all" checked class="accent-sky-500" onchange="applyFilters()"> 全部
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="radio" name="filterTargetType" value="entity" class="accent-sky-500" onchange="applyFilters()"> 实体
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="radio" name="filterTargetType" value="relationship" class="accent-sky-500" onchange="applyFilters()"> 关系
+        </label>
+        <label class="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+          <input type="radio" name="filterTargetType" value="triple_source" class="accent-sky-500" onchange="applyFilters()"> 三元组佐证
+        </label>
+      </div>
+
+      <div class="card p-4 space-y-2">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">审核状态</p>
+        <select id="filterStatus" class="w-full bg-slate-800 text-white text-xs px-2 py-1.5 rounded border border-slate-700" onchange="applyFilters()">
+          <option value="all">全部状态</option>
+          <option value="unreviewed">未审核</option>
+          <option value="pending_approval">待审批</option>
+          <option value="approved">已通过</option>
+          <option value="rejected">已驳回</option>
+        </select>
+      </div>
+
+      <div class="card p-4 space-y-2">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">实体类型</p>
+        <select id="filterEntityType" class="w-full bg-slate-800 text-white text-xs px-2 py-1.5 rounded border border-slate-700" onchange="applyFilters()">
+          <option value="">全部</option>
+          {% for etype, ecfg in entity_colors.items() %}
+          <option value="{{ etype }}">{{ ecfg.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="card p-4 space-y-2">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">关系类型</p>
+        <select id="filterRelationType" class="w-full bg-slate-800 text-white text-xs px-2 py-1.5 rounded border border-slate-700" onchange="applyFilters()">
+          <option value="">全部</option>
+          <optgroup label="── 因果影响">
+          {% for rtype in ['causes_positive','causes_negative','cost_transmission','indicator_transmission','demand_driven','supply_driven','demand_source_of','demand_substitute'] %}
+            {% if rtype in relation_labels %}
+            <option value="{{ rtype }}">{{ relation_labels[rtype].label }}</option>
+            {% endif %}
+          {% endfor %}
+          </optgroup>
+          <optgroup label="── 结构归属">
+          {% for rtype in ['belongs_to_industry','belongs_to_chain','policy_affects','supplier_of','customer_of','competitor','substitute_threat','controls','holds_stake','subsidiary_of'] %}
+            {% if rtype in relation_labels %}
+            <option value="{{ rtype }}">{{ relation_labels[rtype].label }}</option>
+            {% endif %}
+          {% endfor %}
+          </optgroup>
+          <optgroup label="── 要素关联">
+          {% for rtype in ['major_cost_item','major_revenue_item','cost_affected_by','revenue_affected_by'] %}
+            {% if rtype in relation_labels %}
+            <option value="{{ rtype }}">{{ relation_labels[rtype].label }}</option>
+            {% endif %}
+          {% endfor %}
+          </optgroup>
+          <optgroup label="── 政策关联">
+          {% for rtype in ['benefits','hurts','risk_factor','catalyst'] %}
+            {% if rtype in relation_labels %}
+            <option value="{{ rtype }}">{{ relation_labels[rtype].label }}</option>
+            {% endif %}
+          {% endfor %}
+          </optgroup>
+          <optgroup label="── 指标关联">
+          {% for rtype in ['leading_indicator_of','coincident_indicator_of','lagging_indicator_of','correlated_with'] %}
+            {% if rtype in relation_labels %}
+            <option value="{{ rtype }}">{{ relation_labels[rtype].label }}</option>
+            {% endif %}
+          {% endfor %}
+          </optgroup>
+          <optgroup label="── 其他">
+          <option value="related">相关</option>
+          </optgroup>
+        </select>
+      </div>
+
+      <div class="card p-4 space-y-2">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">搜索</p>
+        <input type="text" id="filterKeyword" placeholder="关键词..." class="w-full bg-slate-800 text-white text-xs px-2 py-1.5 rounded border border-slate-700" oninput="debounceFilter()">
+      </div>
+
+      <!-- 批量操作 (super_admin) -->
+      {% if current_user and current_user.role == 'super_admin' %}
+      <div class="card p-4 space-y-2" id="batchPanel" style="display:none">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">批量操作</p>
+        <p class="text-xs text-slate-500"><span id="batchCount">0</span> 条已选</p>
+        <button onclick="batchAction('approve')" class="w-full text-xs px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold">批量通过</button>
+        <button onclick="batchAction('reject')" class="w-full text-xs px-3 py-1.5 rounded bg-red-700 hover:bg-red-600 text-white font-semibold">批量驳回</button>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 右侧审核列表 + 展开详情 -->
+    <div class="flex-1 min-w-0">
+      <!-- 列表 -->
+      <div id="reviewList" class="space-y-2">
+        <p class="text-sm text-slate-400">加载中...</p>
+      </div>
+      <!-- 分页 -->
+      <div class="flex items-center justify-between mt-4" id="reviewPager" style="display:none">
+        <button onclick="changePage(-1)" class="text-xs px-3 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700">上一页</button>
+        <span class="text-xs text-slate-400" id="pageInfo">1 / 1</span>
+        <button onclick="changePage(1)" class="text-xs px-3 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700">下一页</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 详情侧滑面板 -->
+  <div id="reviewDetailPanel" class="fixed top-0 right-0 h-full w-[480px] bg-[#0f1624] border-l border-slate-800 z-50 overflow-y-auto p-6 transform translate-x-full transition-transform duration-300">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-bold text-white" id="detailTitle">详情</h3>
+      <button onclick="closeDetail()" class="text-slate-400 hover:text-white">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <div id="detailBody">加载中...</div>
+  </div>
+  <div id="detailOverlay" onclick="closeDetail()" class="fixed inset-0 bg-black/40 z-40 hidden"></div>
+
 </div>
 
 {% endif %}
@@ -577,18 +1028,32 @@ function renderGraph() {
   });
   const connectedIds = new Set();
   filteredEdges.forEach(e => { connectedIds.add(e.from); connectedIds.add(e.to); });
-  const filteredNodes = allNodes.filter(n => !hiddenEntityTypes.has(n.group) && (allNodes.length <= 50 || connectedIds.has(n.id)));
+  const filteredNodes = allNodes.filter(n => !hiddenEntityTypes.has(n.group));
 
   const container = document.getElementById('graphCanvas');
+  const ecolors = {{ entity_colors | tojson }};
+  const groupShapes = { market: 'hexagon', theme: 'star', industry: 'dot', industry_chain: 'dot', company: 'diamond', macro_indicator: 'triangle', commodity: 'square', energy: 'triangleDown', intermediate: 'square', consumer_good: 'dot', policy: 'triangle', revenue_element: 'square' };
+  const groupSizes  = { market: 26, theme: 26, industry: 24, industry_chain: 22, company: 28, macro_indicator: 24, commodity: 22, energy: 24, intermediate: 20, consumer_good: 22, policy: 22, revenue_element: 18 };
+  const groups = {};
+  for (const [etype, ecfg] of Object.entries(ecolors)) {
+    groups[etype] = {
+      color: { background: ecfg.bg, border: ecfg.bg, highlight: { background: ecfg.bg, border: '#fff' }, hover: { background: ecfg.bg, border: '#fff' } },
+      shape: groupShapes[etype] || 'dot',
+      size: groupSizes[etype] || 20,
+      font: { color: '#e2e8f0', size: 14 },
+      borderWidth: 2,
+    };
+  }
   const visData = {
     nodes: new vis.DataSet(filteredNodes.length > 0 ? filteredNodes : allNodes.filter(n => !hiddenEntityTypes.has(n.group))),
     edges: new vis.DataSet(filteredEdges),
   };
   const options = {
-    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -50, springLength: 120 } },
+    groups: groups,
+    physics: { solver: 'forceAtlas2Based', forceAtlas2Based: { gravitationalConstant: -80, springLength: 160, springConstant: 0.04, damping: 0.25 }, stabilization: { iterations: 80 } },
     interaction: { hover: true, tooltipDelay: 100, zoomView: true, dragView: true },
-    nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 8 } },
-    edges: { smooth: { type: 'continuous' } },
+    nodes: { borderWidth: 2, shadow: { enabled: true, color: 'rgba(0,0,0,0.3)', size: 8 }, font: { color: '#e2e8f0', size: 14 } },
+    edges: { smooth: { type: 'continuous' }, font: { size: 10 } },
   };
   if (network) network.destroy();
   network = new vis.Network(container, visData, options);
@@ -640,15 +1105,66 @@ async function showEntityDetail(entityId) {
 
   let newsHtml = '';
   if (data.related_news && data.related_news.length > 0) {
-    newsHtml = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">关联新闻</h3>';
+    newsHtml = '<h3 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 mt-4">关联新闻 <span class="text-[10px] text-slate-600 normal-case">(拖拽到chatbot探讨)</span></h3>';
     for (const n of data.related_news) {
-      newsHtml += '<div class="p-2 bg-surface/50 rounded-lg border border-slate-800 mb-2"><p class="text-[10px] text-slate-600">' + (n.cleaned_at || '').substring(0, 10) + '</p><p class="text-xs text-slate-300">' + (n.summary || '').substring(0, 100) + '</p></div>';
+      const newsText = (n.summary || '').substring(0, 200);
+      const newsContext = `新闻: ${(n.cleaned_at || '').substring(0, 10)} - ${newsText}`;
+      newsHtml += '<div class="p-2 bg-surface/50 rounded-lg border border-slate-800 mb-2 cursor-grab hover:border-primary/50" draggable="true" data-chat-context="' + newsContext.replace(/"/g, '&quot;') + '"><p class="text-[10px] text-slate-600">' + (n.cleaned_at || '').substring(0, 10) + '</p><p class="text-xs text-slate-300">' + newsText + '</p></div>';
     }
   }
   document.getElementById('detailNews').innerHTML = newsHtml;
+
+  // 绑定新闻拖拽事件
+  document.querySelectorAll('#detailNews [draggable="true"]').forEach(el => {
+    el.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', el.dataset.chatContext || '');
+      e.dataTransfer.effectAllowed = 'copy';
+    });
+  });
+
+  // 动态计算面板位置（左边或右边，看点击位置）
+  const panel = document.getElementById('detailPanel');
+  const nodePos = network ? network.getPosition(data.entity.id) : null;
+  const canvasWidth = document.getElementById('network').offsetWidth;
+  // 如果有点击位置，判断在左半屏还是右半屏
+  if (nodePos && network) {
+    const canvasPos = network.canvasToScreen(nodePos);
+    if (canvasPos.x < canvasWidth / 2) {
+      panel.style.left = '0px';
+      panel.style.right = 'auto';
+      panel.style.borderRadius = '0 12px 12px 0';
+    } else {
+      panel.style.right = '0px';
+      panel.style.left = 'auto';
+      panel.style.borderRadius = '12px 0 0 12px';
+    }
+  } else {
+    // 默认靠右
+    panel.style.right = '0px';
+    panel.style.left = 'auto';
+    panel.style.borderRadius = '12px 0 0 12px';
+  }
 }
 
-function closeDetail() { document.getElementById('detailPanel').classList.add('hidden'); }
+// 固定面板状态
+let detailPinned = false;
+function togglePinDetail() {
+  detailPinned = !detailPinned;
+  const btn = document.getElementById('pinDetailBtn');
+  if (detailPinned) {
+    btn.classList.add('text-amber-400');
+    btn.querySelector('span').style.transform = 'rotate(45deg)';
+  } else {
+    btn.classList.remove('text-amber-400');
+    btn.querySelector('span').style.transform = 'rotate(0deg)';
+  }
+}
+
+function closeDetail() {
+  if (!detailPinned) {
+    document.getElementById('detailPanel').classList.add('hidden');
+  }
+}
 function toggleRelationType(rtype, checked) { if (checked) hiddenRelTypes.delete(rtype); else hiddenRelTypes.add(rtype); renderGraph(); }
 function toggleEntityType(etype, checked) { if (checked) hiddenEntityTypes.delete(etype); else hiddenEntityTypes.add(etype); renderGraph(); }
 function zoomIn() { if (network) { const s = network.getScale(); network.moveTo({ scale: s * 1.3 }); } }
@@ -676,6 +1192,13 @@ function focusNode(nodeId) {
 
 const params = new URLSearchParams(location.search);
 loadGraph(parseInt(params.get('center')) || 0);
+
+// 点击图谱空白区域关闭面板（除非固定）
+document.getElementById('network')?.addEventListener('click', e => {
+  if (e.target.id === 'network' && !detailPinned) {
+    closeDetail();
+  }
+});
 </script>
 {% endif %}
 
@@ -770,12 +1293,66 @@ async function confirmDeleteEntity(id, name) {
 
 {% if tab == 'inference' %}
 <script>
+async function identifyThemes() {
+  const btn = document.getElementById('themeBtn');
+  const status = document.getElementById('themeStatus');
+  const resultsBox = document.getElementById('themeResults');
+  const days = document.getElementById('themeDays').value || 7;
+  const threshold = document.getElementById('themeThreshold').value || 0.6;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round animate-spin text-sm">refresh</span> 识别中...';
+  status.classList.remove('hidden');
+  resultsBox.classList.add('hidden');
+  status.textContent = '正在采集信号...';
+  try {
+    const resp = await fetch('/kg/api/identify-themes?days=' + days + '&confidence_threshold=' + threshold, { method: 'POST' });
+    const data = await resp.json();
+    const taskId = data.task_id;
+    const poll = setInterval(async () => {
+      const r = await fetch('/kg/api/task-status/' + taskId);
+      const t = await r.json();
+      status.textContent = t.progress || '处理中...';
+      if (t.status === 'done') {
+        clearInterval(poll);
+        const themes = t.result?.themes || [];
+        status.textContent = '识别完成！发现 ' + themes.length + ' 个投资主题';
+        status.className = 'mt-2 text-[10px] text-emerald-400';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">lightbulb</span>识别投资主题';
+        if (themes.length > 0) {
+          resultsBox.classList.remove('hidden');
+          resultsBox.innerHTML = themes.map(t =>
+            '<div class="flex items-center gap-2 py-1.5 border-b border-slate-800/50">' +
+              '<span class="w-2 h-2 rounded-full bg-amber-400"></span>' +
+              '<span class="text-xs font-bold text-white flex-1">' + t.theme_name + '</span>' +
+              '<span class="text-[10px] text-slate-500">' + (t.confidence * 100).toFixed(0) + '%</span>' +
+              '<span class="text-[10px] text-slate-600">' + t.signal_types.join(',') + '</span>' +
+            '</div>'
+          ).join('');
+        }
+        showToast('主题识别完成，发现 ' + themes.length + ' 个主题');
+      } else if (t.status === 'failed') {
+        clearInterval(poll);
+        status.textContent = '识别失败: ' + (t.result?.error || '未知错误');
+        status.className = 'mt-2 text-[10px] text-red-400';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">lightbulb</span>识别投资主题';
+      }
+    }, 2000);
+  } catch (e) {
+    status.textContent = '请求失败: ' + e.message;
+    status.className = 'mt-2 text-[10px] text-red-400';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-sm">lightbulb</span>识别投资主题';
+  }
+}
+
 async function updateKG() {
   const btn = document.getElementById('updateBtn');
   const status = document.getElementById('updateStatus');
   const useClaude = document.getElementById('useClaude').checked;
   btn.disabled = true;
-  btn.innerHTML = '<span class="material-icons-round animate-spin text-sm">refresh</span> 构建中...';
+  btn.innerHTML = '<span class="material-icons-round animate-spin text-sm">refresh</span> 提取中...';
   status.classList.remove('hidden');
   status.textContent = '正在提取实体和关系...';
   try {
@@ -791,22 +1368,22 @@ async function updateKG() {
         status.textContent = '构建完成！';
         status.className = 'mt-2 text-[10px] text-emerald-400';
         btn.disabled = false;
-        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
-        showToast('图谱构建完成');
+        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>提取实体关系';
+        showToast('实体关系提取完成');
         setTimeout(() => location.reload(), 2000);
       } else if (t.status === 'failed') {
         clearInterval(poll);
         status.textContent = '构建失败: ' + (t.result?.error || '未知错误');
         status.className = 'mt-2 text-[10px] text-red-400';
         btn.disabled = false;
-        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
+        btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>提取实体关系';
       }
     }, 2000);
   } catch (e) {
     status.textContent = '请求失败: ' + e.message;
     status.className = 'mt-2 text-[10px] text-red-400';
     btn.disabled = false;
-    btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>开始构建';
+    btn.innerHTML = '<span class="material-icons-round text-sm">hub</span>提取实体关系';
   }
 }
 
@@ -911,6 +1488,888 @@ function dismissInference(idx) {
   const card = document.getElementById('infer-' + idx);
   if (card) card.remove();
 }
+</script>
+{% endif %}
+
+{% if tab == 'inspect' %}
+<script>
+function setPhaseIcon(id, state) {
+  // state: pending | running | done | warn | error
+  const el = document.getElementById(id);
+  if (!el) return;
+  const map = {
+    pending: ['radio_button_unchecked', 'text-slate-500'],
+    running: ['refresh', 'text-violet-400 animate-spin'],
+    done:    ['check_circle', 'text-emerald-400'],
+    warn:    ['warning', 'text-amber-400'],
+    error:   ['error', 'text-red-400'],
+  };
+  const [icon, cls] = map[state] || map.pending;
+  el.textContent = icon;
+  el.className = `material-icons-round text-lg ${cls}`;
+}
+
+function fmtNum(n) {
+  return n == null ? '—' : n.toLocaleString();
+}
+
+function renderScanSummary(scan) {
+  const el = document.getElementById('schemaSummary');
+  const total = (scan.invalid_entity_types||0) + (scan.invalid_relation_types||0) + (scan.invalid_combinations||0);
+  const items = [
+    ['非法实体类型', scan.invalid_entity_types, 'text-red-400'],
+    ['非法关系类型', scan.invalid_relation_types, 'text-red-400'],
+    ['非法三元组组合', scan.invalid_combinations, 'text-amber-400'],
+    ['互斥冲突', scan.conflicting_relations, 'text-amber-400'],
+    ['名称过短', scan.invalid_entity_names, 'text-slate-400'],
+    ['related占比', (scan.related_ratio*100).toFixed(1)+'%', scan.related_ratio > 0.05 ? 'text-amber-400' : 'text-slate-400'],
+  ];
+  el.innerHTML = items.map(([label, val, cls]) =>
+    `<div class="bg-slate-800 rounded p-2 text-center">
+       <p class="text-xs text-slate-500">${label}</p>
+       <p class="text-sm font-bold ${cls}">${fmtNum(val)}</p>
+     </div>`
+  ).join('');
+  el.classList.remove('hidden');
+
+  // 详情列表
+  if (scan.details && scan.details.length > 0) {
+    const det = document.getElementById('schemaDetails');
+    det.innerHTML = `<p class="text-xs text-slate-500 mb-1">问题详情（前50条）：</p>` +
+      scan.details.map(d => `<p class="text-xs text-slate-400 py-0.5 border-b border-slate-800">${d}</p>`).join('');
+    if (scan.details_count > 50) {
+      det.innerHTML += `<p class="text-xs text-slate-500 mt-1">...共 ${scan.details_count} 条</p>`;
+    }
+    det.classList.remove('hidden');
+  }
+  return total;
+}
+
+async function runKgInspect(dryRun) {
+  const btn = document.getElementById('inspectBtn');
+  const dryBtn = document.getElementById('dryRunBtn');
+  btn.disabled = true; dryBtn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 巡检中...';
+
+  // 重置进度面板
+  document.getElementById('inspectProgress').classList.remove('hidden');
+  ['schemaIcon','cleanupIcon','crossIcon'].forEach(id => setPhaseIcon(id, 'pending'));
+  ['schemaStatus','cleanupStatus','crossStatus'].forEach(id => { document.getElementById(id).textContent = ''; });
+  ['schemaSummary','schemaDetails','cleanupSummary','crossBar','crossSummary'].forEach(id => {
+    document.getElementById(id).classList.add('hidden');
+  });
+
+  try {
+    const resp = await fetch(`/kg/api/kg-inspect?days=7&limit=20&dry_run=${dryRun}`, { method: 'POST' });
+    const data = await resp.json();
+    const taskId = data.task_id;
+    let lastPhase = '';
+
+    const poll = setInterval(async () => {
+      const r = await fetch(`/kg/api/kg-inspect/${taskId}`);
+      const t = await r.json();
+      const phase = t.phase || 'schema_validate';
+
+      // Phase 1: schema_validate
+      if (phase === 'schema_validate' || t.scan) {
+        setPhaseIcon('schemaIcon', t.scan ? 'done' : 'running');
+        document.getElementById('schemaStatus').textContent = t.scan ? '' : '扫描中...';
+        if (t.scan && lastPhase !== 'scan_done') {
+          lastPhase = 'scan_done';
+          const total = renderScanSummary(t.scan);
+          const state = total > 0 ? 'warn' : 'done';
+          setPhaseIcon('schemaIcon', state);
+          document.getElementById('schemaStatus').textContent = total > 0 ? `发现 ${total} 个问题` : '无问题';
+        }
+      }
+
+      // Phase 2: cleanup
+      if (phase === 'cleanup' || t.cleanup) {
+        setPhaseIcon('cleanupIcon', t.cleanup ? 'done' : 'running');
+        document.getElementById('cleanupStatus').textContent = t.cleanup ? '' : '清理中...';
+        if (t.cleanup && lastPhase !== 'cleanup_done') {
+          lastPhase = 'cleanup_done';
+          const c = t.cleanup;
+          const el = document.getElementById('cleanupSummary');
+          el.innerHTML = `<span class="text-xs text-slate-400">冲突关系 <span class="text-white font-bold">${fmtNum(c.conflicts_removed)}</span> 条，孤立实体 <span class="text-white font-bold">${fmtNum(c.orphans_removed)}</span> 个</span>`;
+          el.classList.remove('hidden');
+          document.getElementById('cleanupStatus').textContent = `已清理 ${(c.conflicts_removed||0)+(c.orphans_removed||0)} 项`;
+        }
+      }
+
+      // Phase 3: cross_complete
+      if (phase === 'cross_complete' || t.cross) {
+        setPhaseIcon('crossIcon', t.cross ? 'done' : 'running');
+        const bar = document.getElementById('crossBar');
+        bar.classList.remove('hidden');
+        const total = t.cross_total || 0;
+        const cur = t.cross_progress || 0;
+        const pct = total > 0 ? Math.round(cur / total * 100) : (t.cross ? 100 : 0);
+        document.getElementById('crossBarFill').style.width = pct + '%';
+        document.getElementById('crossBarLabel').textContent = total > 0 ? `${cur} / ${total} 条总结` : (t.cross ? '完成' : '处理中...');
+        document.getElementById('crossStatus').textContent = t.cross ? '' : t.phase_label || '';
+
+        if (t.cross && lastPhase !== 'cross_done') {
+          lastPhase = 'cross_done';
+          const x = t.cross;
+          const el = document.getElementById('crossSummary');
+          el.innerHTML = `<span class="text-xs text-slate-400">新增实体 <span class="text-white font-bold">${fmtNum(x.entities_added)}</span>，新增关系 <span class="text-white font-bold">${fmtNum(x.relationships_added)}</span></span>`;
+          el.classList.remove('hidden');
+          document.getElementById('crossBarFill').style.width = '100%';
+          document.getElementById('crossBarLabel').textContent = `已处理 ${x.processed} 条总结`;
+          document.getElementById('crossStatus').textContent = `+${x.entities_added}实体 +${x.relationships_added}关系`;
+        }
+      }
+
+      if (t.status !== 'running') {
+        clearInterval(poll);
+        btn.disabled = false; dryBtn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">play_arrow</span>运行巡检';
+        if (t.status === 'failed') {
+          setPhaseIcon(phase === 'schema_validate' ? 'schemaIcon' : phase === 'cleanup' ? 'cleanupIcon' : 'crossIcon', 'error');
+          showToast('巡检失败: ' + (t.result?.error || ''), 'error');
+        }
+        loadInspectInfo();
+      }
+    }, 1000);
+  } catch (e) {
+    btn.disabled = false; dryBtn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-sm">play_arrow</span>运行巡检';
+    showToast('请求失败: ' + e, 'error');
+  }
+}
+
+async function loadInspectInfo() {
+  try {
+    const d = await fetch('/kg/api/kg-inspect-info').then(r => r.json());
+    document.getElementById('kgEntityCount').textContent = d.entity_count || 0;
+    document.getElementById('kgRelCount').textContent = d.relationship_count || 0;
+    document.getElementById('kgLastInspect').textContent = d.last_inspect ? d.last_inspect.slice(0,19) : '从未';
+  } catch(e) {}
+}
+
+window.addEventListener('DOMContentLoaded', loadInspectInfo);
+
+// ── 深度语义校验 ──────────────────────────────────────────────────────────────
+
+const TYPE_LABELS = {
+  theme: '投资主题', intermediate: '半成品', consumer_good: '消费品',
+  commodity: '大宗商品', energy: '能源', strategy: '战略',
+  market: '市场', macro_indicator: '宏观指标', policy: '政策',
+  industry_chain: '产业链', industry: '行业', company: '公司',
+};
+
+const SEMANTIC_STORAGE_KEY = 'kg_semantic_task';
+
+function _renderSemanticTask(t, dryRun) {
+  document.getElementById('semanticProgress').classList.remove('hidden');
+  const pct = t.total_types > 0 ? Math.round(t.type_idx / t.total_types * 100) : 0;
+  document.getElementById('semanticBarFill').style.width = pct + '%';
+  document.getElementById('semanticOverall').textContent = `${t.type_idx} / ${t.total_types} 类型`;
+  document.getElementById('semanticBatchMsg').textContent = t.batch_msg || '';
+
+  const byTypeEl = document.getElementById('semanticByType');
+  byTypeEl.innerHTML = '';
+  for (const [etype, v] of Object.entries(t.by_type || {})) {
+    const label = TYPE_LABELS[etype] || etype;
+    const hasInvalid = v.invalid_count > 0;
+    const row = document.createElement('div');
+    row.className = 'p-3 bg-slate-800 rounded-lg';
+    row.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs font-semibold text-slate-300">${label} <span class="text-slate-500">(${etype})</span></span>
+        <span class="text-xs ${hasInvalid ? 'text-red-400' : 'text-emerald-400'}">
+          ${v.total} 个 → 发现 ${v.invalid_count} 个不符合${!dryRun ? `，已删除 ${v.deleted_count}` : ''}
+        </span>
+      </div>
+      ${hasInvalid ? `<div class="text-xs text-slate-500 mt-1 max-h-24 overflow-y-auto">
+        ${v.invalid_names.slice(0,10).map(n => `<span class="inline-block bg-red-900/40 text-red-300 rounded px-1 mr-1 mb-1">${n.name}${n.reason ? ` <span class="text-slate-500">(${n.reason})</span>` : ''}</span>`).join('')}
+        ${v.invalid_names.length > 10 ? `<span class="text-slate-600">...等${v.invalid_names.length}个</span>` : ''}
+      </div>` : ''}
+    `;
+    byTypeEl.appendChild(row);
+  }
+}
+
+function _startSemanticPoll(task_id, dryRun) {
+  const btn = document.getElementById('semanticBtn');
+  const dryBtn = document.getElementById('semanticDryBtn');
+  btn.disabled = true; dryBtn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 校验中...';
+  document.getElementById('semanticProgress').classList.remove('hidden');
+
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch(`/kg/api/kg-semantic-validate/${task_id}`);
+      const t = await r.json();
+      _renderSemanticTask(t, dryRun);
+
+      if (t.status !== 'running') {
+        clearInterval(poll);
+        localStorage.removeItem(SEMANTIC_STORAGE_KEY);
+        btn.disabled = false; dryBtn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-sm">psychology</span>全量校验（删除）';
+        document.getElementById('semanticBarFill').style.width = '100%';
+
+        if (t.status === 'done' && t.result) {
+          const s = document.getElementById('semanticSummary');
+          s.classList.remove('hidden');
+          document.getElementById('semanticSummaryContent').innerHTML = `
+            <p>共检查 <span class="text-white">${t.result.total_checked}</span> 个实体</p>
+            <p>发现不符合 <span class="text-red-400">${t.result.total_invalid}</span> 个</p>
+            ${!dryRun ? `<p>已删除 <span class="text-red-400">${t.result.total_deleted}</span> 个</p>` : '<p class="text-amber-400">预览模式，未实际删除</p>'}
+          `;
+          showToast(dryRun ? `预览完成，发现 ${t.result.total_invalid} 个不符合` : `校验完成，删除 ${t.result.total_deleted} 个`);
+          loadInspectInfo();
+        } else if (t.status === 'failed') {
+          showToast('语义校验失败: ' + (t.result?.error || ''), 'error');
+        }
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+async function runSemanticValidate(dryRun) {
+  document.getElementById('semanticByType').innerHTML = '';
+  document.getElementById('semanticSummary').classList.add('hidden');
+  document.getElementById('semanticBarFill').style.width = '0%';
+  document.getElementById('semanticOverall').textContent = '';
+  document.getElementById('semanticBatchMsg').textContent = '';
+
+  try {
+    const resp = await fetch(`/kg/api/kg-semantic-validate?dry_run=${dryRun}`, { method: 'POST' });
+    const { task_id } = await resp.json();
+    localStorage.setItem(SEMANTIC_STORAGE_KEY, JSON.stringify({ task_id, dryRun }));
+    _startSemanticPoll(task_id, dryRun);
+  } catch(e) {
+    showToast('请求失败: ' + e, 'error');
+  }
+}
+
+// 页面加载时自动恢复进行中的任务（查服务端，不依赖 localStorage）
+window.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const r = await fetch('/kg/api/kg-semantic-latest');
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.task_id) return;
+    const dryRun = d.dry_run || false;
+    if (d.status === 'running') {
+      showToast('检测到进行中的语义校验任务，自动恢复监控...');
+      _renderSemanticTask(d, dryRun);
+      _startSemanticPoll(d.task_id, dryRun);
+    } else if (d.status === 'done' && d.result) {
+      _renderSemanticTask(d, dryRun);
+      document.getElementById('semanticBarFill').style.width = '100%';
+      const s = document.getElementById('semanticSummary');
+      s.classList.remove('hidden');
+      document.getElementById('semanticSummaryContent').innerHTML = `
+        <p>共检查 <span class="text-white">${d.result.total_checked}</span> 个实体</p>
+        <p>发现不符合 <span class="text-red-400">${d.result.total_invalid}</span> 个</p>
+        ${!dryRun ? `<p>已删除 <span class="text-red-400">${d.result.total_deleted}</span> 个</p>` : '<p class="text-amber-400">预览模式，未实际删除</p>'}
+      `;
+    }
+  } catch(e) {}
+});
+</script>
+{% endif %}
+
+{% if tab == 'annotate' %}
+<script>
+// ── 审核工作台 JS ──────────────────────────────────────────────────────────────
+const CURRENT_USER_ROLE = '{{ current_user.role if current_user else "" }}';
+const ENTITY_COLORS = {{ entity_colors | tojson }};
+const RELATION_LABELS = {{ relation_labels | tojson }};
+
+function entityTypeBadge(etype) {
+  const cfg = ENTITY_COLORS[etype];
+  if (!cfg) return `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400">${escHtml(etype)}</span>`;
+  const bg = cfg.bg + '33'; // 20% opacity
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style="background:${bg};color:${cfg.bg}">${escHtml(cfg.label)}</span>`;
+}
+
+function relationTypeBadge(rtype) {
+  const cfg = RELATION_LABELS[rtype];
+  if (!cfg) return `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400">${escHtml(rtype)}</span>`;
+  const bg = cfg.color + '33';
+  return `<span class="text-[10px] px-1.5 py-0.5 rounded-full font-semibold" style="background:${bg};color:${cfg.color}">${escHtml(cfg.label)}</span>`;
+}
+
+// 分页状态
+let reviewPage = 0;
+const PAGE_SIZE = 50;
+let reviewTotal = 0;
+
+// 选中集合（批量操作）
+const selectedItems = new Set();  // "entity:123" | "relationship:456"
+
+// debounce timer
+let filterTimer = null;
+
+// ── 统计卡片 ──────────────────────────────────────────────────────────────────
+async function loadReviewStats() {
+  try {
+    const r = await fetch('/kg/api/review/stats');
+    const d = await r.json();
+    document.getElementById('statPending').textContent  = d.pending ?? '—';
+    document.getElementById('statApproved').textContent = d.approved ?? '—';
+    document.getElementById('statRejected').textContent = d.rejected ?? '—';
+    document.getElementById('statToday').textContent    = d.today_reviewed ?? '—';
+  } catch(e) {}
+}
+
+// ── 筛选 & 分页 ───────────────────────────────────────────────────────────────
+function getFilters() {
+  const targetType   = document.querySelector('input[name="filterTargetType"]:checked')?.value || 'all';
+  const status       = document.getElementById('filterStatus')?.value || 'all';
+  const entityType   = document.getElementById('filterEntityType')?.value || '';
+  const relationType = document.getElementById('filterRelationType')?.value || '';
+  const keyword      = document.getElementById('filterKeyword')?.value || '';
+  return { targetType, status, entityType, relationType, keyword };
+}
+
+function applyFilters() {
+  reviewPage = 0;
+  selectedItems.clear();
+  updateBatchPanel();
+  loadReviewQueue();
+}
+
+function debounceFilter() {
+  clearTimeout(filterTimer);
+  filterTimer = setTimeout(applyFilters, 400);
+}
+
+function changePage(delta) {
+  const maxPage = Math.max(0, Math.ceil(reviewTotal / PAGE_SIZE) - 1);
+  reviewPage = Math.min(maxPage, Math.max(0, reviewPage + delta));
+  loadReviewQueue();
+}
+
+// ── 审核列表 ──────────────────────────────────────────────────────────────────
+async function loadReviewQueue() {
+  const { targetType, status, entityType, relationType, keyword } = getFilters();
+  const container = document.getElementById('reviewList');
+  container.innerHTML = '<p class="text-sm text-slate-500">加载中...</p>';
+
+  try {
+    const params = new URLSearchParams({
+      target_type: targetType,
+      status,
+      entity_type: entityType,
+      relation_type: relationType,
+      keyword,
+      limit: PAGE_SIZE,
+      offset: reviewPage * PAGE_SIZE,
+    });
+    const r = await fetch(`/kg/api/review/queue?${params}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      container.innerHTML = `<p class="text-red-400 text-sm">请求失败 ${r.status}: ${err.detail || err.error || ''}</p>`;
+      return;
+    }
+    const d = await r.json();
+    reviewTotal = d.total || 0;
+
+    // 更新分页信息
+    const totalPages = Math.max(1, Math.ceil(reviewTotal / PAGE_SIZE));
+    document.getElementById('pageInfo').textContent = `第 ${reviewPage+1} / ${totalPages} 页（共 ${reviewTotal} 条）`;
+    const pager = document.getElementById('reviewPager');
+    pager.style.display = reviewTotal > PAGE_SIZE ? 'flex' : 'none';
+
+    if (!d.items || d.items.length === 0) {
+      container.innerHTML = '<p class="text-sm text-slate-500 py-8 text-center">暂无数据</p>';
+      return;
+    }
+
+    container.innerHTML = d.items.map(item => renderReviewCard(item)).join('');
+  } catch(e) {
+    container.innerHTML = `<p class="text-red-400 text-sm">加载失败: ${e}</p>`;
+  }
+}
+
+// ── 审核卡片渲染 ──────────────────────────────────────────────────────────────
+const STATUS_BADGE = {
+  unreviewed:       '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-700 text-slate-400">未审核</span>',
+  pending_approval: '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-900/60 text-amber-300">待审批</span>',
+  approved:         '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300">已通过</span>',
+  rejected:         '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-red-900/60 text-red-300">已驳回</span>',
+};
+
+function renderReviewCard(item) {
+  const isSA = CURRENT_USER_ROLE === 'super_admin';
+  const key = `${item.target_type}:${item.id}`;
+  const checked = selectedItems.has(key) ? 'checked' : '';
+  const statusBadge = STATUS_BADGE[item.review_status] || STATUS_BADGE.unreviewed;
+
+  let title = '';
+  let subtitle = '';
+  if (item.target_type === 'entity') {
+    title = escHtml(item.entity_name || '');
+    subtitle = entityTypeBadge(item.entity_type || '');
+  } else if (item.target_type === 'relationship') {
+    title = `${escHtml(item.src_name || '')} → ${escHtml(item.tgt_name || '')}`;
+    subtitle = relationTypeBadge(item.relation_type || '');
+  } else {
+    // triple_source
+    const src = escHtml((item.source_title || '').slice(0, 60));
+    title = `${escHtml(item.src_name || '')} —[${escHtml(item.relation_type||'')}]→ ${escHtml(item.tgt_name || '')}`;
+    subtitle = `<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-sky-900/50 text-sky-400">三元组佐证</span> ${relationTypeBadge(item.relation_type||'')} <span class="text-[10px] text-slate-500">${escHtml(item.source_type||'')} · ${src}</span>`;
+  }
+
+  const approveBtn = isSA
+    ? `<button onclick="quickAction(event,'approve','${item.target_type}',${item.id})"
+              class="text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-semibold">通过</button>
+       <button onclick="quickAction(event,'reject','${item.target_type}',${item.id})"
+              class="text-xs px-2 py-1 rounded bg-red-800 hover:bg-red-700 text-white font-semibold">驳回</button>`
+    : `<button onclick="quickMarkPending(event,'${item.target_type}',${item.id})"
+              class="text-xs px-2 py-1 rounded bg-sky-800 hover:bg-sky-700 text-white font-semibold"
+              ${item.review_status === 'pending_approval' ? 'disabled' : ''}>提交审核</button>`;
+
+  return `
+<div class="entity-row p-3 rounded-lg border border-slate-800 bg-[#161d2b] cursor-pointer"
+     id="reviewCard_${item.target_type}_${item.id}">
+  <div class="flex items-center gap-3">
+    ${isSA ? `<input type="checkbox" class="accent-sky-500 flex-shrink-0" ${checked}
+               onchange="toggleSelect('${item.target_type}',${item.id},this.checked)" onclick="event.stopPropagation()">` : ''}
+    <div class="flex-1 min-w-0" onclick="openDetail('${item.target_type}',${item.id})">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="text-sm font-semibold text-white truncate">${title}</span>
+        ${subtitle}
+        ${statusBadge}
+      </div>
+      ${item.review_note ? `<p class="text-[10px] text-slate-500 mt-0.5 truncate">备注: ${escHtml(item.review_note)}</p>` : ''}
+    </div>
+    <div class="flex items-center gap-1.5 flex-shrink-0">
+      ${approveBtn}
+      <button onclick="openDetail('${item.target_type}',${item.id})"
+              class="text-xs px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">详情</button>
+    </div>
+  </div>
+</div>`;
+}
+
+// ── 快速操作（不打开详情面板）────────────────────────────────────────────────
+async function quickAction(evt, action, targetType, targetId) {
+  evt.stopPropagation();
+  const note = '';
+  try {
+    const url = action === 'approve' ? '/kg/api/review/approve' : '/kg/api/review/reject';
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, note }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(action === 'approve' ? '已通过' : '已驳回');
+      loadReviewQueue();
+      loadReviewStats();
+    } else {
+      showToast('操作失败: ' + (d.error || ''), 'error');
+    }
+  } catch(e) { showToast('失败: ' + e, 'error'); }
+}
+
+async function quickMarkPending(evt, targetType, targetId) {
+  evt.stopPropagation();
+  try {
+    const r = await fetch('/kg/api/review/mark-pending', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_type: targetType, target_id: targetId, note: '' }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('已提交审核');
+      loadReviewQueue();
+      loadReviewStats();
+    } else {
+      showToast('操作失败: ' + (d.error || ''), 'error');
+    }
+  } catch(e) { showToast('失败: ' + e, 'error'); }
+}
+
+// ── 批量选择 ──────────────────────────────────────────────────────────────────
+function toggleSelect(targetType, targetId, checked) {
+  const key = `${targetType}:${targetId}`;
+  if (checked) selectedItems.add(key); else selectedItems.delete(key);
+  updateBatchPanel();
+}
+
+function updateBatchPanel() {
+  const panel = document.getElementById('batchPanel');
+  if (!panel) return;
+  const cnt = selectedItems.size;
+  document.getElementById('batchCount').textContent = cnt;
+  panel.style.display = cnt > 0 ? 'block' : 'none';
+}
+
+async function batchAction(action) {
+  if (selectedItems.size === 0) return;
+  const note = prompt(`批量${action === 'approve' ? '通过' : '驳回'}备注（可空）`) ?? '';
+  const items = Array.from(selectedItems).map(k => {
+    const [t, id] = k.split(':');
+    return { target_type: t, target_id: parseInt(id) };
+  });
+  try {
+    const r = await fetch('/kg/api/review/batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ items, action, note }),
+    });
+    const d = await r.json();
+    showToast(`批量完成: 成功 ${d.success}, 失败 ${d.failed}`);
+    selectedItems.clear();
+    updateBatchPanel();
+    loadReviewQueue();
+    loadReviewStats();
+  } catch(e) { showToast('批量操作失败: ' + e, 'error'); }
+}
+
+// ── 详情面板 ──────────────────────────────────────────────────────────────────
+let detailTargetType = null;
+let detailTargetId   = null;
+
+async function openDetail(targetType, targetId) {
+  detailTargetType = targetType;
+  detailTargetId   = targetId;
+  const panel   = document.getElementById('reviewDetailPanel');
+  const overlay = document.getElementById('detailOverlay');
+  document.getElementById('detailTitle').textContent = '加载中...';
+  document.getElementById('detailBody').innerHTML = '<p class="text-slate-400 text-sm">加载中...</p>';
+  panel.classList.remove('translate-x-full');
+  overlay.classList.remove('hidden');
+
+  try {
+    const r = await fetch(`/kg/api/review/detail/${targetType}/${targetId}`);
+    const d = await r.json();
+    renderDetail(d, targetType, targetId);
+  } catch(e) {
+    document.getElementById('detailBody').innerHTML = `<p class="text-red-400 text-sm">加载失败: ${e}</p>`;
+  }
+}
+
+function closeDetail() {
+  document.getElementById('reviewDetailPanel').classList.add('translate-x-full');
+  document.getElementById('detailOverlay').classList.add('hidden');
+}
+
+function renderDetail(d, targetType, targetId) {
+  const item = d.item || {};
+  const isSA = CURRENT_USER_ROLE === 'super_admin';
+  const statusBadge = STATUS_BADGE[item.review_status] || STATUS_BADGE.unreviewed;
+
+  document.getElementById('detailTitle').textContent =
+    targetType === 'entity' ? (item.entity_name || '实体详情') :
+    targetType === 'relationship' ? `关系 #${targetId}` :
+    `三元组佐证 #${targetId}`;
+
+  // 基础信息
+  let infoHtml = `<div class="mb-4 space-y-2">`;
+  if (targetType === 'entity') {
+    infoHtml += `
+      <div class="flex gap-2 items-center flex-wrap">
+        ${statusBadge}
+        ${entityTypeBadge(item.entity_type || '')}
+      </div>
+      <p class="text-white font-semibold">${escHtml(item.entity_name || '')}</p>
+      ${item.description ? `<p class="text-xs text-slate-400">${escHtml(item.description)}</p>` : ''}
+    `;
+  } else if (targetType === 'relationship') {
+    infoHtml += `
+      <div class="flex gap-2 items-center flex-wrap">${statusBadge} ${relationTypeBadge(item.relation_type || '')}</div>
+      <p class="text-sm text-white">
+        <span class="text-slate-300">${escHtml(item.src_name || '')}</span>
+        <span class="text-slate-400 mx-1">→</span>
+        <span class="text-slate-300">${escHtml(item.tgt_name || '')}</span>
+      </p>
+      <div class="text-xs text-slate-500 space-y-0.5">
+        <p>强度: ${item.strength ?? '—'} · 置信度: ${item.confidence ?? '—'} · 方向: ${item.direction ?? '—'}</p>
+        ${item.evidence ? `<p>佐证: ${escHtml(item.evidence.slice(0, 100))}</p>` : ''}
+      </div>
+    `;
+  } else {
+    // triple_source
+    infoHtml += `
+      <div class="flex gap-2 items-center flex-wrap">${statusBadge} <span class="text-[10px] text-sky-500">三元组佐证来源</span></div>
+      <p class="text-sm text-white mt-1">
+        <span class="text-slate-300">${escHtml(item.src_name || '')}</span>
+        <span class="text-amber-400 mx-1">—[${escHtml(item.relation_type || '')}]→</span>
+        <span class="text-slate-300">${escHtml(item.tgt_name || '')}</span>
+      </p>
+      <div class="mt-2 p-2 bg-slate-800 rounded text-xs text-slate-300 leading-relaxed">
+        ${escHtml(item.source_title || '（无标题）')}
+      </div>
+      <p class="text-[10px] text-slate-500 mt-1">来源类型: ${item.source_type || ''} · 来源ID: ${item.source_id || ''}</p>
+    `;
+  }
+  if (item.review_note) {
+    infoHtml += `<p class="text-xs text-amber-300">备注: ${escHtml(item.review_note)}</p>`;
+  }
+  infoHtml += `</div>`;
+
+  // 操作按钮
+  let actionsHtml = `<div class="flex flex-wrap gap-2 mb-4">`;
+  if (isSA) {
+    actionsHtml += `
+      <button onclick="detailAction('approve')" class="text-xs px-3 py-1.5 rounded bg-emerald-700 hover:bg-emerald-600 text-white font-semibold">通过</button>
+      <button onclick="detailAction('reject')" class="text-xs px-3 py-1.5 rounded bg-red-800 hover:bg-red-700 text-white font-semibold">驳回</button>
+      <button onclick="detailRevert()" class="text-xs px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">撤销至初始</button>
+    `;
+  } else {
+    actionsHtml += `
+      <button onclick="detailMarkPending()" class="text-xs px-3 py-1.5 rounded bg-sky-800 hover:bg-sky-700 text-white font-semibold"
+              ${item.review_status === 'pending_approval' ? 'disabled' : ''}>提交审核</button>
+    `;
+  }
+  // 编辑按钮（全角色）
+  if (targetType === 'entity') {
+    actionsHtml += `<button onclick="showEditEntityForm()" class="text-xs px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">编辑实体</button>`;
+  } else {
+    actionsHtml += `<button onclick="showEditRelForm()" class="text-xs px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-slate-300">编辑关系</button>`;
+  }
+  actionsHtml += `</div>`;
+
+  // 编辑表单（折叠）
+  let editFormHtml = `<div id="detailEditForm" class="hidden mb-4 p-3 bg-slate-800 rounded-lg space-y-2">`;
+  if (targetType === 'entity') {
+    editFormHtml += `
+      <p class="text-xs font-bold text-slate-400">编辑实体</p>
+      <input id="editEntityName" type="text" value="${escHtml(item.entity_name || '')}" placeholder="实体名"
+             class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+      <select id="editEntityType" class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+        ${['market','theme','industry','industry_chain','company','macro_indicator','commodity','energy','intermediate','consumer_good','policy','strategy'].map(t =>
+          `<option value="${t}" ${t === item.entity_type ? 'selected':''}>${t}</option>`
+        ).join('')}
+      </select>
+      <textarea id="editEntityDesc" rows="2" placeholder="描述（可选）"
+                class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">${escHtml(item.description || '')}</textarea>
+      <input id="editEntityNote" type="text" placeholder="修改备注" class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+      <button onclick="submitEditEntity(${targetId})" class="text-xs px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white font-semibold">保存（提交审核）</button>
+    `;
+  } else {
+    editFormHtml += `
+      <p class="text-xs font-bold text-slate-400">编辑关系</p>
+      <input id="editRelType" type="text" value="${escHtml(item.relation_type || '')}" placeholder="关系类型"
+             class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+      <input id="editRelStrength" type="number" step="0.1" min="0" max="1" value="${item.strength ?? 0.5}" placeholder="强度 0-1"
+             class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+      <input id="editRelNote" type="text" placeholder="修改备注" class="w-full bg-slate-700 text-white text-xs px-2 py-1.5 rounded border border-slate-600">
+      <button onclick="submitEditRel(${targetId})" class="text-xs px-3 py-1.5 rounded bg-sky-700 hover:bg-sky-600 text-white font-semibold">保存（提交审核）</button>
+    `;
+  }
+  editFormHtml += `</div>`;
+
+  // 关联 chunks
+  const chunks = d.chunks || [];
+  let chunksHtml = '';
+  if (chunks.length > 0) {
+    chunksHtml = `
+      <div class="mb-4">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">关联原文（${chunks.length} 条）</p>
+        <div class="space-y-2">
+          ${chunks.map(c => `
+            <div class="p-2 bg-slate-800 rounded text-xs text-slate-300 border border-slate-700">
+              <p class="text-[10px] text-slate-500 mb-1">[${c.doc_type || ''}][${(c.publish_time||'').slice(0,10)}] ${escHtml(c.source_doc_title||'')}</p>
+              <p>${escHtml((c.chunk_text||'').slice(0, 200))}</p>
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  // 关联关系（实体展开时显示）
+  const rels = d.relations || [];
+  let relsHtml = '';
+  if (rels.length > 0 && targetType === 'entity') {
+    relsHtml = `
+      <div class="mb-4">
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">关联关系（${rels.length} 条）</p>
+        <div class="space-y-1">
+          ${rels.slice(0,10).map(r => `
+            <div class="flex items-center gap-2 text-xs p-1.5 rounded bg-slate-800">
+              <span class="text-slate-300 truncate">${escHtml(r.src_name||'')} → ${escHtml(r.tgt_name||'')}</span>
+              ${relationTypeBadge(r.relation_type||'')}
+              ${STATUS_BADGE[r.review_status] || STATUS_BADGE.unreviewed}
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  // 审核历史
+  const logs = d.log || [];
+  let logsHtml = '';
+  if (logs.length > 0) {
+    logsHtml = `
+      <div>
+        <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">审核历史</p>
+        <div class="space-y-1.5">
+          ${logs.map(l => `
+            <div class="text-xs p-2 bg-slate-800 rounded border border-slate-700">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="font-semibold text-white">${escHtml(l.action||'')}</span>
+                <span class="text-slate-500">${(l.created_at||'').slice(0,16)}</span>
+                <span class="text-slate-500">用户 #${l.user_id} (${l.user_role||''})</span>
+              </div>
+              ${l.note ? `<p class="text-slate-400">${escHtml(l.note)}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>`;
+  }
+
+  document.getElementById('detailBody').innerHTML =
+    infoHtml + actionsHtml + editFormHtml + chunksHtml + relsHtml + logsHtml;
+}
+
+// 编辑表单展开/折叠
+function showEditEntityForm() {
+  document.getElementById('detailEditForm').classList.toggle('hidden');
+}
+function showEditRelForm() {
+  document.getElementById('detailEditForm').classList.toggle('hidden');
+}
+
+async function submitEditEntity(entityId) {
+  const newName = document.getElementById('editEntityName').value.trim();
+  const newType = document.getElementById('editEntityType').value;
+  const newDesc = document.getElementById('editEntityDesc').value.trim();
+  const note    = document.getElementById('editEntityNote').value.trim();
+  try {
+    const r = await fetch('/kg/api/review/edit-entity', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ entity_id: entityId, new_name: newName, new_type: newType, new_description: newDesc, note }),
+    });
+    const d = await r.json();
+    if (d.ok) { showToast('已保存，待审批'); openDetail('entity', entityId); loadReviewQueue(); loadReviewStats(); }
+    else showToast('保存失败: ' + (d.error||''), 'error');
+  } catch(e) { showToast('失败: '+e, 'error'); }
+}
+
+async function submitEditRel(relId) {
+  const newType     = document.getElementById('editRelType').value.trim();
+  const newStrength = parseFloat(document.getElementById('editRelStrength').value);
+  const note        = document.getElementById('editRelNote').value.trim();
+  try {
+    const r = await fetch('/kg/api/review/edit-relationship', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ rel_id: relId, new_relation_type: newType, new_strength: newStrength, note }),
+    });
+    const d = await r.json();
+    if (d.ok) { showToast('已保存，待审批'); openDetail('relationship', relId); loadReviewQueue(); loadReviewStats(); }
+    else showToast('保存失败: ' + (d.error||''), 'error');
+  } catch(e) { showToast('失败: '+e, 'error'); }
+}
+
+// ── 详情面板操作 ─────────────────────────────────────────────────────────────
+async function detailAction(action) {
+  const note = prompt(`${action === 'approve' ? '通过' : '驳回'}备注（可空）`) ?? '';
+  const url  = action === 'approve' ? '/kg/api/review/approve' : '/kg/api/review/reject';
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_type: detailTargetType, target_id: detailTargetId, note }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast(action === 'approve' ? '已通过' : '已驳回');
+      openDetail(detailTargetType, detailTargetId);
+      loadReviewQueue();
+      loadReviewStats();
+    } else {
+      showToast('操作失败: ' + (d.error||''), 'error');
+    }
+  } catch(e) { showToast('失败: '+e, 'error'); }
+}
+
+async function detailMarkPending() {
+  const note = '';
+  try {
+    const r = await fetch('/kg/api/review/mark-pending', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_type: detailTargetType, target_id: detailTargetId, note }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('已提交审核');
+      openDetail(detailTargetType, detailTargetId);
+      loadReviewQueue();
+      loadReviewStats();
+    }
+  } catch(e) { showToast('失败: '+e, 'error'); }
+}
+
+async function detailRevert() {
+  if (!confirm('确认撤销至初始状态（unreviewed）？')) return;
+  try {
+    const r = await fetch('/kg/api/review/revert', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ target_type: detailTargetType, target_id: detailTargetId }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('已撤销');
+      openDetail(detailTargetType, detailTargetId);
+      loadReviewQueue();
+      loadReviewStats();
+    } else {
+      showToast('撤销失败: ' + (d.error||''), 'error');
+    }
+  } catch(e) { showToast('失败: '+e, 'error'); }
+}
+
+// ── 工具 ──────────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── 规范字典折叠 & 打印 ────────────────────────────────────────────────────────
+function toggleSchemaDict() {
+  const body  = document.getElementById('schemaDictBody');
+  const arrow = document.getElementById('schemaDictArrow');
+  const hidden = body.classList.toggle('hidden');
+  arrow.textContent = hidden ? 'expand_more' : 'expand_less';
+}
+
+function printSchemaDict() {
+  const content = document.getElementById('schemaDictContent').innerHTML;
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="utf-8">
+    <title>KG 实体 & 关系规范字典</title>
+    <style>
+      body { font-family: 'Noto Sans SC', sans-serif; font-size: 12px; color: #1e293b; padding: 24px; max-width: 900px; margin: 0 auto; }
+      h3 { font-size: 14px; font-weight: 800; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 12px; margin-top: 24px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+      .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; background: #f8fafc; }
+      .badge { display: inline-block; padding: 1px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; }
+      .mono { font-family: monospace; font-size: 10px; color: #64748b; }
+      .layer { font-size: 10px; padding: 1px 6px; border-radius: 4px; background: #e2e8f0; color: #64748b; float: right; }
+      .desc { font-size: 11px; color: #374151; margin-top: 4px; line-height: 1.6; }
+      .rel-row { display: flex; gap: 8px; padding: 6px; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; margin-bottom: 6px; }
+      .rel-badge { flex-shrink: 0; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; height: fit-content; margin-top: 2px; }
+      .cat-title { font-size: 10px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.08em; margin: 12px 0 6px; }
+      @media print { body { padding: 12px; } }
+    </style>
+  </head><body>
+    <h1 style="font-size:18px;font-weight:800;margin-bottom:4px">知识图谱 — 实体 & 关系规范字典</h1>
+    <p style="font-size:11px;color:#64748b;margin-bottom:16px">打印日期: ${new Date().toLocaleDateString('zh-CN')}，供审核员参考使用</p>
+    ${content}
+    <script>window.onload=()=>window.print();<\/script>
+  </body></html>`);
+  win.document.close();
+}
+
+// ── 初始化 ────────────────────────────────────────────────────────────────────
+loadReviewStats();
+loadReviewQueue();
 </script>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,157 @@
+2026-03-01 13:07:35,053 [INFO] 取到 30 条 image/mixed 待提取
+/Users/liaoxia/Library/Python/3.9/lib/python/site-packages/urllib3/__init__.py:35: NotOpenSSLWarning: urllib3 v2 only supports OpenSSL 1.1.1+, currently the 'ssl' module is compiled with 'LibreSSL 2.8.3'. See: https://github.com/urllib3/urllib3/issues/3020
+  warnings.warn(
+[33mChecking connectivity to the model hosters, this may take a while. To bypass this check, set `PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK` to `True`.[0m
+2026-03-01 13:07:43,243 [INFO] Loading faiss.
+2026-03-01 13:07:43,266 [INFO] Successfully loaded faiss.
+/Users/liaoxia/Library/Python/3.9/lib/python/site-packages/paddle/utils/cpp_extension/extension_utils.py:712: UserWarning: No ccache found. Please be aware that recompiling all source files may be required. You can download and install ccache from: https://github.com/ccache/ccache/blob/master/doc/INSTALL.md
+  warnings.warn(warning_message)
+[32mCreating model: ('PP-LCNet_x1_0_doc_ori', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-LCNet_x1_0_doc_ori`.[0m
+[32mCreating model: ('PP-LCNet_x1_0_doc_ori', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-LCNet_x1_0_doc_ori`.[0m
+WARNING: Logging before InitGoogleLogging() is written to STDERR
+W0301 13:07:44.731566 1889218560 ir_context.cc:292]  type already registered.
+W0301 13:07:44.731601 1889218560 ir_context.cc:292]  type already registered.
+W0301 13:07:44.731606 1889218560 ir_context.cc:292]  type already registered.
+W0301 13:07:44.731611 1889218560 ir_context.cc:292]  type already registered.
+W0301 13:07:44.731613 1889218560 ir_context.cc:306] pd_kernel.phi_kernel op already registered.
+W0301 13:07:44.731617 1889218560 ir_context.cc:306] pd_kernel.legacy_kernel op already registered.
+W0301 13:07:44.731621 1889218560 ir_context.cc:240]  Attribute already registered.
+[32mCreating model: ('UVDoc', None)[0m
+[32mCreating model: ('UVDoc', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/UVDoc`.[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/UVDoc`.[0m
+[32mCreating model: ('PP-LCNet_x1_0_textline_ori', None)[0m
+[32mCreating model: ('PP-LCNet_x1_0_textline_ori', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-LCNet_x1_0_textline_ori`.[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-LCNet_x1_0_textline_ori`.[0m
+[32mCreating model: ('PP-OCRv5_server_det', None)[0m
+[32mCreating model: ('PP-OCRv5_server_det', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-OCRv5_server_det`.[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-OCRv5_server_det`.[0m
+[32mCreating model: ('PP-OCRv5_server_rec', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-OCRv5_server_rec`.[0m
+[32mCreating model: ('PP-OCRv5_server_rec', None)[0m
+[32mModel files already exist. Using cached files. To redownload, please delete the directory manually: `/Users/liaoxia/.paddlex/official_models/PP-OCRv5_server_rec`.[0m
+[33mResized image size (1280x4483) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:10:34,148 [WARNING] PaddleOCR 图片失败: HTTPSConnectionPool(host='images.zsxq.com', port=443): Read timed out. (read timeout=30)
+/Users/liaoxia/Library/Python/3.9/lib/python/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host '127.0.0.1'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+2026-03-01 13:11:25,732 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:11:39,772 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:12:39,771 [INFO] Retrying request to /chat/completions in 0.493569 seconds
+2026-03-01 13:12:40,703 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:12:50,064 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:12:50,630 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:13:24,527 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:13:30,943 [INFO] [S] 语义清洗完成 doc_id=4475117 type=mixed understand=False (5271→2465字, 2段)
+2026-03-01 13:13:31,137 [INFO]   id=4475117 mixed → success chars=2465
+/Users/liaoxia/Library/Python/3.9/lib/python/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host '127.0.0.1'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+2026-03-01 13:13:40,702 [INFO] Retrying request to /chat/completions in 0.903708 seconds
+2026-03-01 13:13:42,162 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:13:45,416 [INFO] Retrying request to /chat/completions in 0.417220 seconds
+2026-03-01 13:14:42,162 [WARNING] [S] 语义清洗第2/3段失败 doc_id=4475110: Request timed out.
+2026-03-01 13:14:42,540 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:14:48,780 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:14:49,182 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:14:50,726 [INFO] [S] 语义清洗结果过短，保留原文 doc_id=4475132
+2026-03-01 13:14:50,920 [INFO]   id=4475132 mixed → success chars=698
+2026-03-01 13:15:00,776 [INFO] [S] 语义清洗完成 doc_id=4475110 type=mixed understand=True (6424→6501字, 3段)
+2026-03-01 13:15:01,411 [INFO]   id=4475110 mixed → success chars=6501
+2026-03-01 13:15:02,491 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:15:06,809 [INFO] [S] 语义清洗完成 doc_id=4475139 type=mixed understand=True (224→178字, 1段)
+2026-03-01 13:15:07,484 [INFO]   id=4475139 mixed → success chars=178
+2026-03-01 13:15:07,683 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:15:12,238 [INFO] [S] 语义清洗完成 doc_id=4475145 type=mixed understand=True (253→227字, 1段)
+2026-03-01 13:15:12,483 [INFO]   id=4475145 mixed → success chars=227
+2026-03-01 13:15:50,089 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:15:53,045 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:16:06,391 [INFO] [S] 语义清洗完成 doc_id=4475148 type=mixed understand=True (911→1068字, 1段)
+2026-03-01 13:16:06,576 [INFO]   id=4475148 mixed → success chars=1068
+2026-03-01 13:16:08,359 [INFO] [S] 语义清洗完成 doc_id=4475147 type=mixed understand=True (777→873字, 1段)
+2026-03-01 13:16:08,603 [INFO]   id=4475147 mixed → success chars=873
+2026-03-01 13:16:23,191 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+[33mResized image size (1583x4514) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:19:07,614 [INFO] [S] 语义清洗完成 doc_id=4475169 type=mixed understand=True (333→391字, 1段)
+2026-03-01 13:19:07,779 [INFO]   id=4475169 mixed → success chars=391
+2026-03-01 13:19:40,511 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:19:45,212 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:19:55,750 [INFO] [S] 语义清洗完成 doc_id=4475177 type=mixed understand=True (593→543字, 1段)
+2026-03-01 13:19:55,962 [INFO]   id=4475177 mixed → success chars=543
+[33mResized image size (860x6327) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:20:14,820 [INFO] [S] 语义清洗完成 doc_id=4475154 type=mixed understand=True (4238→2348字, 1段)
+2026-03-01 13:20:16,776 [INFO]   id=4475154 mixed → success chars=2348
+2026-03-01 13:20:27,569 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:20:47,631 [INFO] [S] 语义清洗完成 doc_id=4475179 type=mixed understand=True (3145→1264字, 1段)
+2026-03-01 13:20:50,697 [INFO]   id=4475179 mixed → success chars=1264
+2026-03-01 13:20:51,244 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:21:15,380 [INFO] [S] 语义清洗完成 doc_id=4475181 type=mixed understand=True (877→1282字, 1段)
+2026-03-01 13:21:15,944 [INFO]   id=4475181 mixed → success chars=1282
+2026-03-01 13:22:10,314 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:22:12,018 [WARNING] PaddleOCR 图片失败: HTTPSConnectionPool(host='images.zsxq.com', port=443): Read timed out. (read timeout=30)
+/Users/liaoxia/Library/Python/3.9/lib/python/site-packages/urllib3/connectionpool.py:1097: InsecureRequestWarning: Unverified HTTPS request is being made to host '127.0.0.1'. Adding certificate verification is strongly advised. See: https://urllib3.readthedocs.io/en/latest/advanced-usage.html#tls-warnings
+  warnings.warn(
+2026-03-01 13:22:30,552 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:22:51,275 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:22:51,619 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:23:03,388 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:23:11,682 [INFO] [S] 语义清洗完成 doc_id=4475183 type=mixed understand=True (5149→4083字, 3段)
+2026-03-01 13:23:11,866 [INFO]   id=4475183 mixed → success chars=4083
+2026-03-01 13:23:19,345 [INFO] [S] 语义清洗完成 doc_id=4475184 type=mixed understand=False (2024→1552字, 1段)
+2026-03-01 13:23:20,119 [INFO]   id=4475184 mixed → success chars=1552
+2026-03-01 13:23:20,202 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:23:24,884 [INFO] [S] 语义清洗完成 doc_id=4475185 type=mixed understand=True (182→223字, 1段)
+2026-03-01 13:23:25,057 [INFO]   id=4475185 mixed → success chars=223
+2026-03-01 13:23:39,024 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:24:32,420 [INFO] [S] 语义清洗完成 doc_id=4475186 type=mixed understand=True (576→1010字, 1段)
+2026-03-01 13:24:32,683 [INFO]   id=4475186 mixed → success chars=1010
+2026-03-01 13:26:07,753 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:26:27,718 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:26:34,809 [INFO] [S] 语义清洗完成 doc_id=4475188 type=mixed understand=True (949→378字, 1段)
+2026-03-01 13:26:34,968 [INFO]   id=4475188 mixed → success chars=378
+2026-03-01 13:26:42,066 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:26:47,173 [INFO] [S] 语义清洗完成 doc_id=4475189 type=mixed understand=True (1747→2221字, 1段)
+2026-03-01 13:26:47,377 [INFO]   id=4475189 mixed → success chars=2221
+2026-03-01 13:27:02,261 [INFO] [S] 语义清洗完成 doc_id=4475194 type=mixed understand=True (1050→992字, 1段)
+2026-03-01 13:27:02,551 [INFO]   id=4475194 mixed → success chars=992
+2026-03-01 13:30:10,441 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:30:50,698 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:31:29,648 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:31:40,874 [INFO] [S] 语义清洗完成 doc_id=4475211 type=mixed understand=True (3566→3114字, 1段)
+2026-03-01 13:31:41,100 [INFO]   id=4475211 mixed → success chars=3114
+2026-03-01 13:31:53,945 [INFO] [S] 语义清洗完成 doc_id=4475202 type=mixed understand=True (6005→6511字, 2段)
+2026-03-01 13:31:54,156 [INFO]   id=4475202 mixed → success chars=6511
+2026-03-01 13:32:18,105 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:32:26,110 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:32:28,117 [INFO] [S] 语义清洗完成 doc_id=4475240 type=mixed understand=True (367→504字, 1段)
+2026-03-01 13:32:28,331 [INFO]   id=4475240 mixed → success chars=504
+2026-03-01 13:35:02,931 [INFO] [S] 语义清洗完成 doc_id=4475219 type=mixed understand=True (710→974字, 1段)
+2026-03-01 13:35:03,132 [INFO]   id=4475219 mixed → success chars=974
+2026-03-01 13:35:07,930 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+[33mResized image size (5120x2634) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:35:10,992 [INFO] [S] 语义清洗完成 doc_id=4475241 type=mixed understand=True (580→169字, 1段)
+2026-03-01 13:39:02,355 [INFO]   id=4475241 mixed → success chars=169
+[33mResized image size (4482x848) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:40:57,371 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:40:57,429 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:41:15,626 [INFO] [S] 语义清洗完成 doc_id=4475242 type=mixed understand=True (1259→1026字, 1段)
+2026-03-01 13:41:15,820 [INFO]   id=4475242 mixed → success chars=1026
+2026-03-01 13:43:29,469 [INFO] [S] 语义清洗完成 doc_id=4475246 type=mixed understand=True (2112→1831字, 1段)
+2026-03-01 13:43:29,679 [INFO]   id=4475246 mixed → success chars=1831
+2026-03-01 13:43:47,575 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:44:04,558 [INFO] [S] 语义清洗完成 doc_id=4475248 type=mixed understand=True (755→911字, 1段)
+2026-03-01 13:44:06,591 [INFO]   id=4475248 mixed → success chars=911
+2026-03-01 13:44:08,971 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+[33mResized image size (2717x5483) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 13:48:00,329 [INFO] [S] 语义清洗完成 doc_id=4475247 type=mixed understand=True (2874→3189字, 1段)
+2026-03-01 13:48:00,553 [INFO]   id=4475247 mixed → success chars=3189
+2026-03-01 13:48:09,823 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 13:48:22,538 [INFO] [S] 语义清洗完成 doc_id=4475300 type=mixed understand=True (809→687字, 1段)
+2026-03-01 13:48:24,735 [INFO]   id=4475300 mixed → success chars=687
+[33mResized image size (4172x6544) exceeds max_side_limit of 4000. Resizing to fit within limit.[0m
+2026-03-01 14:00:18,845 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 14:01:14,320 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 14:02:11,739 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 14:02:11,739 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"

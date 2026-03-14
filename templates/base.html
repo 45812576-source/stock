@@ -4,18 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}个人股票分析系统{% endblock %}</title>
-  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="/static/tailwind.min.js"></script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
-  <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+  <script src="https://cdn.bootcdn.net/ajax/libs/plotly.js/2.35.0/plotly.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
   <script>
     tailwind.config = {
       darkMode: 'class',
       theme: { extend: {
         colors: {
           primary: '#135bec',
-          surface: { DEFAULT: '#101622', card: '#161d2b', hover: '#1e2738' },
+          'background-dark': '#101622',
+          'card-dark': '#1a2233',
+          'border-dark': '#2d3748',
+          surface: { DEFAULT: '#101622', card: '#1a2233', hover: '#1e2738' },
         },
         fontFamily: { display: ['Manrope', 'sans-serif'] },
       }}
@@ -25,113 +32,294 @@
     body { font-family: 'Manrope', sans-serif; }
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #135bec33; border-radius: 10px; }
-    .glass-panel { background: rgba(22, 29, 43, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
-    .card { background: #161d2b; border: 1px solid rgba(100,116,139,0.2); border-radius: 12px; padding: 1.25rem; }
+    ::-webkit-scrollbar-thumb { background: #2d3748; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #135bec; }
+    .glass-panel { background: rgba(26, 34, 51, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.05); }
+    .card { background: #1a2233; border: 1px solid #2d3748; border-radius: 12px; }
     .card-hover:hover { border-color: #135bec; transition: border-color 0.2s; }
     .badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; }
-    .progress-bar { height: 8px; border-radius: 4px; background: rgba(100,116,139,0.2); overflow: hidden; }
+    .progress-bar { height: 6px; border-radius: 4px; background: rgba(100,116,139,0.2); overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 4px; transition: width 0.5s ease; }
-    .timeline-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
-    .left-border-card { border-left: 3px solid; padding-left: 12px; margin-bottom: 10px; }
-    .tab-active { border-bottom: 2px solid #135bec; color: #135bec; }
-    .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
-    .tab-inactive:hover { color: #94a3b8; }
     {% block extra_styles %}{% endblock %}
   </style>
 </head>
-<body class="bg-surface text-slate-100 min-h-screen font-display">
-  <div class="flex min-h-screen">
-    <!-- 侧边栏 (icon-only) -->
-    <aside class="fixed left-0 top-0 h-full w-20 flex flex-col items-center py-8 bg-surface-card border-r border-slate-800 z-50">
-      <div class="mb-10 text-primary">
-        <span class="material-icons-round text-4xl">insights</span>
+<body class="bg-background-dark text-slate-100 font-display">
+  <div class="flex h-screen overflow-hidden gap-3">
+    <!-- 侧边栏 -->
+    <aside class="w-48 border-r border-border-dark bg-card-dark flex flex-col flex-shrink-0">
+      <div class="p-4 flex items-center gap-2">
+        <div class="w-7 h-7 bg-primary rounded-lg flex items-center justify-center">
+          <span class="material-icons-round text-white text-xs">insights</span>
+        </div>
+        <h1 class="font-bold text-sm tracking-tight">StockAI <span class="text-primary">Pro</span></h1>
       </div>
-      <nav class="flex flex-col gap-8">
-        <a href="/overview" title="每日概览" class="{{ 'text-primary' if active_page == 'overview' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">dashboard</span>
-        </a>
-        <a href="/hotspot" title="热点研究" class="{{ 'text-primary' if active_page == 'hotspot' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">radar</span>
-        </a>
-        <a href="/market" title="市场总览" class="{{ 'text-primary' if active_page == 'market' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">show_chart</span>
-        </a>
-        <a href="/stock" title="个股研究" class="{{ 'text-primary' if active_page == 'stock' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">account_tree</span>
-        </a>
-        <a href="/data" title="数据管理" class="{{ 'text-primary' if active_page == 'data' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">auto_awesome</span>
-        </a>
-        <a href="/kg" title="知识图谱" class="{{ 'text-primary' if active_page == 'kg' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">hub</span>
-        </a>
-        <a href="/settings" title="系统设置" class="{{ 'text-primary' if active_page == 'settings' else 'text-slate-400 hover:text-primary' }} transition-colors">
-          <span class="material-icons-round">settings</span>
-        </a>
+      <nav class="flex-1 px-2 space-y-6 overflow-y-auto py-2">
+        <div>
+          <h3 class="px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Analysis</h3>
+          <ul class="space-y-0.5">
+            <li>
+              <a href="/overview" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'overview' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">dashboard</span><span>概览</span>
+              </a>
+            </li>
+            <li>
+              <a href="/hotspot" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'hotspot' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">explore</span><span>机会发现</span>
+              </a>
+            </li>
+            <li>
+              <a href="/portfolio" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'portfolio' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">science</span><span>实验室</span>
+              </a>
+            </li>
+            <li>
+              <a href="/robust-kline" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'robust_kline' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">candlestick_chart</span><span>Robust K</span>
+              </a>
+            </li>
+            <li>
+              <a href="/agent/" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'agent' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">smart_toy</span><span>AI助手</span>
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <h3 class="px-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Management</h3>
+          <ul class="space-y-0.5">
+            <li>
+              <a href="/data/cleaning" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'data' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">cleaning_services</span><span>数据</span>
+              </a>
+            </li>
+            <li>
+              <a href="/kg" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'kg' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">hub</span><span>图谱</span>
+              </a>
+            </li>
+            <li>
+              <a href="/settings" class="flex items-center gap-2 px-2 py-1.5 text-sm {{ 'bg-primary/10 text-primary font-medium' if active_page == 'settings' else 'text-slate-400 hover:bg-slate-800 hover:text-white' }} rounded-lg transition-colors">
+                <span class="material-icons-round text-[18px]">settings</span><span>设置</span>
+              </a>
+            </li>
+          </ul>
+        </div>
       </nav>
+      <!-- 研究任务进度（侧边栏内） -->
+      <div id="globalTaskWidget" class="px-2 hidden">
+        <div class="bg-slate-800/60 rounded-lg border border-border-dark overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1.5 cursor-pointer" onclick="toggleTaskList()">
+            <span class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+              <span class="material-icons-round text-xs text-primary">science</span>
+              研究任务
+              <span id="gtw-count" class="bg-primary/20 text-primary text-[9px] px-1 rounded-full font-bold"></span>
+            </span>
+            <span class="material-icons-round text-xs text-slate-600" id="gtw-toggle">expand_less</span>
+          </div>
+          <div id="gtw-list" class="max-h-40 overflow-y-auto"></div>
+        </div>
+      </div>
+      <!-- 数据任务进度（提取/清洗，侧边栏内） -->
+      <div id="dataTaskWidget" class="px-2 hidden">
+        <div class="bg-slate-800/60 rounded-lg border border-border-dark overflow-hidden">
+          <div class="flex items-center justify-between px-2.5 py-1.5 cursor-pointer" onclick="toggleDataTaskList()">
+            <span class="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+              <span class="material-icons-round text-xs text-amber-400">sync</span>
+              数据任务
+              <span id="dtw-count" class="bg-amber-400/20 text-amber-400 text-[9px] px-1 rounded-full font-bold"></span>
+            </span>
+            <span class="material-icons-round text-xs text-slate-600" id="dtw-toggle">expand_less</span>
+          </div>
+          <div id="dtw-list" class="max-h-40 overflow-y-auto"></div>
+        </div>
+      </div>
+      <div class="p-3 border-t border-border-dark">
+        <div class="bg-slate-800/50 rounded-lg p-2 flex items-center gap-2">
+          <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center border border-primary/40">
+            <span class="material-icons-round text-primary text-xs">person</span>
+          </div>
+          <div class="flex-1 overflow-hidden">
+            <p class="text-xs font-semibold truncate" id="sidebar-username">Analyst</p>
+            <p class="text-[10px] text-slate-500 truncate" id="sidebar-role">个人版</p>
+          </div>
+          <button onclick="logout()" class="mt-2 w-full flex items-center justify-center gap-1 py-1.5 text-xs text-slate-500 hover:text-red-400 hover:bg-slate-800 rounded-lg transition-colors">
+            <span class="material-icons-round text-sm">logout</span>
+            <span>退出</span>
+          </button>
+        </div>
+      </div>
     </aside>
 
     <!-- 主内容区 -->
-    <main class="ml-20 flex-1 overflow-y-auto p-8">
+    <main class="flex-1 overflow-y-auto bg-background-dark">
       {% block content %}{% endblock %}
     </main>
-  </div>
-
-  <!-- 全局研究任务浮窗 -->
-  <div id="globalTaskWidget" class="fixed bottom-4 left-24 z-40 hidden">
-    <div class="bg-surface-card border border-slate-700 rounded-xl shadow-2xl w-72 overflow-hidden">
-      <div class="flex items-center justify-between px-3 py-2 border-b border-slate-800 cursor-pointer" onclick="toggleTaskList()">
-        <span class="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-          <span class="material-icons-round text-sm text-primary">science</span>
-          研究任务
-          <span id="gtw-count" class="bg-primary/20 text-primary text-[10px] px-1.5 rounded-full font-bold">0</span>
-        </span>
-        <span class="material-icons-round text-sm text-slate-500" id="gtw-toggle">expand_less</span>
-      </div>
-      <div id="gtw-list" class="max-h-48 overflow-y-auto"></div>
-    </div>
   </div>
 
   {% block scripts %}{% endblock %}
 
   <script>
-  // 全局任务轮询
   let _gtwCollapsed = false;
   function toggleTaskList() {
     _gtwCollapsed = !_gtwCollapsed;
     document.getElementById('gtw-list').classList.toggle('hidden', _gtwCollapsed);
     document.getElementById('gtw-toggle').textContent = _gtwCollapsed ? 'expand_more' : 'expand_less';
   }
+
+  let _dtwCollapsed = false;
+  function toggleDataTaskList() {
+    _dtwCollapsed = !_dtwCollapsed;
+    document.getElementById('dtw-list').classList.toggle('hidden', _dtwCollapsed);
+    document.getElementById('dtw-toggle').textContent = _dtwCollapsed ? 'expand_more' : 'expand_less';
+  }
+
+  function _renderDataTask(t) {
+    const pct = t.progress || 0;
+    return `<div class="px-2.5 py-1.5 border-b border-border-dark/50 last:border-0">
+      <div class="flex items-center gap-1.5 mb-0.5">
+        <span class="material-icons-round text-[10px] text-amber-400 animate-spin">sync</span>
+        <span class="text-[10px] text-slate-300 font-bold truncate">${t.label}</span>
+        <span class="text-[9px] text-slate-600 ml-auto shrink-0">${pct}%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-1">
+        <div class="bg-amber-400 h-1 rounded-full transition-all duration-500" style="width:${pct}%"></div>
+      </div>
+      <div class="text-[9px] text-slate-600 mt-0.5 truncate">${t.current || ''}</div>
+    </div>`;
+  }
+
+  function _renderStockTask(t) {
+    const icon = t.status === 'done' ? 'check_circle' : t.status === 'error' ? 'error' : 'refresh';
+    const iconCls = t.status === 'done' ? 'text-emerald-400' : t.status === 'error' ? 'text-red-400' : 'text-primary animate-spin';
+    const barCls = t.status === 'done' ? 'bg-emerald-500' : t.status === 'error' ? 'bg-red-500' : 'bg-primary';
+    const detailUrl = '/stock/' + t.stock_code;
+    const reportUrl = t.research_id ? '/stock/' + t.stock_code + '/report/' + t.research_id : '';
+    const steps = t.completed_steps || [];
+    const stepLabels = {financial:'财务', valuation:'估值', technical:'技术', prediction:'预测', event:'情绪'};
+    const stepsHtml = steps.length ? '<div class="flex flex-wrap gap-0.5 mt-1">' + steps.map(s =>
+      '<span class="text-[8px] px-1 py-0.5 rounded bg-emerald-500/15 text-emerald-400">' + (stepLabels[s]||s) + '</span>'
+    ).join('') + '</div>' : '';
+    const reportBtnHtml = (t.status === 'done' && reportUrl)
+      ? '<a href="' + reportUrl + '" class="mt-1 flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9px] font-bold hover:bg-primary/25 transition">' +
+        '<span class="material-icons-round" style="font-size:10px">description</span>查看报告</a>'
+      : '';
+    return `<div class="px-2.5 py-1.5 border-b border-border-dark/50 last:border-0">
+      <div class="flex items-center gap-1.5 mb-0.5">
+        <span class="material-icons-round text-[10px] ${iconCls}">${icon}</span>
+        <span class="material-icons-round text-[10px] text-slate-600">search</span>
+        <a href="${detailUrl}" class="text-[10px] text-blue-400 hover:underline font-bold truncate">${t.stock_name || t.stock_code}</a>
+        <span class="text-[9px] text-slate-600 ml-auto shrink-0">${t.progress}%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-1">
+        <div class="${barCls} h-1 rounded-full transition-all duration-500" style="width:${t.progress}%"></div>
+      </div>
+      <div class="text-[9px] text-slate-600 mt-0.5 truncate">${t.message || ''}</div>
+      ${stepsHtml}${reportBtnHtml}
+    </div>`;
+  }
+
+  function _renderHotspotTask(t) {
+    const icon = t.status === 'done' ? 'check_circle' : t.status === 'error' ? 'error' : 'refresh';
+    const iconCls = t.status === 'done' ? 'text-emerald-400' : t.status === 'error' ? 'text-red-400' : 'text-primary animate-spin';
+    const barCls = t.status === 'done' ? 'bg-emerald-500' : t.status === 'error' ? 'bg-red-500' : 'bg-primary';
+    const detailUrl = '/hotspot/research/' + t.group_id;
+    const viewBtn = t.status === 'done'
+      ? '<a href="' + detailUrl + '" class="mt-1 flex items-center justify-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/15 text-primary text-[9px] font-bold hover:bg-primary/25 transition">' +
+        '<span class="material-icons-round" style="font-size:10px">biotech</span>查看研究</a>'
+      : '';
+    return `<div class="px-2.5 py-1.5 border-b border-border-dark/50 last:border-0">
+      <div class="flex items-center gap-1.5 mb-0.5">
+        <span class="material-icons-round text-[10px] ${iconCls}">${icon}</span>
+        <span class="material-icons-round text-[10px] text-orange-400">local_fire_department</span>
+        <a href="${detailUrl}" class="text-[10px] text-blue-400 hover:underline font-bold truncate">${t.group_name || '标签组'}</a>
+        <span class="text-[9px] text-slate-600 ml-auto shrink-0">${t.progress}%</span>
+      </div>
+      <div class="w-full bg-slate-800 rounded-full h-1">
+        <div class="${barCls} h-1 rounded-full transition-all duration-500" style="width:${t.progress}%"></div>
+      </div>
+      <div class="text-[9px] text-slate-600 mt-0.5 truncate">${t.message || ''}</div>
+      ${viewBtn}
+    </div>`;
+  }
+
   function _pollGlobalTasks() {
-    fetch('/stock/api/research-tasks').then(r => r.json()).then(tasks => {
+    Promise.all([
+      fetch('/stock/api/research-tasks').then(r => r.json()).catch(() => []),
+      fetch('/hotspot/api/research-tasks').then(r => r.json()).catch(() => []),
+      fetch('/data/api/active-tasks').then(r => r.json()).catch(() => []),
+    ]).then(([stockTasks, hotspotTasks, dataTasks]) => {
+      // 研究任务 widget
+      const allTasks = [...(stockTasks || []), ...(hotspotTasks || [])];
       const widget = document.getElementById('globalTaskWidget');
-      if (!tasks || tasks.length === 0) { widget.classList.add('hidden'); return; }
-      widget.classList.remove('hidden');
-      document.getElementById('gtw-count').textContent = tasks.filter(t => t.status === 'running').length || '';
-      const list = document.getElementById('gtw-list');
-      if (_gtwCollapsed) return;
-      list.innerHTML = tasks.map(t => {
-        const icon = t.status === 'done' ? 'check_circle' : t.status === 'error' ? 'error' : 'refresh';
-        const iconCls = t.status === 'done' ? 'text-emerald-400' : t.status === 'error' ? 'text-red-400' : 'text-primary animate-spin';
-        const barCls = t.status === 'done' ? 'bg-emerald-500' : t.status === 'error' ? 'bg-red-500' : 'bg-primary';
-        return `<div class="px-3 py-2 border-b border-slate-800/50 last:border-0">
-          <div class="flex items-center gap-2 mb-1">
-            <span class="material-icons-round text-xs ${iconCls}">${icon}</span>
-            <a href="/stock/${t.stock_code}" class="text-xs text-blue-400 hover:underline font-bold">${t.stock_code}</a>
-            <span class="text-xs text-slate-400">${t.stock_name}</span>
-            <span class="text-[10px] text-slate-600 ml-auto">${t.progress}%</span>
-          </div>
-          <div class="w-full bg-slate-800 rounded-full h-1">
-            <div class="${barCls} h-1 rounded-full transition-all duration-500" style="width:${t.progress}%"></div>
-          </div>
-          <div class="text-[10px] text-slate-600 mt-0.5 truncate">${t.message || ''}</div>
-        </div>`;
-      }).join('');
-    }).catch(function(){});
+      if (allTasks.length === 0) { widget.classList.add('hidden'); }
+      else {
+        widget.classList.remove('hidden');
+        const running = allTasks.filter(t => t.status === 'running').length;
+        document.getElementById('gtw-count').textContent = running || '';
+        const list = document.getElementById('gtw-list');
+        if (!_gtwCollapsed) {
+          let html = '';
+          (stockTasks || []).forEach(t => { html += _renderStockTask(t); });
+          (hotspotTasks || []).forEach(t => { html += _renderHotspotTask(t); });
+          list.innerHTML = html;
+        }
+      }
+      // 数据任务 widget
+      const dataWidget = document.getElementById('dataTaskWidget');
+      const dTasks = dataTasks || [];
+      if (dTasks.length === 0) { dataWidget.classList.add('hidden'); }
+      else {
+        dataWidget.classList.remove('hidden');
+        document.getElementById('dtw-count').textContent = dTasks.length || '';
+        if (!_dtwCollapsed) {
+          document.getElementById('dtw-list').innerHTML = dTasks.map(_renderDataTask).join('');
+        }
+      }
+    });
   }
   setInterval(_pollGlobalTasks, 3000);
   _pollGlobalTasks();
+
+  // 全局 toast 提示
+  // 加载用户信息
+  async function loadUserInfo() {
+    try {
+      const res = await fetch('/auth/me');
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('sidebar-username').textContent = data.username || '用户';
+        const roleNames = {'super_admin': '管理员', 'data_admin': '数据管理员', 'subscriber': '订阅用户', 'free_user': '免费用户'};
+        document.getElementById('sidebar-role').textContent = roleNames[data.role] || data.role;
+      }
+    } catch(e) {}
+  }
+  loadUserInfo();
+
+  // 退出登录
+  async function logout() {
+    try {
+      await fetch('/auth/logout', { method: 'POST' });
+    } catch(e) {}
+    window.location.href = '/auth/login';
+  }
+
+  function showToast(msg, isError) {
+    let el = document.getElementById('_globalToast');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = '_globalToast';
+      el.className = 'fixed top-4 right-4 z-50 px-4 py-2 rounded-lg text-sm font-bold shadow-xl transition-all duration-300 opacity-0 translate-y-[-8px]';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.background = isError ? '#7f1d1d' : '#1a2233';
+    el.style.borderColor = isError ? '#ef4444' : '#135bec';
+    el.style.border = '1px solid';
+    el.style.color = isError ? '#fca5a5' : '#93c5fd';
+    el.style.opacity = '1';
+    el.style.transform = 'translateY(0)';
+    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateY(-8px)'; }, 3000);
+  }
   </script>
 </body>
 </html>

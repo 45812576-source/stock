@@ -1,12 +1,41 @@
 {% extends "base.html" %}
-{% block title %}热点研究 — 个人股票分析系统{% endblock %}
+{% block title %}机会发现 — 个人股票分析系统{% endblock %}
+
+{% block extra_styles %}
+<style>
+#mentionMarquee:hover { --marquee-paused: 1; }
+.basket-card { background: #1a2233; border: 1px solid #2d3748; border-radius: 10px; padding: 8px 12px; cursor: pointer; flex-shrink: 0; min-width: 160px; max-width: 220px; display: inline-block; white-space: normal; vertical-align: top; }
+.basket-card:hover { border-color: #135bec; }
+</style>
+{% endblock %}
 
 {% block content %}
+<div class="p-6">
+<!-- 付费功能锁定提示 -->
+{% if access_denied %}
+<div class="mb-6 p-4 bg-gradient-to-r from-amber-500/10 to-primary/10 border border-amber-500/30 rounded-xl">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-amber-500/20 rounded-full flex items-center justify-center">
+        <span class="material-icons-round text-amber-400">lock</span>
+      </div>
+      <div>
+        <h3 class="text-sm font-semibold text-amber-400">热点发现功能仅对订阅用户开放</h3>
+        <p class="text-xs text-slate-400 mt-1">升级订阅后可解锁全部功能，包括 AI 标签组推荐、深度研究等</p>
+      </div>
+    </div>
+    <a href="/auth/subscription" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold">
+      立即升级
+    </a>
+  </div>
+</div>
+{% endif %}
+
 <!-- Header -->
 <header class="flex justify-between items-center mb-8">
   <div>
-    <nav class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">股票分析系统 / 情报</nav>
-    <h1 class="text-3xl font-extrabold tracking-tight">热点研究</h1>
+    <nav class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">股票分析系统 / 机会发现</nav>
+    <h1 class="text-3xl font-extrabold tracking-tight">机会发现</h1>
   </div>
   <div class="flex items-center gap-4">
     <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50">
@@ -33,83 +62,96 @@
         查询
       </button>
     </form>
-    <button hx-post="/hotspot/recommend?days={{ days }}{% if custom_range %}&start={{ start_date }}&end={{ end_date }}{% endif %}" hx-target="body" hx-swap="innerHTML"
+    <button id="recommend-btn"
+            {% if access_denied %}
+            disabled
+            onclick="alert('热点发现功能仅对订阅用户开放'); return false;"
+            class="bg-slate-600 text-slate-400 rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 cursor-not-allowed opacity-50"
+            {% else %}
+            hx-post="/hotspot/recommend?days={{ days }}{% if custom_range %}&start={{ start_date }}&end={{ end_date }}{% endif %}" hx-target="body" hx-swap="innerHTML"
             hx-indicator="#scraper-spin"
-            class="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 transition-all">
+            onclick="this.querySelector('#rec-label').textContent='AI 分析中，请耐心等待...'; this.disabled=true; this.classList.add('opacity-70','cursor-wait');"
+            class="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 transition-all"
+            {% endif %}
+>
       <span id="scraper-spin" class="material-icons-round text-sm htmx-indicator animate-spin">refresh</span>
-      AI 标签组推荐
+      <span id="rec-label">AI 投资主题挖掘</span>
     </button>
   </div>
 </header>
 
-<!-- Top Section: Hotspots + Chart -->
-<div class="grid grid-cols-12 gap-6 mb-8">
-  <!-- Top 10 Hotspots -->
-  <div class="col-span-4 bg-surface-card rounded-xl p-6 border border-slate-700/50">
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="font-bold flex items-center gap-2">
-        <span class="material-icons-round text-orange-500">trending_up</span>
-        热点 Top 10
-      </h2>
-      <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary uppercase">Live</span>
-    </div>
-    <div class="space-y-1">
-      {% if hotspots %}
-      {% for tag in hotspots %}
-      <div class="flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/30 cursor-pointer transition-colors border border-transparent hover:border-primary/20">
-        <div class="flex items-center gap-4">
-          <span class="text-xs font-bold text-slate-500 w-4">{{ '%02d'|format(tag.rank) }}</span>
-          <div>
-            <p class="text-sm font-bold">{{ tag.tag_name }}</p>
-            <p class="text-[10px] text-slate-500">动量: {{ tag.momentum }}</p>
-          </div>
-        </div>
-        <div class="text-right">
-          <span class="text-xs font-bold flex items-center gap-0.5 {{ 'text-emerald-500' if tag.total_freq > 3 else 'text-slate-500' }}">
-            {{ tag.total_freq }}次
-          </span>
-          {% if tag.tag_type %}
-          <span class="text-[10px] text-slate-600">{{ tag.tag_type }}</span>
-          {% endif %}
-        </div>
-      </div>
-      {% endfor %}
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-12">暂无标签数据，请先运行榜单生成</p>
-      {% endif %}
+<!-- 待研究池 -->
+<div class="mb-6" id="discovery-pool-section">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="material-icons-round text-violet-400 text-sm">inbox</span>
+    <h3 class="text-sm font-bold">待研究池</h3>
+    <span id="pool-count" class="text-[10px] text-slate-500"></span>
+  </div>
+  <div id="pool-container" class="flex flex-wrap gap-2 min-h-[48px]">
+    <div class="text-xs text-slate-600 py-3">加载中...</div>
+  </div>
+</div>
+
+<!-- stock_mentions 走马灯 -->
+<div class="mb-4">
+  <div class="flex items-center gap-2 mb-2">
+    <span class="material-icons-round text-amber-400 text-sm">trending_up</span>
+    <h3 class="text-sm font-bold">主题篮子</h3>
+    <span class="text-[10px] text-slate-500">近7日 stock_mentions 聚合</span>
+  </div>
+  <div class="relative overflow-hidden" style="height:100px;">
+    <div id="mentionMarquee" class="flex gap-3 absolute" style="width:max-content; flex-wrap:nowrap;">
+      <div class="text-xs text-slate-600 py-6">加载中...</div>
     </div>
   </div>
+</div>
 
-  <!-- Keyword Frequency Chart -->
-  <div class="col-span-8 bg-surface-card rounded-xl p-6 border border-slate-700/50 relative overflow-hidden">
-    <div class="flex justify-between items-center mb-6">
+<!-- Top Section: Heatmap Chart (full width) -->
+<div class="mb-8">
+  <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50 relative overflow-hidden">
+    <div class="flex justify-between items-center mb-4">
       <div>
-        <h2 class="font-bold flex items-center gap-2">综合热度趋势</h2>
-        <p class="text-xs text-slate-500">新闻提及×重要性加权 + 行业资金流入标准化 · Top 10</p>
+        <h2 class="font-bold flex items-center gap-2">
+          <span class="material-icons-round text-orange-500">trending_up</span>
+          综合热度趋势
+        </h2>
+        <p class="text-xs text-slate-500">新闻提及×重要性加权 + 行业资金流入标准化 · Top 20 · {{ start_date }} ~ {{ end_date }}</p>
       </div>
     </div>
-    <div id="freq-chart" style="height: 280px;"></div>
-    {% if chart_data %}
-    <div class="flex flex-wrap gap-4 mt-4 justify-center">
-      {% set colors = ['#135bec', '#f97316', '#818cf8', '#10b981', '#ef4444', '#06b6d4', '#a855f7', '#eab308', '#ec4899', '#64748b'] %}
-      {% for name in chart_data %}
-      <div class="flex items-center gap-1.5 text-[10px] font-bold">
-        <span class="w-2 h-2 rounded-full" style="background: {{ colors[loop.index0 % 10] }}"></span> {{ name }}
+    <div id="freq-chart" style="height: 560px;"></div>
+  </div>
+</div>
+
+<!-- 细分行业热度 -->
+<div class="mb-8" id="industry-heatmap-section">
+  <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50">
+    <div class="flex justify-between items-center mb-4">
+      <div>
+        <h2 class="font-bold flex items-center gap-2">
+          <span class="material-icons-round text-teal-400">view_comfy</span>
+          细分行业热度
+        </h2>
+        <p class="text-xs text-slate-500">细分行业 × 天 · chunk 出现次数 · 近 {{ days }} 天</p>
       </div>
-      {% endfor %}
+      <div id="industry-heatmap-loading" class="text-xs text-slate-500 flex items-center gap-1">
+        <span class="material-icons-round text-sm animate-spin">refresh</span> 加载中...
+      </div>
     </div>
-    {% endif %}
+    <div id="industry-heatmap-chart" style="height: 400px;"></div>
   </div>
 </div>
 
 <!-- Recommended Tag Clusters -->
 <div class="mb-10">
-  <h2 class="text-xl font-bold mb-6 flex items-center gap-2">
+  <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
     <span class="material-icons-round text-primary">auto_awesome</span>
-    标签组推荐
+    AI 投资主题挖掘
   </h2>
   {% if clusters %}
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+  {% if recommend_error %}
+  <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-400">{{ recommend_error }}</div>
+  {% endif %}
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {% set cluster_colors = ['#135bec', '#10b981', '#f97316', '#a855f7', '#ef4444', '#06b6d4'] %}
     {% for g in clusters %}
     <div class="bg-surface-card rounded-xl border border-slate-700/50 overflow-hidden hover:border-primary transition-all cursor-pointer group shadow-lg hover:shadow-primary/5">
@@ -117,10 +159,69 @@
       <div class="p-6">
         <h3 class="font-bold text-lg mb-2">{{ g.group_name }}</h3>
         {% if g.group_logic %}
-        <p class="text-xs text-slate-500 mb-4 line-clamp-2 italic">{{ g.group_logic[:80] }}...</p>
+        <p class="text-xs text-slate-500 mb-3 line-clamp-2 italic">{{ g.group_logic[:80] }}...</p>
+        {% endif %}
+        <!-- 宏观/行业利好标记 + 龙头信息 -->
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          {% if g.macro_positive %}
+          <span class="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 text-[10px] font-bold">宏观利好</span>
+          {% endif %}
+          {% if g.industry_positive %}
+          <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold">行业利好</span>
+          {% endif %}
+          {% if g.leader_stock %}
+          <span class="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 text-[10px] font-bold">
+            龙头: {{ g.leader_stock }}
+            {% if g.leader_net_inflow %}
+            ({{ '%.1f'|format(g.leader_net_inflow / 10000) }}万)
+            {% endif %}
+          </span>
+          {% endif %}
+          {% for ig in g.kg_stock_groups if ig.industry != '其他关联标的' %}
+          <span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-bold">{{ ig.industry }}</span>
+          {% endfor %}
+        </div>
+        {% if g.group_total_inflow or g.group_total_cap or g.daily_inflow %}
+        <div class="mb-3 px-2 py-2 rounded-lg bg-slate-800/60 border border-slate-700/30">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="text-[10px] text-slate-400">
+              7个交易日净流入
+              <span class="font-bold {{ 'text-red-400' if (g.group_total_inflow or 0) > 0 else 'text-emerald-400' }}">
+                {{ '%.2f'|format((g.group_total_inflow or 0) / 100000000) }}亿
+              </span>
+              {% if g.group_total_cap %}
+              <span class="text-slate-600 mx-0.5">/</span>
+              市值
+              <span class="font-bold text-slate-300">{{ '%.1f'|format((g.group_total_cap or 0) / 100000000) }}亿</span>
+              {% endif %}
+            </span>
+            <span class="text-[9px] text-slate-600">({{ g.group_stock_count or 0 }}股)</span>
+          </div>
+          {% if g.daily_inflow %}
+          <div class="daily-bar-wrap" style="display:flex;gap:2px;height:40px;position:relative;">
+            <!-- 中线 -->
+            <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(100,116,139,0.25);z-index:0;"></div>
+            {% for d in g.daily_inflow %}
+            {% set v = d.inflow / 100000000 %}
+            <div class="flex-1 flex flex-col items-center" style="position:relative;height:100%;" title="{{ d.date[-5:] }}  {{ '%.2f'|format(v) }}亿">
+              <div style="width:100%;min-width:4px;border-radius:2px;position:absolute;"
+                   class="{{ 'bg-red-500/70' if d.inflow >= 0 else 'bg-emerald-500/70' }}"
+                   data-val="{{ d.inflow }}" data-dir="{{ 'up' if d.inflow >= 0 else 'down' }}"></div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="flex gap-2 mt-0.5" style="padding-left:0;">
+            {% for d in g.daily_inflow %}
+            <div class="flex-1 text-center">
+              <span class="text-[7px] text-slate-600 leading-none">{{ d.date[-2:] }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+        </div>
         {% endif %}
         <div class="flex flex-wrap gap-2 mb-6">
-          {% for t in g.tags[:4] %}
+          {% for t in g.tags[:5] %}
           <span class="px-2 py-1 rounded-md bg-slate-700/50 text-[10px] font-bold">{{ t }}</span>
           {% endfor %}
         </div>
@@ -129,9 +230,6 @@
              class="flex-1 py-2 bg-slate-700/50 group-hover:bg-primary group-hover:text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2">
             进入研究层 <span class="material-icons-round text-sm">arrow_forward</span>
           </a>
-          <button onclick="saveToKG({{ g.id }}, this)" class="p-2 text-slate-600 hover:text-primary rounded-lg transition-colors" title="保存到知识图谱">
-            <span class="material-icons-round text-sm">hub</span>
-          </button>
           <form method="post" action="/hotspot/group/{{ g.id }}/delete" class="inline">
             <button type="submit" class="p-2 text-slate-600 hover:text-red-400 rounded-lg transition-colors" title="删除">
               <span class="material-icons-round text-sm">delete</span>
@@ -148,39 +246,32 @@
   {% else %}
   <div class="bg-surface-card rounded-xl border border-slate-700/50 p-12 text-center">
     <span class="material-icons-round text-4xl text-slate-700 mb-3">auto_awesome</span>
-    <p class="text-sm text-slate-500">暂无标签组，点击上方「AI 标签组推荐」生成</p>
+    <p class="text-sm text-slate-500">暂无标签组，点击上方「AI 投资主题挖掘」生成</p>
   </div>
   {% endif %}
+</div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-async function saveToKG(groupId, btn) {
-  btn.disabled = true;
-  btn.querySelector('.material-icons-round').textContent = 'hourglass_empty';
-  try {
-    const resp = await fetch('/hotspot/api/save-to-kg', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({group_id: groupId}),
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      btn.querySelector('.material-icons-round').textContent = 'check_circle';
-      btn.classList.remove('text-slate-600', 'hover:text-primary');
-      btn.classList.add('text-emerald-400');
-      showToast(data.message || '已保存到知识图谱');
+// ── 迷你柱状图：流入朝上、流出朝下，以中线为基准 ──
+document.querySelectorAll('.daily-bar-wrap').forEach(wrap => {
+  const bars = wrap.querySelectorAll('[data-val]');
+  const vals = Array.from(bars).map(b => Math.abs(parseFloat(b.dataset.val) || 0));
+  const maxVal = Math.max(...vals, 1);
+  const halfH = 18; // 中线上/下各 18px
+  bars.forEach(b => {
+    const v = Math.abs(parseFloat(b.dataset.val) || 0);
+    const h = Math.max(v / maxVal * halfH, 2);
+    b.style.height = h + 'px';
+    if (b.dataset.dir === 'up') {
+      b.style.bottom = '50%';
     } else {
-      btn.querySelector('.material-icons-round').textContent = 'hub';
-      showToast(data.error || '保存失败', true);
+      b.style.top = '50%';
     }
-  } catch (e) {
-    btn.querySelector('.material-icons-round').textContent = 'hub';
-    showToast('请求失败: ' + e.message, true);
-  }
-  btn.disabled = false;
-}
+  });
+});
 
 function showToast(msg, isError) {
   const t = document.createElement('div');
@@ -191,40 +282,311 @@ function showToast(msg, isError) {
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 500); }, 3000);
 }
 
-{% if chart_data %}
+{% if chart_data and chart_data.tags %}
   var chartData = {{ chart_data | tojson }};
-  var traces = [];
-  var colors = [
-    '#135bec', '#f97316', '#818cf8', '#10b981', '#ef4444',
-    '#06b6d4', '#a855f7', '#eab308', '#ec4899', '#64748b'
-  ];
-  var i = 0;
-  for (var name in chartData) {
-    var series = chartData[name];
-    traces.push({
-      x: series.map(d => d.date),
-      y: series.map(d => d.heat),
-      name: name,
-      type: 'scatter',
-      mode: 'lines',
-      fill: 'tozeroy',
-      line: { color: colors[i % 10], width: 1.5, shape: 'spline' },
-      fillcolor: colors[i % 10] + '18',
-      hovertemplate: '<b>%{fullData.name}</b><br>热度: %{y}<br>日期: %{x}<extra></extra>',
-    });
-    i++;
+  var dates = chartData.dates || [];
+  var tags = chartData.tags || [];
+  var heatMap = chartData.heat_map || {};
+
+  // Y轴：标签（从下到上，所以反转让排名靠前的在上面）
+  var yLabels = tags.slice().reverse();
+
+  // 日热度矩阵（不含合计）
+  var zDaily = [];
+  var hoverDaily = [];
+  // 合计列单独矩阵
+  var zTotal = [];
+  var hoverTotal = [];
+
+  for (var yi = 0; yi < yLabels.length; yi++) {
+    var tag = yLabels[yi];
+    var tagData = heatMap[tag] || {};
+    var daily = tagData.daily || {};
+    var row = [];
+    var textRow = [];
+    for (var xi = 0; xi < dates.length; xi++) {
+      var val = daily[dates[xi]] || 0;
+      row.push(val);
+      textRow.push(tag + '<br>' + dates[xi] + '<br>热度: ' + val);
+    }
+    zDaily.push(row);
+    hoverDaily.push(textRow);
+
+    zTotal.push([tagData.total || 0]);
+    hoverTotal.push([tag + '<br>合计: ' + (tagData.total || 0)]);
   }
-  Plotly.newPlot('freq-chart', traces, {
-    margin: { t: 10, b: 30, l: 40, r: 10 },
+
+  // 日热度 trace — 颜色只由单日值决定
+  var traceDaily = {
+    z: zDaily,
+    x: dates.map(d => d.slice(5)),
+    y: yLabels,
+    type: 'heatmap',
+    xaxis: 'x',
+    colorscale: [
+      [0, '#1a2233'],
+      [0.01, '#1e3a5f'],
+      [0.15, '#135bec44'],
+      [0.4, '#135bec'],
+      [0.7, '#f97316'],
+      [1, '#ef4444']
+    ],
+    hoverinfo: 'text',
+    text: hoverDaily,
+    showscale: true,
+    colorbar: {
+      title: { text: '热度', font: { size: 10, color: '#94a3b8' } },
+      thickness: 12,
+      len: 0.5,
+      tickfont: { size: 9, color: '#64748b' },
+      x: 1.02,
+    },
+  };
+
+  // 合计列 trace — 独立色阶
+  var traceTotal = {
+    z: zTotal,
+    x: ['合计'],
+    y: yLabels,
+    type: 'heatmap',
+    xaxis: 'x2',
+    colorscale: [
+      [0, '#1a2233'],
+      [0.3, '#135bec'],
+      [0.7, '#f97316'],
+      [1, '#ef4444']
+    ],
+    hoverinfo: 'text',
+    text: hoverTotal,
+    showscale: false,
+  };
+
+  Plotly.newPlot('freq-chart', [traceDaily, traceTotal], {
+    margin: { t: 10, b: 40, l: 100, r: 60 },
     paper_bgcolor: 'rgba(0,0,0,0)',
     plot_bgcolor: 'rgba(0,0,0,0)',
     font: { color: '#94a3b8', size: 10 },
-    xaxis: { gridcolor: 'rgba(100,116,139,0.1)' },
-    yaxis: { gridcolor: 'rgba(100,116,139,0.1)', title: { text: '综合热度', font: { size: 10 } } },
-    legend: { orientation: 'h', y: -0.2, font: { size: 9 }, bgcolor: 'rgba(0,0,0,0)' },
-    showlegend: true,
-    hovermode: 'x unified',
+    xaxis: {
+      type: 'category',
+      side: 'bottom',
+      tickangle: -45,
+      tickfont: { size: 9 },
+      gridcolor: 'rgba(100,116,139,0.08)',
+      domain: [0, 0.88],
+    },
+    xaxis2: {
+      type: 'category',
+      side: 'bottom',
+      tickfont: { size: 9 },
+      gridcolor: 'rgba(100,116,139,0.08)',
+      domain: [0.90, 1],
+      anchor: 'y',
+    },
+    yaxis: {
+      tickfont: { size: 10 },
+      gridcolor: 'rgba(100,116,139,0.08)',
+      automargin: true,
+    },
   }, { displayModeBar: false, responsive: true });
+
+  // 点击热力图单元格 → 高亮该标签行
+  document.getElementById('freq-chart').on('plotly_click', function(data) {
+    if (data.points && data.points[0]) {
+      var clickedTag = data.points[0].y;
+      showToast('标签: ' + clickedTag + ' — 热度: ' + data.points[0].z);
+    }
+  });
 {% endif %}
+// ── 走马灯 ────────────────────────────────────────────────────
+async function loadMentionBaskets() {
+  try {
+    // 优先用向量聚类新 API，降级到旧 API
+    let data = [];
+    try {
+      data = await fetch('/hotspot/api/stock-baskets?days=3').then(r => r.json());
+    } catch(e) {}
+    if (!data || !data.length) {
+      data = await fetch('/hotspot/api/mention-baskets?days=30').then(r => r.json());
+    }
+    if (!data || !data.length) return;
+    const container = document.getElementById('mentionMarquee');
+    const renderCard = (b) => {
+      const stocks = (b.stocks || []).slice(0, 4).map(s =>
+        `<a href="/stock/${s.stock_code}" class="text-primary hover:underline text-[10px]" onclick="event.stopPropagation()">${s.stock_name || s.stock_code}</a>`
+      ).join(' · ');
+      const logic = b.group_logic || b.investment_logic || '';
+      const stockCount = (b.stocks || []).length;
+      const chunkCount = b.chunk_count || 0;
+      const badge = (stockCount || chunkCount)
+        ? `<span class="text-[9px] text-slate-500">${stockCount ? stockCount + '股' : ''}${stockCount && chunkCount ? ' · ' : ''}${chunkCount ? chunkCount + '篇' : ''}</span>`
+        : '';
+      return `<div class="basket-card" title="${b.theme || ''}">
+        <div class="flex items-center justify-between mb-1">
+          <div class="text-xs font-bold text-white truncate">${b.theme || ''}</div>
+          ${badge}
+        </div>
+        <div class="text-[10px] text-slate-400 mb-1">${stocks}</div>
+        ${logic ? `<div class="text-[9px] text-slate-500 italic line-clamp-1">${logic}</div>` : ''}
+        <div class="text-[9px] text-slate-600 mt-0.5">${b.mention_count || 0}次提及</div>
+      </div>`;
+    };
+    // 双份内容实现无缝循环
+    const html = data.map(renderCard).join('') + data.map(renderCard).join('');
+    container.innerHTML = html;
+    // rAF 手动滚动，不依赖 CSS animation
+    const half = container.scrollWidth / 2;
+    let x = 0;
+    let paused = false;
+    container.parentElement.addEventListener('mouseenter', () => paused = true);
+    container.parentElement.addEventListener('mouseleave', () => paused = false);
+    function tick() {
+      if (!paused) {
+        x -= 0.5;
+        if (x <= -half) x = 0;
+        container.style.transform = `translateX(${x}px)`;
+      }
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  } catch(e) { console.error('走马灯加载失败:', e); }
+}
+loadMentionBaskets();
+
+// ── 待研究池 ──────────────────────────────────────────────────
+function _escHtml(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+async function loadDiscoveryPool() {
+  try {
+    const data = await fetch('/hotspot/api/pool').then(r => r.json());
+    const container = document.getElementById('pool-container');
+    const countEl = document.getElementById('pool-count');
+    if (!data.length) {
+      container.innerHTML = '<div class="text-xs text-slate-600 py-3">暂无内容，在情报页点击「收藏到机会发现」添加</div>';
+      countEl.textContent = '';
+      return;
+    }
+    countEl.textContent = data.length + ' 条';
+    container.innerHTML = data.map(item => {
+      const snap = item.snapshot || {};
+      const title = item.title || snap.summary || '(无标题)';
+      const sub = snap.fact || snap.opinion || '';
+      const date = item.added_at || '';
+      const icon = item.item_type === 'stock' ? 'candlestick_chart' : 'article';
+      return `<div class="pool-card relative bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2 max-w-[260px] hover:border-violet-500/50 transition-colors" data-pool-id="${item.id}">
+        <button onclick="removeFromPool(${item.id}, this)" class="absolute top-1 right-1 text-slate-600 hover:text-red-400 transition-colors" title="移除">
+          <span class="material-icons-round text-xs">close</span>
+        </button>
+        <div class="flex items-start gap-1.5 pr-4">
+          <span class="material-icons-round text-violet-400 text-sm flex-shrink-0 mt-0.5">${icon}</span>
+          <div>
+            <p class="text-[11px] text-slate-200 leading-snug line-clamp-2">${_escHtml(title)}</p>
+            ${sub ? `<p class="text-[10px] text-slate-500 mt-0.5 line-clamp-1">${_escHtml(sub)}</p>` : ''}
+            <span class="text-[9px] text-slate-600">${date}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { console.error('待研究池加载失败:', e); }
+}
+
+async function removeFromPool(poolId, btn) {
+  try {
+    await fetch('/hotspot/api/pool/' + poolId, { method: 'DELETE' });
+    const card = btn.closest('[data-pool-id]');
+    if (card) card.remove();
+    const remaining = document.querySelectorAll('#pool-container [data-pool-id]').length;
+    document.getElementById('pool-count').textContent = remaining ? remaining + ' 条' : '';
+    if (!remaining) {
+      document.getElementById('pool-container').innerHTML = '<div class="text-xs text-slate-600 py-3">暂无内容，在情报页点击「收藏到机会发现」添加</div>';
+    }
+  } catch(e) { console.error('移除失败:', e); }
+}
+
+loadDiscoveryPool();
+
+// ── 细分行业热力图 ─────────────────────────────────────────────
+async function loadIndustryHeatmap() {
+  const loadingEl = document.getElementById('industry-heatmap-loading');
+  try {
+    const data = await fetch('/hotspot/api/industry-chunk-heatmap?days={{ days }}').then(r => r.json());
+    if (loadingEl) loadingEl.style.display = 'none';
+    const industries = data.industries || [];
+    const dates = data.dates || [];
+    if (!industries.length || !dates.length) {
+      document.getElementById('industry-heatmap-chart').innerHTML =
+        '<p class="text-xs text-slate-600 py-8 text-center">暂无细分行业数据</p>';
+      return;
+    }
+
+    // 颜色：按 ai_direction 区分基础色调
+    const dirColor = { positive: '#ef4444', negative: '#10b981', neutral: '#135bec' };
+
+    // 构建 heatmap z 矩阵（Y=行业，X=日期）
+    const yLabels = industries.map(ind => ind.name).reverse();
+    const zMatrix = [];
+    const hoverMatrix = [];
+
+    for (let yi = industries.length - 1; yi >= 0; yi--) {
+      const ind = industries[yi];
+      const row = [], hoverRow = [];
+      for (const d of dates) {
+        const cnt = (ind.daily || {})[d] || 0;
+        row.push(cnt);
+        hoverRow.push(`${ind.name}<br>${d}<br>chunk数: ${cnt}`);
+      }
+      zMatrix.push(row);
+      hoverMatrix.push(hoverRow);
+    }
+
+    const traceHeatmap = {
+      z: zMatrix,
+      x: dates.map(d => d.slice(5)),
+      y: yLabels,
+      type: 'heatmap',
+      colorscale: [
+        [0, '#1a2233'],
+        [0.01, '#1e3a5f'],
+        [0.2, '#135bec44'],
+        [0.5, '#135bec'],
+        [0.8, '#f97316'],
+        [1, '#ef4444']
+      ],
+      hoverinfo: 'text',
+      text: hoverMatrix,
+      showscale: true,
+      colorbar: {
+        title: { text: 'chunk数', font: { size: 10, color: '#94a3b8' } },
+        thickness: 10,
+        len: 0.5,
+        tickfont: { size: 9, color: '#64748b' },
+        x: 1.01,
+      },
+    };
+
+    const chartH = Math.max(300, Math.min(industries.length * 22 + 60, 600));
+    Plotly.newPlot('industry-heatmap-chart', [traceHeatmap], {
+      margin: { t: 10, b: 40, l: 120, r: 60 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#94a3b8', size: 10 },
+      xaxis: {
+        type: 'category',
+        side: 'bottom',
+        tickangle: -45,
+        tickfont: { size: 9 },
+        gridcolor: 'rgba(100,116,139,0.08)',
+      },
+      yaxis: {
+        tickfont: { size: 10 },
+        gridcolor: 'rgba(100,116,139,0.08)',
+        automargin: true,
+      },
+      height: chartH,
+    }, { displayModeBar: false, responsive: true });
+  } catch(e) {
+    if (loadingEl) loadingEl.innerHTML = '<span class="text-red-400">加载失败</span>';
+    console.error('行业热力图加载失败:', e);
+  }
+}
+loadIndustryHeatmap();
 </script>
 {% endblock %}

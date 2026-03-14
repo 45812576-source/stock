@@ -71,23 +71,29 @@ def main():
     total_errors = 0
 
     while True:
-        # 查找还没有 text_chunks 的 extracted_texts
+        # 先从本地获取已处理的 extracted_text_id 集合
+        done_rows = execute_query(
+            "SELECT DISTINCT extracted_text_id FROM text_chunks WHERE extracted_text_id > %s",
+            [last_id],
+        )
+        done_ids = {r["extracted_text_id"] for r in (done_rows or [])}
+
+        # 从云端查 extracted_texts（不含子查询，避免跨库）
         rows = execute_cloud_query(
             """SELECT et.id, et.full_text, et.publish_time,
-                      sd.file_type, sd.title
+                      sd.file_type, sd.title, sd.doc_type
                FROM extracted_texts et
                LEFT JOIN source_documents sd ON et.source_doc_id = sd.id
                WHERE et.id > %s
                  AND et.full_text IS NOT NULL
                  AND et.full_text != ''
-                 AND et.id NOT IN (
-                   SELECT DISTINCT extracted_text_id FROM text_chunks
-                   WHERE extracted_text_id > %s
-                 )
                ORDER BY et.id
                LIMIT %s""",
-            [last_id, last_id, args.batch],
+            [last_id, args.batch * 2],
         )
+        # 过滤掉已处理的
+        rows = [r for r in (rows or []) if r["id"] not in done_ids]
+        rows = rows[:args.batch]
 
         if not rows:
             logger.info("没有更多待处理记录")
@@ -104,6 +110,7 @@ def main():
                 n = chunk_and_index(
                     extracted_text_id=et_id,
                     full_text=full_text,
+                    doc_type=row.get("doc_type") or "",
                     file_type=row.get("file_type") or "",
                     publish_time=row.get("publish_time"),
                     source_doc_title=row.get("title") or "",

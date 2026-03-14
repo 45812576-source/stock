@@ -1,277 +1,812 @@
 {% extends "base.html" %}
-{% block title %}{{ group.group_name }} — 热点研究{% endblock %}
+{% block title %}{{ group.group_name }} — 机会发现{% endblock %}
+
+{% block extra_styles %}
+  .tab-active { color: #135bec; border-bottom: 2px solid #135bec; }
+  .tab-inactive { color: #64748b; border-bottom: 2px solid transparent; }
+  .tab-inactive:hover { color: #94a3b8; border-bottom-color: #334155; }
+  .chat-msg-user { margin-left: auto; background: #1e3a5f; border-radius: 12px 12px 4px 12px; }
+  .chat-msg-ai { margin-right: auto; background: #1a2233; border-radius: 12px 12px 12px 4px; }
+  #chatPanel.collapsed #chatMessages { display: none; }
+  #chatPanel.collapsed #chatInputWrap { display: none; }
+  #chatPanel.collapsed { border-bottom: none; }
+  /* Drag-to-chat styles */
+  [data-draggable] { position: relative; transition: outline 0.15s; }
+  [data-draggable]:hover .drag-hint { opacity: 1; }
+  .drag-hint {
+    opacity: 0; position: absolute; top: 6px; right: 8px;
+    background: rgba(19,91,236,0.85); color: #fff; font-size: 10px;
+    padding: 2px 6px; border-radius: 4px; cursor: grab; white-space: nowrap;
+    transition: opacity 0.15s; z-index: 10; pointer-events: none;
+  }
+  [data-draggable].dragging { outline: 2px solid #135bec; outline-offset: 2px; }
+  #chatInputWrap.drag-over { background: rgba(19,91,236,0.08); border-radius: 8px; }
+  #chatInputWrap.drag-over #chatInputField { border-color: #135bec; }
+  .chat-context-badge {
+    display: flex; align-items: center; gap: 4px;
+    background: rgba(19,91,236,0.12); border: 1px solid rgba(19,91,236,0.25);
+    border-radius: 6px; padding: 4px 8px; margin-bottom: 4px; font-size: 10px; color: #7aa8f8;
+  }
+  .chat-context-badge .material-icons-round { font-size: 12px; }
+{% endblock %}
 
 {% block content %}
-<!-- Back nav -->
-<a href="/hotspot" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-primary mb-6 transition-colors">
-  <span class="material-icons-round text-sm">arrow_back</span> 返回热点概览
-</a>
+<!-- Full-height app layout: fixed header/tabs + split panes below -->
+<div class="flex flex-col h-[calc(100vh-48px)] overflow-hidden">
 
-<!-- Research Layer Panel -->
-<section class="bg-surface-card rounded-2xl border border-slate-700 shadow-2xl overflow-hidden relative">
-  <!-- Panel Header -->
-  <div class="border-b border-slate-700 flex flex-wrap lg:flex-nowrap items-center">
-    <div class="p-6 lg:border-r border-slate-700 lg:w-1/3">
-      <div class="flex items-center gap-3 mb-2">
-        <div class="p-2 bg-primary/20 text-primary rounded-lg">
-          <span class="material-icons-round">biotech</span>
-        </div>
+  <!-- Panel Header — fixed -->
+  <div class="border-b border-slate-700 flex flex-wrap lg:flex-nowrap items-stretch shrink-0 bg-surface-card">
+    <div class="px-8 py-4 lg:border-r border-slate-700 flex items-center gap-4">
+      <a href="/hotspot" class="text-slate-500 hover:text-primary transition-colors shrink-0" title="返回机会发现">
+        <span class="material-icons-round text-lg">arrow_back</span>
+      </a>
+      <div>
         <h2 class="text-xl font-bold">{{ group.group_name }}</h2>
-      </div>
-      <div class="flex flex-wrap gap-1 mt-2">
-        {% for t in group.tags %}
-        <span class="px-2 py-0.5 rounded bg-slate-700/50 text-[10px] font-bold">#{{ t }}</span>
-        {% endfor %}
+        <div class="flex flex-wrap gap-1 mt-1">
+          {% for t in group.tags %}
+          <span class="px-2 py-0.5 rounded bg-slate-700/50 text-[10px] font-bold">#{{ t }}</span>
+          {% endfor %}
+        </div>
       </div>
     </div>
-    <!-- Tabs -->
-    <nav class="flex-1 flex items-end px-6 space-x-8 overflow-x-auto h-full pt-6">
-      {% set tabs = [
-        ('logic', '成组逻辑'),
-        ('news', '关联新闻'),
-        ('heat', '板块热度'),
-        ('macro', '宏观分析'),
-        ('industry', '行业分析'),
-        ('stocks', '推荐个股'),
-      ] %}
-      {% for key, label in tabs %}
-      <a href="/hotspot/research/{{ group.id }}?tab={{ key }}"
-         class="pb-4 px-1 text-sm font-bold whitespace-nowrap {{ 'tab-active' if active_tab == key else 'tab-inactive' }}">
-        {{ label }}
-      </a>
-      {% endfor %}
-    </nav>
     <!-- 操作按钮 -->
-    <div class="flex items-center gap-2 px-6 py-4">
+    <div class="flex items-center gap-2 px-6 py-4 ml-auto">
       {% if research %}
       <a href="/hotspot/research/{{ group.id }}/followup"
          class="flex items-center gap-1 px-3 py-2 rounded-lg bg-surface border border-slate-700 text-sm text-slate-300 hover:border-primary hover:text-primary transition">
         <span class="material-icons-round text-sm">update</span>追踪研究
       </a>
-      <form method="post" action="/hotspot/research/{{ group.id }}/run">
-        <button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
-          <span class="material-icons-round text-sm">refresh</span>重新研究
-        </button>
-      </form>
+      <button onclick="triggerResearch({{ group.id }})" id="researchBtn"
+              class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
+        <span class="material-icons-round text-sm">refresh</span>重新研究
+      </button>
       {% else %}
-      <form method="post" action="/hotspot/research/{{ group.id }}/run">
-        <button type="submit" class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition">
-          <span class="material-icons-round text-sm">biotech</span>执行研究
-        </button>
-      </form>
+      <button onclick="triggerResearch({{ group.id }})" id="researchBtn"
+              class="flex items-center gap-1 px-3 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition">
+        <span class="material-icons-round text-sm">biotech</span>执行研究
+      </button>
+      {% endif %}
+      <!-- 一键导入到 Portfolio Lab（仅有研究结果时可用） -->
+      {% if research %}
+      <button onclick="importToPortfolioLab({{ group.id }}, '{{ group.group_name | e }}')"
+              class="flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-900/30 border border-emerald-700/40 text-emerald-400 text-sm font-medium hover:bg-emerald-900/50 transition">
+        <span class="material-icons-round text-sm">science</span>→ Portfolio Lab
+      </button>
       {% endif %}
     </div>
   </div>
 
-  <!-- Panel Content -->
-  <div class="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-    <div class="lg:col-span-2 space-y-8">
+  <!-- Tab Navigation — fixed -->
+  <nav class="flex items-end px-8 space-x-8 overflow-x-auto pt-3 border-b border-slate-700 shrink-0 bg-surface-card">
+    {% set tabs = [
+      ('logic', '成组逻辑'),
+      ('news', '关联新闻'),
+      ('heat', '主题热度'),
+      ('macro', '宏观分析'),
+      ('industry', '行业分析'),
+      ('stocks', '推荐个股'),
+    ] %}
+    {% for key, label in tabs %}
+    <a onclick="loadTab('{{ key }}')" id="tab-{{ key }}"
+       class="pb-3 px-1 text-sm font-bold whitespace-nowrap cursor-pointer {{ 'tab-active' if active_tab == key else 'tab-inactive' }}">
+      {{ label }}
+    </a>
+    {% endfor %}
+  </nav>
 
-      {% if not research %}
-      <!-- No research yet -->
-      <div class="text-center py-16">
-        <span class="material-icons-round text-5xl text-slate-700 mb-4">science</span>
-        <p class="text-slate-500 mb-6">尚未执行深度研究</p>
-        <form method="post" action="/hotspot/research/{{ group.id }}/run">
-          <button type="submit" class="bg-primary hover:bg-primary/90 text-white rounded-lg px-6 py-3 text-sm font-bold flex items-center gap-2 mx-auto transition-all">
-            <span class="material-icons-round text-sm">biotech</span> 执行深度研究
-          </button>
-        </form>
-      </div>
-
-      {% elif active_tab == 'logic' %}
-      <!-- Logic Analysis -->
-      <div>
-        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">投资逻辑</h3>
-        <div class="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 relative overflow-hidden">
-          <span class="material-icons-round absolute -right-4 -bottom-4 text-8xl text-slate-700/10">format_quote</span>
-          {% if group.group_logic %}
-          <p class="text-lg leading-relaxed font-medium">{{ group.group_logic }}</p>
-          {% else %}
-          <p class="text-slate-500">暂无成组逻辑分析</p>
-          {% endif %}
-        </div>
-      </div>
-      {% if research.macro_report %}
-      <div class="grid grid-cols-2 gap-6">
-        <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
-          <h4 class="font-bold text-sm mb-3">核心逻辑</h4>
-          <p class="text-sm text-slate-400 leading-relaxed">{{ research.macro_report[:200] }}</p>
-        </div>
-        <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
-          <h4 class="font-bold text-sm mb-3">风险因素</h4>
-          <p class="text-sm text-slate-400 leading-relaxed">{{ research.industry_report[:200] if research.industry_report else '暂无' }}</p>
-        </div>
-      </div>
-      {% endif %}
-
-      {% elif active_tab == 'news' %}
-      <!-- News Summary -->
-      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">关联新闻 ({{ research.news|length }}条)</h3>
-      {% if research.news %}
-      <div class="space-y-3">
-        {% for n in research.news[:15] %}
-        <div class="flex items-start gap-3 p-3 rounded-lg hover:bg-slate-700/20 transition-colors">
-          <span class="material-icons-round text-sm mt-0.5 {{ 'text-emerald-500' if n.sentiment == 'positive' else 'text-rose-500' if n.sentiment == 'negative' else 'text-slate-500' }}">
-            {{ 'trending_up' if n.sentiment == 'positive' else 'trending_down' if n.sentiment == 'negative' else 'horizontal_rule' }}
-          </span>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm">{{ n.summary or '' }}</p>
-            <div class="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
-              <span>{{ '⭐' * (n.importance or 0) }}</span>
-              <span>{{ n.event_type or '' }}</span>
-              <span>关联{{ n.match_tags or n.get('match_count', 1) }}标签</span>
-            </div>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-8">暂无关联新闻</p>
-      {% endif %}
-
-      {% elif active_tab == 'heat' %}
-      <!-- Heat Analysis -->
-      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">板块热度</h3>
-      {% if research.sector_heat %}
-      <div id="heat-chart" style="height: 300px;"></div>
-      <div class="grid grid-cols-2 gap-4 mt-4">
-        {% for sh in research.sector_heat %}
-        <div class="p-3 bg-slate-800/20 rounded-lg border border-slate-700/50">
-          <div class="flex justify-between items-center">
-            <span class="text-sm font-bold">{{ sh.tag }}</span>
-            {% set total = sh.total_inflow or 0 %}
-            <span class="text-xs font-bold {{ 'text-emerald-500' if total > 0 else 'text-rose-500' }}">
-              {{ '%.2f'|format(total / 10000) }}万
-            </span>
-          </div>
-        </div>
-        {% endfor %}
-      </div>
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-8">暂无板块热度数据</p>
-      {% endif %}
-
-      {% elif active_tab == 'macro' %}
-      <!-- Macro Analysis -->
-      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">宏观分析</h3>
-      {% if research.macro_report %}
-      <div class="prose prose-invert prose-sm max-w-none bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300">
-        {{ research.macro_report }}
-      </div>
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
-      {% endif %}
-
-      {% elif active_tab == 'industry' %}
-      <!-- Industry Analysis -->
-      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">行业分析</h3>
-      {% if research.industry_report %}
-      <div class="prose prose-invert prose-sm max-w-none bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300">
-        {{ research.industry_report }}
-      </div>
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
-      {% endif %}
-
-      {% elif active_tab == 'stocks' %}
-      <!-- Recommended Stocks -->
-      <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">推荐个股 Top 10</h3>
-      {% if research.top10_stocks %}
-      <div id="stocks-chart" style="height: 250px;" class="mb-6"></div>
-      {% endif %}
-
-      {% endif %}
+  <!-- Split panes: left scrolls, right fixed -->
+  <div class="flex flex-col lg:flex-row flex-1 min-h-0">
+    <!-- Main Tab Content — scrollable -->
+    <div class="flex-1 min-w-0 overflow-y-auto px-8 py-6 space-y-8" id="tab-content">
+      {% include "partials/hotspot_tab_content.html" %}
     </div>
 
-    <!-- Right Sidebar: High Conviction Picks -->
-    <div class="bg-slate-800/20 rounded-xl p-6 border border-slate-700/50">
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest">推荐个股</h3>
+    <!-- Right Sidebar: Chat — fixed in viewport, no scroll -->
+    <div class="w-full lg:w-[340px] xl:w-[380px] shrink-0 border-l border-slate-700/50 bg-slate-800/10 flex flex-col min-h-0">
+      <!-- AI Chat Panel -->
+      <div id="chatPanel" class="flex flex-col flex-1 overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-2.5 cursor-pointer select-none border-b border-slate-700/50 shrink-0" onclick="toggleChat()">
+          <div class="flex items-center gap-2">
+            <span class="material-icons-round text-sm text-primary">smart_toy</span>
+            <span class="text-xs font-bold text-slate-400">AI 追问</span>
+            <span id="chatBadge" class="hidden px-1.5 py-0.5 rounded-full text-[9px] bg-primary/20 text-primary font-bold">0</span>
+          </div>
+          <span class="material-icons-round text-sm text-slate-600" id="chatToggleIcon">expand_less</span>
+        </div>
+        <div id="chatMessages" class="flex-1 overflow-y-auto px-3 py-2 space-y-2" style="min-height:120px;">
+          <p class="text-xs text-slate-600 text-center py-4" id="chatEmpty">质疑分析结论、要求补充</p>
+        </div>
+        <div id="chatInputWrap" class="px-3 pb-3 pt-1 border-t border-slate-700/50 shrink-0"
+             ondragover="event.preventDefault(); this.classList.add('drag-over')"
+             ondragleave="this.classList.remove('drag-over')"
+             ondrop="handleChatDrop(event)">
+          <!-- Context badge: shown when a report section is dragged in -->
+          <div id="chatContextBadge" class="chat-context-badge hidden">
+            <span class="material-icons-round">drag_indicator</span>
+            <span id="chatContextLabel" class="flex-1 truncate"></span>
+            <button onclick="clearChatContext()" class="text-slate-500 hover:text-slate-300 ml-1 pointer-events-auto">
+              <span class="material-icons-round" style="font-size:12px">close</span>
+            </button>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <input type="text" id="chatInputField" placeholder="追问，或拖入报告段落..."
+                   class="flex-1 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs focus:border-primary focus:outline-none"
+                   onkeydown="if(event.key==='Enter')sendChat()">
+            <button onclick="sendChat()" id="chatSendBtn"
+                    class="p-1.5 rounded-lg bg-primary text-white hover:bg-primary/90 transition flex items-center justify-center shrink-0">
+              <span class="material-icons-round text-sm">send</span>
+            </button>
+          </div>
+        </div>
       </div>
-      {% if research and research.top10_stocks %}
-      <div class="space-y-4">
-        {% set stock_colors = ['#3b82f6', '#818cf8', '#10b981', '#f97316', '#a855f7'] %}
-        {% for s in research.top10_stocks[:5] %}
-        <div class="flex items-center justify-between p-3 bg-slate-800/40 rounded-lg shadow-sm border border-slate-700/50">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded flex items-center justify-center font-bold text-xs"
-                 style="background: {{ stock_colors[loop.index0 % 5] }}15; color: {{ stock_colors[loop.index0 % 5] }}">
-              {{ s.stock_code[-4:] }}
+
+      <!-- Portfolio Stats (shown after save) -->
+      <div id="portfolioStats" class="shrink-0 {{ '' if research and research.portfolio_stats else 'hidden' }}">
+        {% if research and research.portfolio_stats %}
+        {% set ps = research.portfolio_stats %}
+        <div class="px-4 py-4 border-t border-slate-700/50">
+          <h3 class="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">组合统计</h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p class="text-[10px] text-slate-500">7日净流入</p>
+              <p class="text-sm font-bold {{ 'text-red-400' if (ps.total_inflow or 0) > 0 else 'text-emerald-400' }}">
+                {{ '%.2f'|format((ps.total_inflow or 0) / 100000000) }}亿
+              </p>
             </div>
             <div>
-              <p class="font-bold text-sm">{{ s.stock_name }}</p>
-              <p class="text-[10px] text-slate-500">关联{{ s.match_tags or 0 }}标签</p>
+              <p class="text-[10px] text-slate-500">总市值</p>
+              <p class="text-sm font-bold text-slate-300">
+                {{ '%.1f'|format((ps.total_cap or 0) / 100000000) }}亿
+              </p>
             </div>
           </div>
-          <div class="text-right">
-            <p class="text-sm font-bold {{ 'text-emerald-500' if (s.total_inflow or 0) > 0 else 'text-rose-500' }}">
-              {{ '%.1f'|format((s.total_inflow or 0) / 10000) }}万
-            </p>
-            <p class="text-[10px] text-slate-500">{{ '%.1f'|format(s.inflow_ratio or 0) }}%</p>
+          {% if ps.daily_inflow %}
+          <div class="daily-bar-wrap" style="display:flex;gap:2px;height:32px;position:relative;">
+            <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(100,116,139,0.25);z-index:0;"></div>
+            {% for d in ps.daily_inflow %}
+            <div class="flex-1" style="position:relative;height:100%;" title="{{ d.date[-5:] }}  {{ '%.2f'|format(d.inflow / 100000000) }}亿">
+              <div style="width:100%;min-width:4px;border-radius:2px;position:absolute;"
+                   class="{{ 'bg-red-500/70' if d.inflow >= 0 else 'bg-emerald-500/70' }}"
+                   data-val="{{ d.inflow }}" data-dir="{{ 'up' if d.inflow >= 0 else 'down' }}"></div>
+            </div>
+            {% endfor %}
           </div>
+          <div class="flex gap-2 mt-0.5">
+            {% for d in ps.daily_inflow %}
+            <div class="flex-1 text-center">
+              <span class="text-[7px] text-slate-600 leading-none">{{ d.date[-2:] }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          <p class="text-[10px] text-slate-600 mt-2">共 {{ ps.stock_count or 0 }} 股</p>
         </div>
-        {% endfor %}
+        {% endif %}
       </div>
-      {% else %}
-      <p class="text-sm text-slate-600 text-center py-8">执行深度研究后显示</p>
-      {% endif %}
-
-      {% if research %}
-      <div class="mt-6 pt-4 border-t border-slate-700/50 text-[10px] text-slate-600">
-        研究日期: {{ research.research_date or '--' }}
-      </div>
-      {% endif %}
     </div>
   </div>
-</section>
+</div>
+
+<!-- Bottom Action Bar -->
+{% if research %}
+<div class="fixed bottom-0 left-48 right-0 bg-card-dark border-t border-slate-700 z-40">
+  <div class="flex items-center justify-end gap-3 px-8 py-3">
+    <button onclick="dismissResearch()"
+            class="flex items-center gap-1 px-4 py-2 rounded-lg border border-red-500/30 text-red-400 text-sm hover:bg-red-500/10 transition">
+      <span class="material-icons-round text-sm">delete_outline</span>解散
+    </button>
+    <button onclick="setPendingResearch()"
+            class="flex items-center gap-1 px-4 py-2 rounded-lg border border-slate-600 text-slate-400 text-sm hover:bg-slate-700/50 transition">
+      <span class="material-icons-round text-sm">schedule</span>待定
+    </button>
+    <button onclick="saveResearch()" id="saveResearchBtn"
+            class="flex items-center gap-1 px-5 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition">
+      <span class="material-icons-round text-sm">save</span>保存
+    </button>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-{% if research and research.sector_heat and active_tab == 'heat' %}
-  var heatData = {{ research.sector_heat | tojson }};
-  var heatTraces = [];
-  var hColors = ['#135bec', '#f97316', '#818cf8', '#10b981', '#ef4444'];
-  heatData.forEach(function(sh, idx) {
-    var flows = sh.daily_flows || sh.flows || [];
-    if (flows.length > 0) {
-      heatTraces.push({
-        x: flows.map(f => f.date || f.trade_date),
-        y: flows.map(f => (f.inflow || f.net_inflow || 0) / 10000),
-        name: sh.tag,
-        type: 'scatter',
-        mode: 'lines',
-        line: { color: hColors[idx % 5], width: 2 },
-      });
-    }
-  });
-  if (heatTraces.length > 0) {
-    Plotly.newPlot('heat-chart', heatTraces, {
-      margin: { t: 10, b: 30, l: 50, r: 10 },
-      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-      font: { color: '#94a3b8', size: 10 },
-      xaxis: { gridcolor: 'rgba(100,116,139,0.15)' },
-      yaxis: { gridcolor: 'rgba(100,116,139,0.15)', title: { text: '万元', font: { size: 10 } } },
-    }, { displayModeBar: false, responsive: true });
-  }
-{% endif %}
+var GROUP_ID = {{ group.id }};
+var ACTIVE_TAB = '{{ active_tab }}';
 
-{% if research and research.top10_stocks and active_tab == 'stocks' %}
-  var stocks = {{ research.top10_stocks | tojson }};
-  var names = stocks.map(s => s.stock_name);
-  var inflows = stocks.map(s => (s.total_inflow || 0) / 10000);
-  var barColors = inflows.map(v => v >= 0 ? '#10b981' : '#ef4444');
-  Plotly.newPlot('stocks-chart', [{
-    x: names, y: inflows, type: 'bar',
-    marker: { color: barColors, cornerradius: 4 },
-  }], {
-    margin: { t: 10, b: 60, l: 50, r: 10 },
-    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: '#94a3b8', size: 10 },
-    xaxis: { gridcolor: 'rgba(100,116,139,0.15)', tickangle: -30 },
-    yaxis: { gridcolor: 'rgba(100,116,139,0.15)', title: { text: '万元', font: { size: 10 } } },
-  }, { displayModeBar: false, responsive: true });
-{% endif %}
+// ── AJAX Tab Loading ──
+function loadTab(tabName) {
+  // Update tab styling
+  document.querySelectorAll('nav a[id^="tab-"]').forEach(a => {
+    a.className = a.className.replace('tab-active', 'tab-inactive');
+  });
+  var activeEl = document.getElementById('tab-' + tabName);
+  if (activeEl) activeEl.className = activeEl.className.replace('tab-inactive', 'tab-active');
+  ACTIVE_TAB = tabName;
+
+  // Fetch tab content
+  var container = document.getElementById('tab-content');
+  container.innerHTML = '<div class="flex justify-center py-12"><span class="material-icons-round text-2xl text-slate-600 animate-spin">refresh</span></div>';
+
+  fetch('/hotspot/research/' + GROUP_ID + '/tab/' + tabName)
+    .then(r => r.text())
+    .then(html => {
+      container.innerHTML = html;
+      // Execute inline scripts in the loaded content
+      container.querySelectorAll('script').forEach(s => {
+        var ns = document.createElement('script');
+        ns.textContent = s.textContent;
+        s.parentNode.replaceChild(ns, s);
+      });
+      // Attach drag-to-chat handlers to report elements
+      setupDragToChat();
+    })
+    .catch(e => {
+      container.innerHTML = '<p class="text-red-400 text-sm text-center py-8">加载失败: ' + e.message + '</p>';
+    });
+}
+
+// ── Drag-to-chat state ──
+var _chatDragContext = null; // {label, text}
+
+function handleChatDrop(event) {
+  event.preventDefault();
+  document.getElementById('chatInputWrap').classList.remove('drag-over');
+  var label = event.dataTransfer.getData('text/x-chat-label') || '';
+  var text = event.dataTransfer.getData('text/plain') || '';
+  if (!text) return;
+  _chatDragContext = { label: label || '报告段落', text: text };
+  var badge = document.getElementById('chatContextBadge');
+  var ctxLabel = document.getElementById('chatContextLabel');
+  ctxLabel.textContent = _chatDragContext.label;
+  badge.classList.remove('hidden');
+  document.getElementById('chatInputField').focus();
+}
+
+function clearChatContext() {
+  _chatDragContext = null;
+  document.getElementById('chatContextBadge').classList.add('hidden');
+  document.getElementById('chatContextLabel').textContent = '';
+}
+
+// After each tab load, attach drag handlers to report elements
+function setupDragToChat() {
+  document.querySelectorAll('[data-draggable]').forEach(function(el) {
+    if (el._dragSetup) return;
+    el._dragSetup = true;
+    el.setAttribute('draggable', 'true');
+
+    // Inject drag hint overlay if not already there
+    if (!el.querySelector('.drag-hint')) {
+      var hint = document.createElement('span');
+      hint.className = 'drag-hint';
+      hint.innerHTML = '<span class="material-icons-round" style="font-size:10px;vertical-align:middle">drag_indicator</span> 拖入追问';
+      el.appendChild(hint);
+    }
+
+    el.addEventListener('dragstart', function(ev) {
+      el.classList.add('dragging');
+      var label = el.dataset.chatLabel || el.querySelector('h4,h3')?.textContent?.trim() || '报告段落';
+      var text = el.dataset.chatContext || el.innerText || '';
+      // Limit text to 600 chars to avoid overly long context
+      var trimmed = text.trim().slice(0, 600);
+      ev.dataTransfer.setData('text/plain', '【' + label + '】\n' + trimmed);
+      ev.dataTransfer.setData('text/x-chat-label', label);
+      ev.dataTransfer.effectAllowed = 'copy';
+    });
+    el.addEventListener('dragend', function() {
+      el.classList.remove('dragging');
+    });
+  });
+}
+
+// ── Chat ──
+var chatCollapsed = false;
+
+function toggleChat() {
+  chatCollapsed = !chatCollapsed;
+  document.getElementById('chatPanel').classList.toggle('collapsed', chatCollapsed);
+  document.getElementById('chatToggleIcon').textContent = chatCollapsed ? 'expand_more' : 'expand_less';
+}
+
+function loadChatHistory() {
+  fetch('/hotspot/research/' + GROUP_ID + '/chat/history')
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && data.messages && data.messages.length) {
+        var container = document.getElementById('chatMessages');
+        document.getElementById('chatEmpty').style.display = 'none';
+        data.messages.forEach(msg => appendChatMessage(msg.role, msg.content, msg.metadata));
+        container.scrollTop = container.scrollHeight;
+        document.getElementById('chatBadge').textContent = data.messages.length;
+        document.getElementById('chatBadge').classList.remove('hidden');
+      } else {
+        // No history: trigger proactive greeting
+        fetch('/hotspot/research/' + GROUP_ID + '/chat/greet', { method: 'POST' })
+          .then(r => r.json())
+          .then(d => {
+            if (d.greeted && d.message) {
+              appendChatMessage('assistant', d.message.content);
+            }
+          })
+          .catch(() => {});
+      }
+    })
+    .catch(() => {});
+}
+
+function appendChatMessage(role, content, metadata) {
+  var container = document.getElementById('chatMessages');
+  document.getElementById('chatEmpty').style.display = 'none';
+  var div = document.createElement('div');
+  div.className = 'max-w-[95%] px-3 py-2 text-xs leading-relaxed ' + (role === 'user' ? 'chat-msg-user' : 'chat-msg-ai');
+
+  // Simple markdown rendering: **bold**, \n→<br>
+  var html = content.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  div.innerHTML = html;
+
+  // If AI modified fields, show indicator
+  if (metadata && metadata.modified_fields && metadata.modified_fields.length) {
+    var badge = document.createElement('div');
+    badge.className = 'mt-2 text-[10px] text-primary flex items-center gap-1';
+    var fieldLabels = {macro_json: '宏观分析', industry_json: '行业分析', top10_stocks_json: '推荐个股'};
+    var labels = metadata.modified_fields.map(f => fieldLabels[f] || f).join(', ');
+    badge.innerHTML = '<span class="material-icons-round" style="font-size:12px">edit_note</span>已更新: ' + labels;
+    div.appendChild(badge);
+  }
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendChat() {
+  var input = document.getElementById('chatInputField');
+  var msg = input.value.trim();
+  if (!msg) return;
+
+  // Prepend dragged context if present
+  var fullMsg = msg;
+  if (_chatDragContext) {
+    fullMsg = '【' + _chatDragContext.label + '】\n' + _chatDragContext.text + '\n\n' + msg;
+    clearChatContext();
+  }
+
+  input.value = '';
+  appendChatMessage('user', msg); // show user's typed text only in UI
+
+  // Show typing indicator
+  var typing = document.createElement('div');
+  typing.id = 'chatTyping';
+  typing.className = 'max-w-[95%] px-3 py-2 text-xs chat-msg-ai';
+  typing.innerHTML = '<span class="material-icons-round text-sm animate-spin text-slate-500">refresh</span> <span class="text-slate-500">思考中...</span>';
+  document.getElementById('chatMessages').appendChild(typing);
+
+  var btn = document.getElementById('chatSendBtn');
+  btn.disabled = true;
+
+  try {
+    // Step 1: Submit message (stores to DB, returns immediately)
+    var resp = await fetch('/hotspot/research/' + GROUP_ID + '/chat/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: fullMsg }),
+    });
+    var data = await resp.json();
+
+    if (!data.ok) {
+      var t = document.getElementById('chatTyping');
+      if (t) t.remove();
+      appendChatMessage('assistant', '错误: ' + (data.error || '提交失败'));
+      btn.disabled = false;
+      return;
+    }
+
+    // Step 2: Poll for reply
+    var pollInterval = setInterval(async function() {
+      try {
+        var pr = await fetch('/hotspot/research/' + GROUP_ID + '/chat/poll');
+        var poll = await pr.json();
+
+        if (poll.status === 'done') {
+          clearInterval(pollInterval);
+          var t = document.getElementById('chatTyping');
+          if (t) t.remove();
+
+          var metadata = poll.modified_fields && poll.modified_fields.length
+            ? { modified_fields: poll.modified_fields } : null;
+          appendChatMessage('assistant', poll.reply, metadata);
+
+          // Update badge
+          var badge = document.getElementById('chatBadge');
+          badge.textContent = parseInt(badge.textContent || '0') + 2;
+          badge.classList.remove('hidden');
+
+          // If fields were modified, reload current tab
+          if (poll.modified_fields && poll.modified_fields.length) {
+            showToast('AI 已更新报告: ' + poll.modified_fields.join(', '));
+            loadTab(ACTIVE_TAB);
+          }
+          btn.disabled = false;
+        } else if (poll.status !== 'pending') {
+          // Unexpected status (e.g. no_messages)
+          clearInterval(pollInterval);
+          var t = document.getElementById('chatTyping');
+          if (t) t.remove();
+          appendChatMessage('assistant', '回复获取异常，请刷新重试');
+          btn.disabled = false;
+        }
+        // If still 'pending', keep polling
+      } catch(pe) {
+        // Network error during poll — don't stop, just log
+        console.warn('Poll error:', pe);
+      }
+    }, 2000);
+
+    // Timeout after 5 minutes
+    setTimeout(function() {
+      clearInterval(pollInterval);
+      var t = document.getElementById('chatTyping');
+      if (t) {
+        t.remove();
+        appendChatMessage('assistant', '回复超时，请稍后查看聊天记录');
+        btn.disabled = false;
+      }
+    }, 300000);
+
+  } catch(e) {
+    var t = document.getElementById('chatTyping');
+    if (t) t.remove();
+    appendChatMessage('assistant', '请求失败: ' + e.message);
+    btn.disabled = false;
+  }
+}
+
+// ── Action Buttons ──
+async function saveResearch() {
+  var btn = document.getElementById('saveResearchBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 保存中...';
+  try {
+    var resp = await fetch('/hotspot/research/' + GROUP_ID + '/save', { method: 'POST' });
+    var data = await resp.json();
+    if (data.ok) {
+      showToast(data.message || '已保存');
+      // Show portfolio stats
+      if (data.portfolio_stats) {
+        renderPortfolioStats(data.portfolio_stats);
+      }
+    } else {
+      showToast(data.error || '保存失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败', true);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-icons-round text-sm">save</span>保存';
+}
+
+async function dismissResearch() {
+  if (!confirm('确定要解散此标签组的研究？')) return;
+  try {
+    await fetch('/hotspot/research/' + GROUP_ID + '/dismiss', { method: 'POST' });
+    window.location.href = '/hotspot';
+  } catch(e) {
+    showToast('请求失败', true);
+  }
+}
+
+async function setPendingResearch() {
+  try {
+    var resp = await fetch('/hotspot/research/' + GROUP_ID + '/set-pending', { method: 'POST' });
+    var data = await resp.json();
+    showToast(data.message || '已标记为待定');
+  } catch(e) {
+    showToast('请求失败', true);
+  }
+}
+
+function renderPortfolioStats(ps) {
+  var el = document.getElementById('portfolioStats');
+  var inflowClass = (ps.total_inflow || 0) > 0 ? 'text-red-400' : 'text-emerald-400';
+  var inflowVal = ((ps.total_inflow || 0) / 100000000).toFixed(2);
+  var capVal = ((ps.total_cap || 0) / 100000000).toFixed(1);
+
+  var html = '<div class="bg-slate-800/20 rounded-xl p-6 border border-slate-700/50">';
+  html += '<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">组合统计</h3>';
+  html += '<div class="grid grid-cols-2 gap-4 mb-4">';
+  html += '<div><p class="text-[10px] text-slate-500">7日净流入</p><p class="text-lg font-bold ' + inflowClass + '">' + inflowVal + '亿</p></div>';
+  html += '<div><p class="text-[10px] text-slate-500">总市值</p><p class="text-lg font-bold text-slate-300">' + capVal + '亿</p></div>';
+  html += '</div>';
+
+  // Daily bar chart
+  if (ps.daily_inflow && ps.daily_inflow.length) {
+    var maxAbs = Math.max(...ps.daily_inflow.map(d => Math.abs(d.inflow)), 1);
+    html += '<div class="daily-bar-wrap" style="display:flex;gap:2px;height:40px;position:relative;">';
+    html += '<div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(100,116,139,0.25);z-index:0;"></div>';
+    ps.daily_inflow.forEach(d => {
+      var barCls = d.inflow >= 0 ? 'bg-red-500/70' : 'bg-emerald-500/70';
+      var dir = d.inflow >= 0 ? 'up' : 'down';
+      html += '<div class="flex-1" style="position:relative;height:100%;">';
+      html += '<div style="width:100%;min-width:4px;border-radius:2px;position:absolute;" class="' + barCls + '" data-val="' + d.inflow + '" data-dir="' + dir + '"></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    html += '<div class="flex gap-2 mt-0.5">';
+    ps.daily_inflow.forEach(d => {
+      html += '<div class="flex-1 text-center"><span class="text-[7px] text-slate-600 leading-none">' + d.date.slice(-2) + '</span></div>';
+    });
+    html += '</div>';
+    // Render bars after DOM update
+    setTimeout(function() {
+      document.querySelectorAll('#portfolioStats .daily-bar-wrap').forEach(initBarChart);
+    }, 50);
+  }
+
+  html += '<p class="text-[10px] text-slate-600 mt-2">共 ' + (ps.stock_count || 0) + ' 股</p>';
+  html += '</div>';
+
+  el.innerHTML = html;
+  el.classList.remove('hidden');
+}
+
+function initBarChart(wrap) {
+  var bars = wrap.querySelectorAll('[data-val]');
+  var vals = Array.from(bars).map(b => Math.abs(parseFloat(b.dataset.val) || 0));
+  var maxVal = Math.max(...vals, 1);
+  var halfH = 18;
+  bars.forEach(b => {
+    var v = Math.abs(parseFloat(b.dataset.val) || 0);
+    var h = Math.max(v / maxVal * halfH, 2);
+    b.style.height = h + 'px';
+    if (b.dataset.dir === 'up') { b.style.bottom = '50%'; }
+    else { b.style.top = '50%'; }
+  });
+}
+
+// ── Stocks Editor (global functions called from tab partial) ──
+var stocksData = [];
+var editMode = false;
+var searchTimer = null;
+
+function initStocksEditor() {
+  stocksData = window._stocksData || [];
+}
+
+function toggleEditMode() {
+  editMode = !editMode;
+  document.querySelectorAll('.edit-only').forEach(el => el.classList.toggle('hidden', !editMode));
+  var et = document.getElementById('editToggle');
+  var sb = document.getElementById('saveBtn');
+  var cb = document.getElementById('cancelBtn');
+  if (et) et.style.display = editMode ? 'none' : '';
+  if (sb) sb.style.display = editMode ? '' : 'none';
+  if (cb) cb.style.display = editMode ? '' : 'none';
+  if (!editMode) loadTab('stocks');
+}
+
+function removeStock(groupIdx, stockIdx) {
+  stocksData[groupIdx].stocks.splice(stockIdx, 1);
+  renderStocks();
+}
+
+function removeGroup(groupIdx) {
+  stocksData.splice(groupIdx, 1);
+  renderStocks();
+}
+
+function addStockToGroup(groupIdx, stock) {
+  stocksData[groupIdx].stocks.push({
+    stock_code: stock.stock_code, stock_name: stock.stock_name,
+    industry_l2: '', total_inflow: 0, match_tags: 0, source: 'manual',
+  });
+  renderStocks();
+}
+
+function addGroup() {
+  var name = prompt('输入行业组名称:');
+  if (!name) return;
+  stocksData.push({ industry: name, chain_position: '', stocks: [] });
+  renderStocks();
+}
+
+function renderStocks() {
+  var container = document.getElementById('stocksContainer');
+  if (!container) return;
+  var html = '';
+  stocksData.forEach(function(grp, gi) {
+    html += '<div class="mb-6 stock-group" data-group-idx="'+gi+'">';
+    html += '<div class="flex items-center gap-2 mb-3">';
+    html += '<h4 class="font-bold text-sm">'+(grp.industry||'关联标的')+'</h4>';
+    if (grp.chain_position) html += '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">'+grp.chain_position+'</span>';
+    if (editMode) html += '<button class="ml-auto text-xs text-red-400 hover:text-red-300" onclick="removeGroup('+gi+')"><span class="material-icons-round text-sm">delete_outline</span></button>';
+    html += '</div>';
+    if (grp.stocks && grp.stocks.length) {
+      html += '<div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">';
+      html += '<th class="text-left py-2 px-2">代码</th><th class="text-left py-2 px-2">名称</th><th class="text-left py-2 px-2">产业链环节</th><th class="text-right py-2 px-2">PE</th><th class="text-right py-2 px-2">市值(亿)</th><th class="text-right py-2 px-2">7日净流入(亿)</th>';
+      if (editMode) html += '<th class="text-center py-2 px-2 w-10"></th>';
+      html += '</tr></thead><tbody>';
+      grp.stocks.forEach(function(s, si) {
+        var inflowVal = (s.total_inflow||0)/1e8;
+        var inflowClass = inflowVal > 0 ? 'text-red-400' : 'text-emerald-400';
+        var chainPos = s.chain_position || grp.chain_position || s.industry_l2 || s.industry_l1 || '-';
+        var peRatio = s.pe_ratio ? s.pe_ratio.toFixed(1) : '-';
+        var marketCap = s.market_cap ? (s.market_cap/1e8).toFixed(1) : '-';
+        var inflowStr = inflowVal.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+        // 推荐标签
+        var tagsHtml = '';
+        if (s.recommend_tags) {
+          var tags = s.recommend_tags.split(',');
+          tagsHtml = '<div class="flex flex-wrap gap-1 mt-1">';
+          tags.forEach(function(tag) {
+            var t = tag.trim();
+            var cls = t.includes('龙头') ? 'bg-red-500/20 text-red-400' :
+                      t.includes('低估') ? 'bg-emerald-500/20 text-emerald-400' :
+                      t.includes('增长') ? 'bg-blue-500/20 text-blue-400' :
+                      t.includes('资金') ? 'bg-amber-500/20 text-amber-400' :
+                      t.includes('催化') ? 'bg-purple-500/20 text-purple-400' :
+                      'bg-slate-500/20 text-slate-400';
+            tagsHtml += '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold '+cls+'">'+t+'</span>';
+          });
+          tagsHtml += '</div>';
+        }
+
+        html += '<tr class="border-b border-slate-700/30 hover:bg-slate-700/10 cursor-pointer" onclick="window.location=\'/stock/' + s.stock_code + '\'">';
+        html += '<td class="py-2 px-2 font-mono text-xs text-primary hover:underline">'+s.stock_code+'</td>';
+        html += '<td class="py-2 px-2">';
+        html += '<p class="font-bold text-primary hover:underline">'+s.stock_name+'</p>';
+        html += tagsHtml;
+        if (s.recommend_logic) html += '<p class="text-[11px] text-slate-400 mt-0.5 leading-snug">'+s.recommend_logic+'</p>';
+        html += '</td>';
+        html += '<td class="py-2 px-2 text-slate-400 text-xs">'+chainPos+'</td>';
+        html += '<td class="py-2 px-2 text-right font-mono text-xs">'+peRatio+'</td>';
+        html += '<td class="py-2 px-2 text-right font-mono text-xs">'+marketCap+'</td>';
+        html += '<td class="py-2 px-2 text-right font-bold font-mono text-xs '+inflowClass+'">'+inflowStr+'</td>';
+        if (editMode) html += '<td class="text-center py-2 px-2" onclick="event.stopPropagation()"><button class="text-red-400 hover:text-red-300" onclick="removeStock('+gi+','+si+')"><span class="material-icons-round text-sm">close</span></button></td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    if (editMode) {
+      html += '<div class="mt-2 flex items-center gap-2"><div class="relative flex-1">';
+      html += '<input type="text" placeholder="输入股票代码或名称搜索..." class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-primary focus:outline-none" oninput="searchStock(this,'+gi+')" onfocus="searchStock(this,'+gi+')">';
+      html += '<div class="stock-dropdown absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+  });
+  container.innerHTML = html;
+  if (editMode) document.querySelectorAll('.edit-only').forEach(el => el.classList.remove('hidden'));
+}
+
+function searchStock(input, groupIdx) {
+  var q = input.value.trim();
+  var dropdown = input.parentElement.querySelector('.stock-dropdown');
+  if (q.length < 1) { dropdown.classList.add('hidden'); return; }
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(async function() {
+    try {
+      var resp = await fetch('/hotspot/api/search-stocks?q=' + encodeURIComponent(q));
+      var results = await resp.json();
+      if (!results.length) { dropdown.innerHTML = '<div class="p-3 text-xs text-slate-500">无匹配</div>'; dropdown.classList.remove('hidden'); return; }
+      var html = '';
+      results.forEach(function(r) {
+        html += '<div class="px-3 py-2 hover:bg-slate-700 cursor-pointer text-sm flex justify-between" onclick="selectStock(this,'+groupIdx+',\''+r.stock_code+'\',\''+r.stock_name+'\')">';
+        html += '<span><span class="font-mono text-xs text-slate-400">'+r.stock_code+'</span> '+r.stock_name+'</span>';
+        html += '<span class="text-[10px] text-slate-600">'+(r.market||'')+'</span></div>';
+      });
+      dropdown.innerHTML = html;
+      dropdown.classList.remove('hidden');
+    } catch(e) {}
+  }, 300);
+}
+
+function selectStock(el, groupIdx, code, name) {
+  addStockToGroup(groupIdx, { stock_code: code, stock_name: name });
+  var dropdown = el.closest('.stock-dropdown');
+  if (dropdown) dropdown.classList.add('hidden');
+}
+
+async function saveStocks() {
+  var btn = document.getElementById('saveBtn');
+  if (!btn) return;
+  btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 保存中...';
+  btn.disabled = true;
+  try {
+    var resp = await fetch('/hotspot/research/' + GROUP_ID + '/update-stocks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stocks: stocksData }),
+    });
+    var data = await resp.json();
+    if (data.ok) {
+      showToast('推荐个股已保存');
+      editMode = false;
+      loadTab('stocks');
+    } else {
+      showToast(data.error || '保存失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败', true);
+  }
+  btn.innerHTML = '<span class="material-icons-round text-sm">save</span>保存';
+  btn.disabled = false;
+}
+
+// Close dropdowns on outside click
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.relative')) {
+    document.querySelectorAll('.stock-dropdown').forEach(d => d.classList.add('hidden'));
+  }
+});
+
+// ── Trigger Research ──
+async function triggerResearch(groupId) {
+  var btn = document.getElementById('researchBtn') || document.getElementById('researchBtnEmpty');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-icons-round text-sm animate-spin">refresh</span> 启动中...';
+  }
+  try {
+    var resp = await fetch('/hotspot/research/' + groupId + '/run', { method: 'POST' });
+    var data = await resp.json();
+    if (data.ok) {
+      showToast(data.message || '研究已启动');
+      var taskId = data.task_id;
+      var poll = setInterval(async function() {
+        try {
+          var r = await fetch('/hotspot/api/research-tasks');
+          var tasks = await r.json();
+          var t = tasks.find(x => x.id === taskId);
+          if (t && (t.status === 'done' || t.status === 'error')) {
+            clearInterval(poll);
+            if (t.status === 'done') { window.location.reload(); }
+            else {
+              if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-sm">refresh</span> 重试'; }
+              showToast(t.message || '研究失败', true);
+            }
+          }
+        } catch(e) {}
+      }, 3000);
+    } else {
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-sm">refresh</span> 重试'; }
+      showToast(data.error || '启动失败', true);
+    }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-sm">refresh</span> 重试'; }
+    showToast('请求失败: ' + e.message, true);
+  }
+}
+
+// ── Import to Portfolio Lab ──
+async function importToPortfolioLab(groupId, groupName) {
+  const projectName = prompt('项目名称（可修改）:', groupName);
+  if (projectName === null) return;  // 用户取消
+
+  try {
+    const resp = await fetch('/portfolio/api/projects/import-from-hotspot', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ group_id: groupId, project_name: projectName.trim() || groupName }),
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      showToast(`已创建项目「${d.project_name}」，分析数据已同步`);
+      // 2 秒后跳转到 Portfolio Lab
+      setTimeout(() => { window.location.href = '/portfolio'; }, 2000);
+    } else {
+      showToast(d.error || '创建失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败: ' + e.message, true);
+  }
+}
+
+// ── Init ──
+document.addEventListener('DOMContentLoaded', function() {
+  loadChatHistory();
+  setupDragToChat();
+  // Init bar charts (for portfolio stats if present)
+  document.querySelectorAll('.daily-bar-wrap').forEach(initBarChart);
+});
 </script>
 {% endblock %}

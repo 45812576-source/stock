@@ -4,11 +4,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Request, BackgroundTasks, Query
+from fastapi import APIRouter, Request, BackgroundTasks, Query, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
 from utils.db_utils import execute_query, execute_insert
+from utils.auth_deps import get_current_user, require_annotator, require_super_admin
 from knowledge_graph.kg_manager import (
     get_kg_stats, get_all_entities, get_entity_by_id,
     get_entity_relations, get_subgraph, get_entity_count,
@@ -866,3 +867,300 @@ def api_extract_from_summary(summary_id: int):
     except Exception as e:
         logger.error(f"extract_from_summary 异常: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+# ==================== KG 审核工作台 ====================
+
+@router.get("/annotate", response_class=HTMLResponse)
+def kg_annotate_page(request: Request, user: dict = Depends(get_current_user)):
+    """KG 审核工作台页面"""
+    ctx = _common_ctx("annotate")
+    ctx["request"] = request
+    ctx["current_user"] = {
+        "user_id": user.user_id,
+        "username": user.username,
+        "role": user.role,
+    }
+    return templates.TemplateResponse("knowledge_graph.html", ctx)
+
+
+@router.get("/api/review/stats", response_class=JSONResponse)
+def api_review_stats(user: dict = Depends(require_annotator)):
+    """审核统计卡片数据"""
+    try:
+        from knowledge_graph.kg_reviewer import get_review_stats
+        return get_review_stats()
+    except Exception as e:
+        logger.error(f"review stats 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/review/queue", response_class=JSONResponse)
+def api_review_queue(
+    target_type: str = "all",
+    status: str = "all",
+    entity_type: str = "",
+    relation_type: str = "",
+    keyword: str = "",
+    limit: int = 50,
+    offset: int = 0,
+    user: dict = Depends(require_annotator),
+):
+    """获取审核队列（分页、筛选）"""
+    try:
+        from knowledge_graph.kg_reviewer import get_review_queue
+        result = get_review_queue(
+            target_type=target_type,
+            status_filter=status,
+            entity_type_filter=entity_type,
+            relation_type_filter=relation_type,
+            keyword=keyword,
+            limit=limit,
+            offset=offset,
+        )
+        # datetime 转字符串
+        for item in result['items']:
+            for k, v in list(item.items()):
+                if hasattr(v, 'isoformat'):
+                    item[k] = v.isoformat()
+        return result
+    except Exception as e:
+        logger.error(f"review queue 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/review/detail/{target_type}/{target_id}", response_class=JSONResponse)
+def api_review_detail(target_type: str, target_id: int, user: dict = Depends(require_annotator)):
+    """获取单条审核详情（包含关联 chunks + 审核历史）"""
+    try:
+        from knowledge_graph.kg_reviewer import (
+            get_entity_chunks, get_relationship_chunks, get_review_log
+        )
+        detail: dict = {}
+
+        if target_type == "entity":
+            rows = execute_query(
+                """SELECT id, entity_name, entity_type, review_status, review_note,
+                          reviewed_by, reviewed_at, approved_by, approved_at,
+                          description, properties_json, investment_logic, created_at
+                   FROM kg_entities WHERE id = %s""",
+                [target_id]
+            )
+            if rows:
+                d = dict(rows[0])
+                for k, v in d.items():
+                    if hasattr(v, 'isoformat'):
+                        d[k] = v.isoformat()
+                detail['item'] = d
+            detail['chunks'] = [_serialize_row(r) for r in get_entity_chunks(target_id)]
+            # 关联关系
+            rels = execute_query("""
+                SELECT r.id, r.relation_type, r.review_status,
+                       e1.entity_name AS src_name, e2.entity_name AS tgt_name
+                FROM kg_relationships r
+                JOIN kg_entities e1 ON r.source_entity_id = e1.id
+                JOIN kg_entities e2 ON r.target_entity_id = e2.id
+                WHERE r.source_entity_id = %s OR r.target_entity_id = %s
+                LIMIT 20
+            """, [target_id, target_id])
+            detail['relations'] = [dict(r) for r in (rels or [])]
+        else:
+            rows = execute_query(
+                """SELECT r.id, r.relation_type, r.review_status, r.review_note,
+                          r.strength, r.confidence, r.direction, r.evidence,
+                          r.reviewed_by, r.reviewed_at, r.approved_by, r.approved_at,
+                          e1.entity_name AS src_name, e1.entity_type AS src_type,
+                          e2.entity_name AS tgt_name, e2.entity_type AS tgt_type,
+                          r.created_at
+                   FROM kg_relationships r
+                   JOIN kg_entities e1 ON r.source_entity_id = e1.id
+                   JOIN kg_entities e2 ON r.target_entity_id = e2.id
+                   WHERE r.id = %s""",
+                [target_id]
+            )
+            if rows:
+                d = dict(rows[0])
+                for k, v in d.items():
+                    if hasattr(v, 'isoformat'):
+                        d[k] = v.isoformat()
+                detail['item'] = d
+            detail['chunks'] = [_serialize_row(r) for r in get_relationship_chunks(target_id)]
+
+        detail['log'] = [_serialize_row(r) for r in get_review_log(target_type, target_id, limit=20)]
+        return detail
+    except Exception as e:
+        logger.error(f"review detail 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/mark-pending", response_class=JSONResponse)
+async def api_mark_pending(request: Request, user: dict = Depends(require_annotator)):
+    """data_admin 标记为 pending_approval"""
+    try:
+        from knowledge_graph.kg_reviewer import mark_pending
+        body = await request.json()
+        ok = mark_pending(
+            target_type=body["target_type"],
+            target_id=body["target_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            note=body.get("note", ""),
+        )
+        return {"ok": ok}
+    except Exception as e:
+        logger.error(f"mark pending 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/approve", response_class=JSONResponse)
+async def api_approve(request: Request, user: dict = Depends(require_super_admin)):
+    """super_admin 批准"""
+    try:
+        from knowledge_graph.kg_reviewer import approve
+        body = await request.json()
+        ok = approve(
+            target_type=body["target_type"],
+            target_id=body["target_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            note=body.get("note", ""),
+        )
+        return {"ok": ok}
+    except Exception as e:
+        logger.error(f"approve 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/reject", response_class=JSONResponse)
+async def api_reject(request: Request, user: dict = Depends(require_super_admin)):
+    """super_admin 驳回"""
+    try:
+        from knowledge_graph.kg_reviewer import reject
+        body = await request.json()
+        ok = reject(
+            target_type=body["target_type"],
+            target_id=body["target_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            note=body.get("note", ""),
+        )
+        return {"ok": ok}
+    except Exception as e:
+        logger.error(f"reject 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/revert", response_class=JSONResponse)
+async def api_revert(request: Request, user: dict = Depends(require_super_admin)):
+    """super_admin revert 到历史快照"""
+    try:
+        from knowledge_graph.kg_reviewer import revert
+        body = await request.json()
+        ok = revert(
+            target_type=body["target_type"],
+            target_id=body["target_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            log_id=body.get("log_id"),
+        )
+        return {"ok": ok}
+    except Exception as e:
+        logger.error(f"revert 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/batch", response_class=JSONResponse)
+async def api_batch_review(request: Request, user: dict = Depends(require_super_admin)):
+    """super_admin 批量审批/驳回"""
+    try:
+        from knowledge_graph.kg_reviewer import batch_approve
+        body = await request.json()
+        result = batch_approve(
+            items=body["items"],
+            user_id=user.user_id,
+            user_role=user.role,
+            action=body.get("action", "approve"),
+            note=body.get("note", ""),
+        )
+        return result
+    except Exception as e:
+        logger.error(f"batch review 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/edit-entity", response_class=JSONResponse)
+async def api_edit_entity_review(request: Request, user: dict = Depends(require_annotator)):
+    """编辑实体（改名/改类型/改描述），status → pending_approval"""
+    try:
+        from knowledge_graph.kg_reviewer import edit_entity
+        body = await request.json()
+        ok = edit_entity(
+            entity_id=body["entity_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            new_name=body.get("new_name"),
+            new_type=body.get("new_type"),
+            new_description=body.get("new_description"),
+            note=body.get("note", ""),
+        )
+        return {"ok": ok}
+    except ValueError as e:
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=422)
+    except Exception as e:
+        logger.error(f"edit entity 失败: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+@router.post("/api/review/edit-relationship", response_class=JSONResponse)
+async def api_edit_relationship_review(request: Request, user: dict = Depends(require_annotator)):
+    """编辑关系属性，status → pending_approval"""
+    try:
+        from knowledge_graph.kg_reviewer import edit_relationship
+        body = await request.json()
+        ok = edit_relationship(
+            rel_id=body["rel_id"],
+            user_id=user.user_id,
+            user_role=user.role,
+            new_relation_type=body.get("new_relation_type"),
+            new_strength=body.get("new_strength"),
+            new_confidence=body.get("new_confidence"),
+            new_direction=body.get("new_direction"),
+            new_evidence=body.get("new_evidence"),
+            note=body.get("note", ""),
+        )
+        return {"ok": ok}
+    except Exception as e:
+        logger.error(f"edit relationship 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/review/log", response_class=JSONResponse)
+def api_review_log(
+    target_type: str = "",
+    target_id: int = 0,
+    limit: int = 50,
+    user: dict = Depends(require_annotator),
+):
+    """获取审核历史日志"""
+    try:
+        from knowledge_graph.kg_reviewer import get_review_log
+        logs = get_review_log(
+            target_type=target_type or None,
+            target_id=target_id or None,
+            limit=limit,
+        )
+        return {"logs": [_serialize_row(r) for r in logs]}
+    except Exception as e:
+        logger.error(f"review log 失败: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+def _serialize_row(row: dict) -> dict:
+    """将 DB 行中的 datetime/Decimal 转为 JSON 可序列化类型"""
+    d = dict(row)
+    for k, v in d.items():
+        if hasattr(v, 'isoformat'):
+            d[k] = v.isoformat()
+        elif hasattr(v, '__float__'):
+            d[k] = float(v)
+    return d

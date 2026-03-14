@@ -1,0 +1,1481 @@
+# 行业-指标字典（完整版 ~600 指标）
+# 三层行业分类 × 四大指标维度 × 每维度多条查询模板
+# {year} 运行时替换为当前年/上一年
+# 每条 query 直接用于 PyWenCai 查询
+
+industries:
+
+  # ═══════════════════════════════════════════════════════════
+  # 一、半导体（申万L1：电子）
+  # ═══════════════════════════════════════════════════════════
+  "电子":
+    "半导体":
+      _default:
+        demand:
+          - name: "全球半导体销售额"
+            metric_type: "market_size"
+            queries: ["{year}年全球半导体销售额"]
+          - name: "全球半导体销售额同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球半导体销售额同比增速"]
+          - name: "中国半导体市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国半导体市场规模"]
+          - name: "中国集成电路产量"
+            metric_type: "output"
+            queries: ["{year}年中国集成电路产量"]
+          - name: "中国集成电路产量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国集成电路产量同比增速"]
+          - name: "中国集成电路进口额"
+            metric_type: "market_size"
+            queries: ["{year}年中国集成电路进口额"]
+          - name: "中国集成电路出口额"
+            metric_type: "market_size"
+            queries: ["{year}年中国集成电路出口额"]
+        cost: []
+        competition: []
+        capacity:
+          - name: "全球半导体资本开支"
+            metric_type: "capacity"
+            queries: ["{year}年全球半导体资本开支"]
+
+      "芯片设计":
+        demand:
+          - name: "中国IC设计业销售额"
+            metric_type: "market_size"
+            queries: ["{year}年中国IC设计业销售额"]
+          - name: "模拟芯片市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年模拟芯片市场规模"]
+          - name: "功率半导体市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年功率半导体市场规模"]
+          - name: "SiC器件市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年SiC器件市场规模"]
+          - name: "SiC器件渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年SiC器件渗透率"]
+          - name: "GPU芯片出货量"
+            metric_type: "output"
+            queries: ["{year}年GPU芯片出货量"]
+          - name: "AI芯片市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年AI芯片市场规模"]
+          - name: "存储芯片市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年存储芯片市场规模"]
+          - name: "HBM出货量"
+            metric_type: "output"
+            queries: ["{year}年HBM出货量"]
+          - name: "HBM市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年HBM市场规模"]
+        cost:
+          - name: "IGBT模块价格"
+            metric_type: "price"
+            queries: ["{year}年IGBT模块价格"]
+          - name: "DRAM合约价"
+            metric_type: "price"
+            queries: ["{year}年DRAM合约价格走势"]
+          - name: "NAND Flash合约价"
+            metric_type: "price"
+            queries: ["{year}年NAND Flash合约价格走势"]
+        competition: []
+        capacity: []
+
+      "晶圆代工":
+        demand:
+          - name: "全球晶圆代工营收"
+            metric_type: "market_size"
+            queries: ["{year}年全球晶圆代工营收"]
+          - name: "全球晶圆代工营收同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球晶圆代工营收同比增速"]
+        cost:
+          - name: "晶圆代工ASP先进制程"
+            metric_type: "price"
+            queries: ["{year}年晶圆代工价格走势"]
+        competition:
+          - name: "先进制程产能占比"
+            metric_type: "penetration"
+            queries: ["{year}年先进制程7nm以下产能占比"]
+          - name: "中国大陆晶圆产能全球占比"
+            metric_type: "penetration"
+            queries: ["{year}年中国大陆晶圆产能全球占比"]
+        capacity:
+          - name: "晶圆代工产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年晶圆代工产能利用率"]
+          - name: "全球12英寸晶圆产能"
+            metric_type: "capacity"
+            queries: ["{year}年全球12英寸晶圆产能"]
+
+      "封装测试":
+        demand:
+          - name: "全球封测市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球封测市场规模"]
+          - name: "先进封装市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年先进封装市场规模"]
+          - name: "先进封装渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年先进封装渗透率"]
+        cost: []
+        competition: []
+        capacity:
+          - name: "CoWoS产能"
+            metric_type: "capacity"
+            queries: ["{year}年CoWoS产能"]
+          - name: "封测产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年封测产能利用率"]
+
+      "半导体设备":
+        demand:
+          - name: "全球半导体设备销售额"
+            metric_type: "market_size"
+            queries: ["{year}年全球半导体设备销售额"]
+          - name: "中国大陆半导体设备销售额"
+            metric_type: "market_size"
+            queries: ["{year}年中国大陆半导体设备销售额"]
+          - name: "光刻机出货量"
+            metric_type: "output"
+            queries: ["{year}年光刻机出货量"]
+        cost: []
+        competition:
+          - name: "中国半导体设备国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年中国半导体设备国产化率"]
+          - name: "刻蚀设备国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年刻蚀设备国产化率"]
+          - name: "薄膜沉积设备国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年薄膜沉积设备国产化率"]
+        capacity:
+          - name: "全球半导体设备BB ratio"
+            metric_type: "inventory"
+            queries: ["{year}年全球半导体设备BB ratio"]
+
+      "半导体材料":
+        demand:
+          - name: "全球半导体材料市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球半导体材料市场规模"]
+          - name: "硅片出货面积"
+            metric_type: "output"
+            queries: ["{year}年硅片出货面积"]
+          - name: "硅片出货面积同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年硅片出货面积同比增速"]
+          - name: "光刻胶市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年光刻胶市场规模"]
+          - name: "电子特气市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年电子特气市场规模"]
+        cost:
+          - name: "12英寸硅片价格"
+            metric_type: "price"
+            queries: ["{year}年12英寸硅片价格"]
+          - name: "SiC衬底价格"
+            metric_type: "price"
+            queries: ["{year}年SiC衬底价格"]
+        competition:
+          - name: "ArF光刻胶国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年ArF光刻胶国产化率"]
+          - name: "电子特气国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年电子特气国产化率"]
+        capacity: []
+
+    "消费电子":
+      _default:
+        demand:
+          - name: "全球智能手机出货量"
+            metric_type: "output"
+            queries: ["{year}年全球智能手机出货量"]
+          - name: "全球智能手机出货量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球智能手机出货量同比增速"]
+          - name: "中国智能手机出货量"
+            metric_type: "output"
+            queries: ["{year}年中国智能手机出货量"]
+          - name: "全球PC出货量"
+            metric_type: "output"
+            queries: ["{year}年全球PC出货量"]
+          - name: "全球PC出货量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球PC出货量同比增速"]
+          - name: "全球可穿戴设备出货量"
+            metric_type: "output"
+            queries: ["{year}年全球可穿戴设备出货量"]
+          - name: "全球VR/AR头显出货量"
+            metric_type: "output"
+            queries: ["{year}年全球VR AR头显出货量"]
+        cost: []
+        competition:
+          - name: "智能手机品牌市占率"
+            metric_type: "penetration"
+            queries: ["{year}年全球智能手机市占率排名"]
+        capacity: []
+
+    "面板显示":
+      _default:
+        demand:
+          - name: "OLED面板出货量"
+            metric_type: "output"
+            queries: ["{year}年OLED面板出货量"]
+          - name: "OLED渗透率手机"
+            metric_type: "penetration"
+            queries: ["{year}年手机OLED渗透率"]
+        cost:
+          - name: "LCD面板价格32寸"
+            metric_type: "price"
+            queries: ["{year}年LCD面板价格32寸"]
+          - name: "LCD面板价格55寸"
+            metric_type: "price"
+            queries: ["{year}年LCD面板价格55寸"]
+        competition: []
+        capacity:
+          - name: "面板产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年面板产能利用率"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 二、AI算力（申万L1：通信/计算机）
+  # ═══════════════════════════════════════════════════════════
+  "通信":
+    "光模块":
+      _default:
+        demand:
+          - name: "全球光模块市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球光模块市场规模"]
+          - name: "800G光模块出货量"
+            metric_type: "output"
+            queries: ["{year}年800G光模块出货量"]
+          - name: "光纤光缆出货量"
+            metric_type: "output"
+            queries: ["{year}年光纤光缆出货量"]
+        cost:
+          - name: "800G光模块价格"
+            metric_type: "price"
+            queries: ["{year}年800G光模块价格"]
+          - name: "光纤价格"
+            metric_type: "price"
+            queries: ["{year}年光纤价格走势"]
+        competition:
+          - name: "硅光模块渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年硅光模块渗透率"]
+        capacity: []
+
+    "交换机网络":
+      _default:
+        demand:
+          - name: "全球以太网交换机市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球以太网交换机市场规模"]
+          - name: "数据中心交换机出货量"
+            metric_type: "output"
+            queries: ["{year}年数据中心交换机出货量"]
+        cost: []
+        competition: []
+        capacity: []
+
+  "计算机":
+    "AI算力":
+      _default:
+        demand:
+          - name: "全球AI服务器市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球AI服务器市场规模"]
+          - name: "中国AI服务器市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国AI服务器市场规模"]
+          - name: "全球AI服务器出货量"
+            metric_type: "output"
+            queries: ["{year}年全球AI服务器出货量"]
+          - name: "全球AI服务器出货量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球AI服务器出货量同比增速"]
+          - name: "全球AI芯片市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球AI芯片市场规模"]
+          - name: "北美云厂商资本开支同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年北美云厂商资本开支同比增速"]
+          - name: "NVIDIA数据中心营收"
+            metric_type: "market_size"
+            queries: ["{year}年NVIDIA数据中心营收"]
+          - name: "全球服务器出货量"
+            metric_type: "output"
+            queries: ["{year}年全球服务器出货量"]
+          - name: "全球服务器出货量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球服务器出货量同比增速"]
+        cost:
+          - name: "GPU服务器单价"
+            metric_type: "price"
+            queries: ["{year}年GPU服务器价格"]
+        competition: []
+        capacity:
+          - name: "全球数据中心资本开支"
+            metric_type: "capacity"
+            queries: ["{year}年全球数据中心资本开支"]
+
+    "IDC算力租赁":
+      _default:
+        demand:
+          - name: "中国IDC市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国IDC市场规模"]
+          - name: "中国IDC市场规模同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国IDC市场规模同比增速"]
+        cost:
+          - name: "GPU算力租赁价格H100"
+            metric_type: "price"
+            queries: ["{year}年GPU算力租赁价格"]
+        competition: []
+        capacity:
+          - name: "中国IDC机柜数量"
+            metric_type: "capacity"
+            queries: ["{year}年中国IDC机柜数量"]
+          - name: "IDC上架率"
+            metric_type: "capacity"
+            queries: ["{year}年IDC上架率"]
+
+    "AI应用":
+      _default:
+        demand:
+          - name: "全球生成式AI市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球生成式AI市场规模"]
+          - name: "中国AI大模型市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国AI大模型市场规模"]
+          - name: "AI Agent市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年AI Agent市场规模"]
+        cost:
+          - name: "全球AI推理成本"
+            metric_type: "price"
+            queries: ["{year}年AI推理成本变化趋势"]
+        competition:
+          - name: "AI编程工具渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年AI编程工具渗透率"]
+        capacity: []
+
+    "自动驾驶":
+      _default:
+        demand:
+          - name: "全球自动驾驶市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球自动驾驶市场规模"]
+          - name: "激光雷达出货量"
+            metric_type: "output"
+            queries: ["{year}年激光雷达出货量"]
+          - name: "自动驾驶域控制器市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年自动驾驶域控制器市场规模"]
+        cost:
+          - name: "激光雷达ASP"
+            metric_type: "price"
+            queries: ["{year}年激光雷达价格走势"]
+        competition:
+          - name: "中国L2+辅助驾驶渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年中国L2+辅助驾驶渗透率"]
+          - name: "中国NOA功能渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年中国NOA功能渗透率"]
+        capacity:
+          - name: "L4自动驾驶Robotaxi运营车辆数"
+            metric_type: "capacity"
+            queries: ["{year}年Robotaxi运营车辆数"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 三、PCB/散热/电源（AI算力相关）
+  # ═══════════════════════════════════════════════════════════
+    "PCB载板":
+      _default:
+        demand:
+          - name: "全球PCB市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球PCB市场规模"]
+          - name: "IC载板市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年IC载板市场规模"]
+        cost:
+          - name: "PCB铜箔价格"
+            metric_type: "price"
+            queries: ["{year}年PCB铜箔价格"]
+          - name: "覆铜板价格"
+            metric_type: "price"
+            queries: ["{year}年覆铜板价格"]
+        competition: []
+        capacity: []
+
+    "液冷散热":
+      _default:
+        demand:
+          - name: "数据中心液冷市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年数据中心液冷市场规模"]
+          - name: "液冷渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年数据中心液冷渗透率"]
+        cost: []
+        competition: []
+        capacity: []
+
+  # ═══════════════════════════════════════════════════════════
+  # 四、商业航天（申万L1：国防军工）
+  # ═══════════════════════════════════════════════════════════
+  "国防军工":
+    "商业航天":
+      _default:
+        demand:
+          - name: "全球卫星产业收入"
+            metric_type: "market_size"
+            queries: ["{year}年全球卫星产业收入"]
+          - name: "中国卫星发射数量"
+            metric_type: "output"
+            queries: ["{year}年中国卫星发射数量"]
+          - name: "全球商业发射次数"
+            metric_type: "output"
+            queries: ["{year}年全球商业火箭发射次数"]
+          - name: "全球商业发射市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球商业发射市场规模"]
+        cost:
+          - name: "商业发射单位成本LEO"
+            metric_type: "price"
+            queries: ["{year}年商业发射每公斤入轨成本"]
+        competition:
+          - name: "可回收火箭发射占比"
+            metric_type: "penetration"
+            queries: ["{year}年可回收火箭发射占比"]
+        capacity:
+          - name: "全球在轨卫星数量"
+            metric_type: "capacity"
+            queries: ["{year}年全球在轨卫星数量"]
+
+    "卫星通信":
+      _default:
+        demand:
+          - name: "全球卫星通信市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球卫星通信市场规模"]
+          - name: "中国卫星互联网市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国卫星互联网市场规模"]
+          - name: "全球低轨卫星互联网用户数"
+            metric_type: "output"
+            queries: ["{year}年低轨卫星互联网用户数"]
+        cost: []
+        competition:
+          - name: "手机直连卫星渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年手机直连卫星渗透率"]
+        capacity:
+          - name: "低轨通信卫星在轨数量"
+            metric_type: "capacity"
+            queries: ["{year}年低轨通信卫星在轨数量"]
+
+    "卫星导航":
+      _default:
+        demand:
+          - name: "中国卫星导航产业规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国卫星导航产业规模"]
+          - name: "北斗芯片出货量"
+            metric_type: "output"
+            queries: ["{year}年北斗芯片出货量"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "国防总量":
+      _default:
+        demand:
+          - name: "中国国防预算"
+            metric_type: "market_size"
+            queries: ["{year}年中国国防预算"]
+          - name: "中国国防预算同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国国防预算同比增速"]
+          - name: "全球军费开支"
+            metric_type: "market_size"
+            queries: ["{year}年全球军费开支"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "军工电子":
+      _default:
+        demand:
+          - name: "军用电子元器件市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年军用电子元器件市场规模"]
+          - name: "全球军用无人机市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球军用无人机市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+  # ═══════════════════════════════════════════════════════════
+  # 五、新能源（申万L1：电力设备/汽车）
+  # ═══════════════════════════════════════════════════════════
+  "汽车":
+    "新能源汽车":
+      _default:
+        demand:
+          - name: "中国新能源汽车销量"
+            metric_type: "output"
+            queries: ["{year}年中国新能源汽车销量"]
+          - name: "中国新能源汽车销量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国新能源汽车销量同比增速"]
+          - name: "中国新能源汽车渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年中国新能源汽车渗透率"]
+          - name: "全球新能源汽车销量"
+            metric_type: "output"
+            queries: ["{year}年全球新能源汽车销量"]
+          - name: "中国新能源汽车出口量"
+            metric_type: "output"
+            queries: ["{year}年中国新能源汽车出口量"]
+          - name: "欧洲新能源汽车销量"
+            metric_type: "output"
+            queries: ["{year}年欧洲新能源汽车销量"]
+          - name: "中国乘用车总销量"
+            metric_type: "output"
+            queries: ["{year}年中国乘用车销量"]
+          - name: "中国乘用车总销量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国乘用车销量同比增速"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "汽车电子智能化":
+      _default:
+        demand:
+          - name: "全球汽车电子市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球汽车电子市场规模"]
+          - name: "中国汽车电子市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国汽车电子市场规模"]
+          - name: "智能座舱市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年智能座舱市场规模"]
+          - name: "线控底盘市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年线控底盘市场规模"]
+        cost:
+          - name: "单车半导体价值量"
+            metric_type: "price"
+            queries: ["{year}年单车半导体价值量"]
+        competition:
+          - name: "智能座舱渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年智能座舱渗透率"]
+          - name: "空气悬架渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年空气悬架渗透率"]
+          - name: "800V高压平台渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年800V高压平台渗透率"]
+        capacity: []
+
+    "汽车热管理电驱":
+      _default:
+        demand:
+          - name: "新能源汽车热管理市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年新能源汽车热管理市场规模"]
+          - name: "电驱动系统市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年电驱动系统市场规模"]
+        cost: []
+        competition:
+          - name: "热泵空调渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年新能源汽车热泵空调渗透率"]
+          - name: "SiC逆变器渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年SiC逆变器渗透率"]
+        capacity: []
+
+  "电力设备":
+    "动力电池":
+      _default:
+        demand:
+          - name: "中国动力电池装机量"
+            metric_type: "output"
+            queries: ["{year}年中国动力电池装机量"]
+          - name: "中国动力电池装机量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国动力电池装机量同比增速"]
+          - name: "中国动力电池产量"
+            metric_type: "output"
+            queries: ["{year}年中国动力电池产量"]
+          - name: "全球动力电池装机量"
+            metric_type: "output"
+            queries: ["{year}年全球动力电池装机量"]
+          - name: "全球动力电池装机量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年全球动力电池装机量同比增速"]
+          - name: "磷酸铁锂电池装机占比"
+            metric_type: "penetration"
+            queries: ["{year}年磷酸铁锂电池装机占比"]
+        cost:
+          - name: "磷酸铁锂电芯价格"
+            metric_type: "price"
+            queries: ["{year}年磷酸铁锂电芯价格"]
+          - name: "三元电芯价格"
+            metric_type: "price"
+            queries: ["{year}年三元电芯价格"]
+          - name: "方形电池Pack价格"
+            metric_type: "price"
+            queries: ["{year}年方形电池Pack价格"]
+        competition: []
+        capacity:
+          - name: "动力电池产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年动力电池产能利用率"]
+          - name: "中国动力电池库存"
+            metric_type: "inventory"
+            queries: ["{year}年动力电池库存"]
+          - name: "全球动力电池产能"
+            metric_type: "capacity"
+            queries: ["{year}年全球动力电池产能"]
+
+    "锂电材料":
+      _default:
+        demand:
+          - name: "正极材料出货量"
+            metric_type: "output"
+            queries: ["{year}年正极材料出货量"]
+          - name: "负极材料出货量"
+            metric_type: "output"
+            queries: ["{year}年负极材料出货量"]
+          - name: "电解液出货量"
+            metric_type: "output"
+            queries: ["{year}年电解液出货量"]
+          - name: "隔膜出货量"
+            metric_type: "output"
+            queries: ["{year}年锂电隔膜出货量"]
+          - name: "电池级碳酸锂产量"
+            metric_type: "output"
+            queries: ["{year}年电池级碳酸锂产量"]
+        cost:
+          - name: "碳酸锂价格"
+            metric_type: "price"
+            queries: ["{year}年碳酸锂价格走势"]
+          - name: "氢氧化锂价格"
+            metric_type: "price"
+            queries: ["{year}年氢氧化锂价格走势"]
+          - name: "磷酸铁锂正极价格"
+            metric_type: "price"
+            queries: ["{year}年磷酸铁锂正极材料价格"]
+          - name: "六氟磷酸锂价格"
+            metric_type: "price"
+            queries: ["{year}年六氟磷酸锂价格"]
+          - name: "湿法隔膜价格"
+            metric_type: "price"
+            queries: ["{year}年湿法隔膜价格"]
+        competition:
+          - name: "硅基负极渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年硅基负极渗透率"]
+        capacity:
+          - name: "碳酸锂库存"
+            metric_type: "inventory"
+            queries: ["{year}年碳酸锂库存"]
+
+    "储能":
+      _default:
+        demand:
+          - name: "中国储能电池出货量"
+            metric_type: "output"
+            queries: ["{year}年中国储能电池出货量"]
+          - name: "中国储能电池出货量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国储能电池出货量同比增速"]
+          - name: "全球储能装机量"
+            metric_type: "output"
+            queries: ["{year}年全球储能装机量"]
+          - name: "全球储能市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球储能市场规模"]
+        cost:
+          - name: "储能系统报价大储"
+            metric_type: "price"
+            queries: ["{year}年储能系统报价"]
+        competition: []
+        capacity:
+          - name: "储能电池产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年储能电池产能利用率"]
+
+    "光伏":
+      _default:
+        demand:
+          - name: "中国光伏新增装机"
+            metric_type: "output"
+            queries: ["{year}年中国光伏新增装机"]
+          - name: "中国光伏新增装机同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国光伏新增装机同比增速"]
+          - name: "全球光伏新增装机"
+            metric_type: "output"
+            queries: ["{year}年全球光伏新增装机"]
+          - name: "中国光伏组件出口量"
+            metric_type: "output"
+            queries: ["{year}年中国光伏组件出口量"]
+          - name: "多晶硅产量"
+            metric_type: "output"
+            queries: ["{year}年多晶硅产量"]
+          - name: "光伏逆变器出货量"
+            metric_type: "output"
+            queries: ["{year}年光伏逆变器出货量"]
+        cost:
+          - name: "多晶硅价格致密料"
+            metric_type: "price"
+            queries: ["{year}年多晶硅致密料价格"]
+          - name: "组件价格"
+            metric_type: "price"
+            queries: ["{year}年光伏组件价格走势"]
+          - name: "电池片价格TOPCon"
+            metric_type: "price"
+            queries: ["{year}年TOPCon电池片价格"]
+          - name: "光伏玻璃价格"
+            metric_type: "price"
+            queries: ["{year}年光伏玻璃价格"]
+        competition:
+          - name: "TOPCon电池渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年TOPCon电池渗透率"]
+          - name: "HJT电池渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年HJT电池渗透率"]
+        capacity:
+          - name: "光伏产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年光伏产能利用率"]
+          - name: "多晶硅产能"
+            metric_type: "capacity"
+            queries: ["{year}年多晶硅产能"]
+          - name: "多晶硅库存"
+            metric_type: "inventory"
+            queries: ["{year}年多晶硅库存"]
+
+    "风电":
+      _default:
+        demand:
+          - name: "中国风电新增装机"
+            metric_type: "output"
+            queries: ["{year}年中国风电新增装机"]
+          - name: "中国风电新增装机同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国风电新增装机同比增速"]
+          - name: "全球风电新增装机"
+            metric_type: "output"
+            queries: ["{year}年全球风电新增装机"]
+          - name: "中国风电招标量"
+            metric_type: "output"
+            queries: ["{year}年中国风电招标量"]
+          - name: "海上风电新增装机"
+            metric_type: "output"
+            queries: ["{year}年中国海上风电新增装机"]
+        cost:
+          - name: "陆上风机招标价格"
+            metric_type: "price"
+            queries: ["{year}年陆上风机招标价格"]
+          - name: "海上风机招标价格"
+            metric_type: "price"
+            queries: ["{year}年海上风机招标价格"]
+        competition: []
+        capacity: []
+
+    "充电桩":
+      _default:
+        demand:
+          - name: "中国充电桩市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国充电桩市场规模"]
+          - name: "中国月新增公共充电桩数"
+            metric_type: "output"
+            queries: ["{year}年中国新增公共充电桩数量"]
+        cost:
+          - name: "充电模块价格"
+            metric_type: "price"
+            queries: ["{year}年充电模块价格"]
+        competition:
+          - name: "直流快充桩占比"
+            metric_type: "penetration"
+            queries: ["{year}年直流快充桩占比"]
+        capacity:
+          - name: "中国公共充电桩保有量"
+            metric_type: "capacity"
+            queries: ["{year}年中国公共充电桩保有量"]
+
+    "氢能燃料电池":
+      _default:
+        demand:
+          - name: "氢能市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国氢能市场规模"]
+          - name: "中国氢燃料电池汽车销量"
+            metric_type: "output"
+            queries: ["{year}年中国氢燃料电池汽车销量"]
+          - name: "电解水制氢设备出货量"
+            metric_type: "output"
+            queries: ["{year}年电解水制氢设备出货量"]
+        cost:
+          - name: "绿氢成本"
+            metric_type: "price"
+            queries: ["{year}年绿氢制造成本"]
+        competition: []
+        capacity:
+          - name: "加氢站数量"
+            metric_type: "capacity"
+            queries: ["{year}年中国加氢站数量"]
+
+    "特高压输配电":
+      _default:
+        demand:
+          - name: "国网电网投资额"
+            metric_type: "capacity"
+            queries: ["{year}年国家电网投资额"]
+          - name: "国网电网投资额同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年国家电网投资同比增速"]
+          - name: "特高压线路核准条数"
+            metric_type: "output"
+            queries: ["{year}年特高压线路核准"]
+          - name: "变压器市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年变压器市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+  # ═══════════════════════════════════════════════════════════
+  # 六、先进制造（申万L1：机械设备）
+  # ═══════════════════════════════════════════════════════════
+  "机械设备":
+    "工业机器人":
+      _default:
+        demand:
+          - name: "中国工业机器人产量"
+            metric_type: "output"
+            queries: ["{year}年中国工业机器人产量"]
+          - name: "中国工业机器人产量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国工业机器人产量同比增速"]
+          - name: "全球工业机器人出货量"
+            metric_type: "output"
+            queries: ["{year}年全球工业机器人出货量"]
+          - name: "协作机器人出货量"
+            metric_type: "output"
+            queries: ["{year}年协作机器人出货量"]
+        cost:
+          - name: "RV减速器价格"
+            metric_type: "price"
+            queries: ["{year}年RV减速器价格"]
+        competition:
+          - name: "中国工业机器人国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年中国工业机器人国产化率"]
+        capacity: []
+
+    "人形机器人":
+      _default:
+        demand:
+          - name: "全球人形机器人市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球人形机器人市场规模"]
+          - name: "人形机器人出货量"
+            metric_type: "output"
+            queries: ["{year}年人形机器人出货量"]
+          - name: "行星滚柱丝杠市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年行星滚柱丝杠市场规模"]
+          - name: "空心杯电机市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年空心杯电机市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "数控机床":
+      _default:
+        demand:
+          - name: "中国金属切削机床产量"
+            metric_type: "output"
+            queries: ["{year}年中国金属切削机床产量"]
+          - name: "中国金属切削机床产量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国金属切削机床产量同比增速"]
+          - name: "中国数控机床市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国数控机床市场规模"]
+        cost: []
+        competition:
+          - name: "五轴数控机床国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年五轴数控机床国产化率"]
+          - name: "数控系统国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年数控系统国产化率"]
+        capacity: []
+
+    "工程机械":
+      _default:
+        demand:
+          - name: "挖掘机销量"
+            metric_type: "output"
+            queries: ["{year}年挖掘机销量"]
+          - name: "挖掘机销量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年挖掘机销量同比增速"]
+          - name: "叉车销量"
+            metric_type: "output"
+            queries: ["{year}年叉车销量"]
+          - name: "工程机械出口额"
+            metric_type: "market_size"
+            queries: ["{year}年工程机械出口额"]
+          - name: "工程机械出口额同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年工程机械出口额同比增速"]
+        cost: []
+        competition:
+          - name: "电动工程机械渗透率"
+            metric_type: "penetration"
+            queries: ["{year}年电动工程机械渗透率"]
+        capacity: []
+
+    "轨道交通":
+      _default:
+        demand:
+          - name: "铁路货运量"
+            metric_type: "output"
+            queries: ["{year}年中国铁路货运量"]
+          - name: "铁路货运量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年铁路货运量同比增速"]
+        cost: []
+        competition: []
+        capacity:
+          - name: "中国铁路固定资产投资"
+            metric_type: "capacity"
+            queries: ["{year}年中国铁路固定资产投资"]
+
+    "船舶海工":
+      _default:
+        demand:
+          - name: "中国新船订单量"
+            metric_type: "output"
+            queries: ["{year}年中国新船订单量"]
+          - name: "中国造船完工量"
+            metric_type: "output"
+            queries: ["{year}年中国造船完工量"]
+        cost:
+          - name: "新造船价格指数"
+            metric_type: "price"
+            queries: ["{year}年新造船价格指数"]
+          - name: "船用钢板价格"
+            metric_type: "price"
+            queries: ["{year}年船用钢板价格"]
+        competition: []
+        capacity:
+          - name: "中国手持船舶订单"
+            metric_type: "inventory"
+            queries: ["{year}年中国手持船舶订单"]
+
+    "航空发动机":
+      _default:
+        demand:
+          - name: "全球航空发动机市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球航空发动机市场规模"]
+          - name: "高温合金市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年高温合金市场规模"]
+          - name: "钛合金市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年钛合金市场规模"]
+        cost:
+          - name: "高温合金价格"
+            metric_type: "price"
+            queries: ["{year}年高温合金价格"]
+          - name: "航空钛合金价格"
+            metric_type: "price"
+            queries: ["{year}年航空钛合金价格"]
+        competition: []
+        capacity: []
+
+    "航空产业链":
+      _default:
+        demand:
+          - name: "全球民航飞机交付量"
+            metric_type: "output"
+            queries: ["{year}年全球民航飞机交付量"]
+          - name: "C919交付量"
+            metric_type: "output"
+            queries: ["{year}年C919交付量"]
+          - name: "中国民航客运量"
+            metric_type: "output"
+            queries: ["{year}年中国民航客运量"]
+          - name: "中国民航客运量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国民航客运量同比增速"]
+        cost: []
+        competition: []
+        capacity:
+          - name: "中国民航机队规模"
+            metric_type: "capacity"
+            queries: ["{year}年中国民航机队规模"]
+
+    "激光设备":
+      _default:
+        demand:
+          - name: "中国激光设备市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国激光设备市场规模"]
+          - name: "中国激光设备市场规模同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国激光设备市场规模同比增速"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "3D打印":
+      _default:
+        demand:
+          - name: "全球3D打印市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球3D打印市场规模"]
+          - name: "中国3D打印市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国3D打印市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "工业自动化":
+      _default:
+        demand:
+          - name: "中国工业自动化市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国工业自动化市场规模"]
+          - name: "中国PLC市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国PLC市场规模"]
+          - name: "工业视觉市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年工业视觉市场规模"]
+        cost: []
+        competition:
+          - name: "PLC国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年PLC国产化率"]
+        capacity: []
+
+  # ═══════════════════════════════════════════════════════════
+  # 七、有色金属/基础材料
+  # ═══════════════════════════════════════════════════════════
+  "有色金属":
+    "工业金属":
+      "铜":
+        demand:
+          - name: "中国精炼铜产量"
+            metric_type: "output"
+            queries: ["{year}年中国精炼铜产量"]
+        cost:
+          - name: "LME铜价"
+            metric_type: "price"
+            queries: ["{year}年LME铜价走势"]
+          - name: "铜精矿加工费TC/RC"
+            metric_type: "price"
+            queries: ["{year}年铜精矿加工费TC"]
+        competition: []
+        capacity:
+          - name: "全球精炼铜库存"
+            metric_type: "inventory"
+            queries: ["{year}年全球精炼铜库存"]
+
+      "铝":
+        demand:
+          - name: "中国电解铝产量"
+            metric_type: "output"
+            queries: ["{year}年中国电解铝产量"]
+        cost:
+          - name: "LME铝价"
+            metric_type: "price"
+            queries: ["{year}年LME铝价走势"]
+          - name: "氧化铝价格"
+            metric_type: "price"
+            queries: ["{year}年氧化铝价格走势"]
+        competition: []
+        capacity:
+          - name: "电解铝产能利用率"
+            metric_type: "capacity"
+            queries: ["{year}年电解铝产能利用率"]
+          - name: "中国电解铝库存"
+            metric_type: "inventory"
+            queries: ["{year}年电解铝库存"]
+
+    "稀有金属":
+      _default:
+        demand:
+          - name: "稀土永磁市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年稀土永磁市场规模"]
+        cost:
+          - name: "稀土氧化镨钕价格"
+            metric_type: "price"
+            queries: ["{year}年氧化镨钕价格走势"]
+          - name: "钨精矿价格"
+            metric_type: "price"
+            queries: ["{year}年钨精矿价格"]
+          - name: "锗价格"
+            metric_type: "price"
+            queries: ["{year}年锗价格走势"]
+          - name: "锑价格"
+            metric_type: "price"
+            queries: ["{year}年锑价格走势"]
+        competition: []
+        capacity: []
+
+    "贵金属":
+      _default:
+        demand:
+          - name: "全球央行购金量"
+            metric_type: "output"
+            queries: ["{year}年全球央行购金量"]
+        cost:
+          - name: "COMEX黄金价格"
+            metric_type: "price"
+            queries: ["{year}年COMEX黄金价格走势"]
+          - name: "白银价格"
+            metric_type: "price"
+            queries: ["{year}年白银价格走势"]
+        competition: []
+        capacity:
+          - name: "全球黄金ETF持仓量"
+            metric_type: "inventory"
+            queries: ["{year}年全球黄金ETF持仓量"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 八、钢铁
+  # ═══════════════════════════════════════════════════════════
+  "钢铁":
+    "普钢":
+      _default:
+        demand:
+          - name: "中国粗钢产量"
+            metric_type: "output"
+            queries: ["{year}年中国粗钢产量"]
+          - name: "中国粗钢产量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国粗钢产量同比增速"]
+          - name: "钢材表观消费量"
+            metric_type: "output"
+            queries: ["{year}年中国钢材表观消费量"]
+          - name: "钢材出口量"
+            metric_type: "output"
+            queries: ["{year}年中国钢材出口量"]
+        cost:
+          - name: "螺纹钢价格"
+            metric_type: "price"
+            queries: ["{year}年螺纹钢价格走势"]
+          - name: "热轧板卷价格"
+            metric_type: "price"
+            queries: ["{year}年热轧板卷价格走势"]
+          - name: "铁矿石价格"
+            metric_type: "price"
+            queries: ["{year}年铁矿石价格走势"]
+          - name: "焦炭价格"
+            metric_type: "price"
+            queries: ["{year}年焦炭价格走势"]
+        competition: []
+        capacity:
+          - name: "高炉开工率"
+            metric_type: "capacity"
+            queries: ["{year}年高炉开工率"]
+          - name: "钢材社会库存"
+            metric_type: "inventory"
+            queries: ["{year}年钢材社会库存"]
+          - name: "铁矿石港口库存"
+            metric_type: "inventory"
+            queries: ["{year}年铁矿石港口库存"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 九、医药生物
+  # ═══════════════════════════════════════════════════════════
+  "医药生物":
+    "创新药":
+      _default:
+        demand:
+          - name: "中国创新药市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国创新药市场规模"]
+          - name: "中国创新药NDA批准数"
+            metric_type: "output"
+            queries: ["{year}年中国创新药NDA批准数量"]
+          - name: "中国创新药license-out金额"
+            metric_type: "market_size"
+            queries: ["{year}年中国创新药license out金额"]
+          - name: "GLP-1药物全球销售额"
+            metric_type: "market_size"
+            queries: ["{year}年GLP-1药物全球销售额"]
+          - name: "ADC药物全球市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年ADC药物全球市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "CXO":
+      _default:
+        demand:
+          - name: "全球CRO市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球CRO市场规模"]
+          - name: "全球CDMO市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球CDMO市场规模"]
+          - name: "中国CXO市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国CXO市场规模"]
+        cost: []
+        competition: []
+        capacity: []
+
+    "医疗器械":
+      _default:
+        demand:
+          - name: "中国医疗器械市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国医疗器械市场规模"]
+          - name: "全球医疗器械市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年全球医疗器械市场规模"]
+          - name: "体外诊断IVD市场规模"
+            metric_type: "market_size"
+            queries: ["{year}年中国体外诊断IVD市场规模"]
+        cost: []
+        competition:
+          - name: "中国高端医疗器械国产化率"
+            metric_type: "penetration"
+            queries: ["{year}年中国高端医疗器械国产化率"]
+        capacity:
+          - name: "手术机器人装机量"
+            metric_type: "capacity"
+            queries: ["{year}年中国手术机器人装机量"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 十、能源/化工
+  # ═══════════════════════════════════════════════════════════
+  "基础化工":
+    "化工品":
+      _default:
+        demand: []
+        cost:
+          - name: "乙烯价格"
+            metric_type: "price"
+            queries: ["{year}年乙烯价格走势"]
+          - name: "PTA价格"
+            metric_type: "price"
+            queries: ["{year}年PTA价格走势"]
+          - name: "甲醇价格"
+            metric_type: "price"
+            queries: ["{year}年甲醇价格走势"]
+          - name: "纯碱价格"
+            metric_type: "price"
+            queries: ["{year}年纯碱价格走势"]
+          - name: "MDI价格"
+            metric_type: "price"
+            queries: ["{year}年MDI价格走势"]
+          - name: "钛白粉价格"
+            metric_type: "price"
+            queries: ["{year}年钛白粉价格走势"]
+          - name: "PVDF价格"
+            metric_type: "price"
+            queries: ["{year}年PVDF价格走势"]
+        competition: []
+        capacity: []
+
+  "石油石化":
+    "原油天然气":
+      _default:
+        demand: []
+        cost:
+          - name: "布伦特原油价格"
+            metric_type: "price"
+            queries: ["{year}年布伦特原油价格走势"]
+          - name: "天然气价格Henry Hub"
+            metric_type: "price"
+            queries: ["{year}年天然气价格走势"]
+          - name: "LNG现货价格"
+            metric_type: "price"
+            queries: ["{year}年LNG现货价格走势"]
+        competition: []
+        capacity: []
+
+  "煤炭":
+    "动力煤焦煤":
+      _default:
+        demand:
+          - name: "中国原煤产量"
+            metric_type: "output"
+            queries: ["{year}年中国原煤产量"]
+        cost:
+          - name: "动力煤价格秦皇岛Q5500"
+            metric_type: "price"
+            queries: ["{year}年动力煤价格走势"]
+          - name: "焦煤价格"
+            metric_type: "price"
+            queries: ["{year}年焦煤价格走势"]
+        competition: []
+        capacity:
+          - name: "煤炭库存港口"
+            metric_type: "inventory"
+            queries: ["{year}年煤炭港口库存"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 十一、房地产/建材
+  # ═══════════════════════════════════════════════════════════
+  "房地产":
+    "房地产开发":
+      _default:
+        demand:
+          - name: "中国商品房销售面积"
+            metric_type: "output"
+            queries: ["{year}年全国商品房销售面积"]
+          - name: "中国商品房销售面积同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年商品房销售面积同比增速"]
+          - name: "中国商品房销售额"
+            metric_type: "market_size"
+            queries: ["{year}年全国商品房销售额"]
+          - name: "中国商品房销售额同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年商品房销售额同比增速"]
+          - name: "中国房屋新开工面积"
+            metric_type: "output"
+            queries: ["{year}年中国房屋新开工面积"]
+          - name: "中国房屋新开工面积同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年房屋新开工面积同比增速"]
+          - name: "中国房地产开发投资额同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年房地产开发投资同比增速"]
+        cost:
+          - name: "百城住宅价格指数"
+            metric_type: "price"
+            queries: ["{year}年百城住宅价格指数"]
+        competition: []
+        capacity:
+          - name: "商品房待售面积"
+            metric_type: "inventory"
+            queries: ["{year}年商品房待售面积"]
+
+  "建筑材料":
+    "建材":
+      _default:
+        demand:
+          - name: "水泥产量"
+            metric_type: "output"
+            queries: ["{year}年中国水泥产量"]
+          - name: "水泥产量同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年水泥产量同比增速"]
+        cost:
+          - name: "水泥价格"
+            metric_type: "price"
+            queries: ["{year}年水泥价格走势"]
+          - name: "玻璃价格浮法"
+            metric_type: "price"
+            queries: ["{year}年浮法玻璃价格走势"]
+        competition: []
+        capacity:
+          - name: "玻璃库存"
+            metric_type: "inventory"
+            queries: ["{year}年玻璃库存"]
+
+  # ═══════════════════════════════════════════════════════════
+  # 十二、轮胎/橡胶
+  # ═══════════════════════════════════════════════════════════
+    "轮胎":
+      _default:
+        demand:
+          - name: "中国轮胎产量"
+            metric_type: "output"
+            queries: ["{year}年中国轮胎产量"]
+        cost:
+          - name: "天然橡胶价格"
+            metric_type: "price"
+            queries: ["{year}年天然橡胶价格走势"]
+        competition: []
+        capacity: []
+
+  # ═══════════════════════════════════════════════════════════
+  # 十三、宏观/通用指标（跨行业参照系）
+  # ═══════════════════════════════════════════════════════════
+  "宏观":
+    "宏观经济":
+      _default:
+        demand:
+          - name: "中国GDP同比增速"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国GDP同比增速"]
+          - name: "中国制造业PMI"
+            metric_type: "output"
+            queries: ["{year}年中国制造业PMI"]
+          - name: "中国社会消费品零售总额同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年社会消费品零售总额同比增速"]
+          - name: "中国固定资产投资同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年固定资产投资同比增速"]
+          - name: "中国制造业投资同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年制造业投资同比增速"]
+          - name: "中国工业增加值同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年工业增加值同比增速"]
+          - name: "中国出口额同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国出口额同比增速"]
+          - name: "中国进口额同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国进口额同比增速"]
+        cost:
+          - name: "中国CPI同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国CPI同比"]
+          - name: "中国PPI同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国PPI同比"]
+        competition: []
+        capacity:
+          - name: "中国M2同比"
+            metric_type: "growth_rate"
+            queries: ["{year}年中国M2同比增速"]
+          - name: "中国社融增量"
+            metric_type: "output"
+            queries: ["{year}年中国社融增量"]

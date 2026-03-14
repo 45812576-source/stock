@@ -1,0 +1,449 @@
+{% extends "base.html" %}
+{% block title %}Robust Kline{% endblock %}
+
+{% block extra_styles %}
+.tab-btn { padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid transparent; transition: all 0.2s; cursor: pointer; }
+.tab-btn.active { color: #135bec; border-bottom-color: #135bec; }
+.tab-btn:not(.active) { color: #64748b; }
+.tab-btn:not(.active):hover { color: #94a3b8; }
+.badge-type1 { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+.badge-type2 { background: rgba(59,130,246,0.15); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3); }
+.badge-type3 { background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); }
+.filter-input { background: #1a2233; border: 1px solid #2d3748; border-radius: 6px; padding: 4px 8px; font-size: 0.75rem; color: #cbd5e1; width: 100%; min-width: 60px; }
+.filter-input:focus { outline: none; border-color: #135bec; }
+.filter-select { background: #1a2233; border: 1px solid #2d3748; border-radius: 6px; padding: 4px 6px; font-size: 0.75rem; color: #cbd5e1; width: 100%; }
+.filter-select:focus { outline: none; border-color: #135bec; }
+th.sortable { cursor: pointer; user-select: none; }
+th.sortable:hover { color: #135bec; }
+th.sort-asc::after { content: ' ▲'; color: #135bec; font-size: 0.6rem; }
+th.sort-desc::after { content: ' ▼'; color: #135bec; font-size: 0.6rem; }
+.data-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+.data-table td { border-bottom: 1px solid rgba(45,55,72,0.5); }
+{% endblock %}
+
+{% block content %}
+<!-- 标题 + 扫描按钮 -->
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-2xl font-extrabold tracking-tight">Robust Kline</h1>
+    <p class="text-sm text-slate-500 mt-1">报告提及扫描 · 月K阳线筛选 · 爸爸备选</p>
+  </div>
+  <button id="scanBtn" onclick="triggerScan()"
+    class="flex items-center gap-2 bg-primary hover:bg-primary/80 text-white text-sm font-bold px-4 py-2 rounded-lg transition-colors">
+    <span class="material-icons-round text-sm" id="scanIcon">radar</span>
+    <span id="scanBtnText">立即扫描</span>
+  </button>
+</div>
+
+<!-- Tab 导航 -->
+<div class="flex items-center gap-1 border-b border-slate-800 mb-5">
+  <button class="tab-btn active" id="tab-mentions" onclick="switchTab('mentions')">
+    <span class="material-icons-round text-sm align-middle mr-1">article</span>报告提及
+    <span id="mentions-count" class="ml-1 text-xs text-slate-500 font-normal"></span>
+  </button>
+  <button class="tab-btn" id="tab-candidates" onclick="switchTab('candidates')">
+    <span class="material-icons-round text-sm align-middle mr-1">star</span>爸爸备选
+    <span id="candidates-count" class="ml-1 text-xs text-slate-500 font-normal"></span>
+  </button>
+</div>
+
+<!-- ═══ Tab: 报告提及 ═══ -->
+<div id="panel-mentions">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm data-table">
+        <thead class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10">
+          <tr class="text-slate-400 text-xs font-bold uppercase">
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('mentions','scan_date')">日期</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('mentions','stock_name')">股票</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('mentions','industry')">行业</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('mentions','theme')">题材</th>
+            <th class="px-3 py-2 text-left">来源报告</th>
+            <th class="px-3 py-2 text-left">投资亮点</th>
+          </tr>
+          <!-- 筛选行 -->
+          <tr class="bg-slate-800/60 border-b border-slate-700">
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-m-date" onchange="applyFilters('mentions')">
+                <option value="">全部日期</option>
+              </select>
+            </td>
+            <td class="px-2 py-1.5"><input class="filter-input" id="f-m-stock" placeholder="搜索..." oninput="applyFilters('mentions')"></td>
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-m-industry" onchange="applyFilters('mentions')">
+                <option value="">全部</option>
+              </select>
+            </td>
+            <td class="px-2 py-1.5"><input class="filter-input" id="f-m-theme" placeholder="搜索..." oninput="applyFilters('mentions')"></td>
+            <td class="px-2 py-1.5"><input class="filter-input" id="f-m-source" placeholder="搜索..." oninput="applyFilters('mentions')"></td>
+            <td class="px-2 py-1.5"></td>
+          </tr>
+        </thead>
+        <tbody id="mentions-tbody">
+          <tr><td colspan="6" class="text-center py-12 text-slate-500">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="px-4 py-2 border-t border-slate-800 text-xs text-slate-500" id="mentions-footer">—</div>
+  </div>
+</div>
+
+<!-- ═══ Tab: 爸爸备选 ═══ -->
+<div id="panel-candidates" class="hidden">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm data-table">
+        <thead class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-10">
+          <tr class="text-slate-400 text-xs font-bold uppercase">
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('candidates','scan_date')">出现日期</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('candidates','stock_name')">股票</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('candidates','industry')">行业</th>
+            <th class="px-3 py-2 text-left sortable" onclick="sortTable('candidates','match_type')">匹配类型</th>
+            <th class="px-3 py-2 text-left">阳线月/周</th>
+            <th class="px-3 py-2 text-right sortable" onclick="sortTable('candidates','gain_pct')">7月涨幅</th>
+            <th class="px-3 py-2 text-right sortable" onclick="sortTable('candidates','latest_price')">最新价</th>
+            <th class="px-3 py-2 text-right sortable" onclick="sortTable('candidates','mention_count')">提及次</th>
+            <th class="px-3 py-2 text-left">投资亮点</th>
+          </tr>
+          <!-- 筛选行 -->
+          <tr class="bg-slate-800/60 border-b border-slate-700">
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-c-date" onchange="applyFilters('candidates')">
+                <option value="">全部日期</option>
+              </select>
+            </td>
+            <td class="px-2 py-1.5"><input class="filter-input" id="f-c-stock" placeholder="搜索..." oninput="applyFilters('candidates')"></td>
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-c-industry" onchange="applyFilters('candidates')">
+                <option value="">全部</option>
+              </select>
+            </td>
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-c-type" onchange="applyFilters('candidates')">
+                <option value="">全部类型</option>
+                <option value="1">连续3月阳线</option>
+                <option value="2">4月内3月阳</option>
+                <option value="3">2月+3周阳</option>
+              </select>
+            </td>
+            <td class="px-2 py-1.5"></td>
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-c-gain" onchange="applyFilters('candidates')">
+                <option value="">全部</option>
+                <option value="pos">正涨幅</option>
+                <option value="neg">负涨幅</option>
+                <option value="lt20">涨幅&lt;20%</option>
+                <option value="gt20">涨幅≥20%</option>
+              </select>
+            </td>
+            <td></td>
+            <td class="px-2 py-1.5">
+              <select class="filter-select" id="f-c-mention" onchange="applyFilters('candidates')">
+                <option value="">全部</option>
+                <option value="2">≥2次</option>
+                <option value="3">≥3次</option>
+              </select>
+            </td>
+            <td></td>
+          </tr>
+        </thead>
+        <tbody id="candidates-tbody">
+          <tr><td colspan="9" class="text-center py-12 text-slate-500">加载中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="px-4 py-2 border-t border-slate-800 text-xs text-slate-500" id="candidates-footer">—</div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="scanToast" class="fixed bottom-6 right-6 bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-300 shadow-xl hidden items-center gap-2 z-50">
+  <span class="material-icons-round text-primary text-base" id="toastIcon">refresh</span>
+  <span id="toastMsg">扫描中...</span>
+</div>
+
+<script>
+let currentTab = 'mentions';
+let allMentions = [];
+let allCandidates = [];
+let sortState = { mentions: { col: 'scan_date', dir: 'desc' }, candidates: { col: 'scan_date', dir: 'desc' } };
+
+// ── 初始化 ────────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadMentions(), loadCandidates()]);
+  checkScanStatus();
+}
+
+// ── Tab ───────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('panel-mentions').classList.toggle('hidden', tab !== 'mentions');
+  document.getElementById('panel-candidates').classList.toggle('hidden', tab !== 'candidates');
+  document.getElementById('tab-mentions').classList.toggle('active', tab === 'mentions');
+  document.getElementById('tab-candidates').classList.toggle('active', tab === 'candidates');
+}
+
+// ── 加载数据 ──────────────────────────────────────────────────────
+async function loadMentions() {
+  try {
+    const r = await fetch('/robust-kline/api/mentions');
+    const d = await r.json();
+    allMentions = d.items || [];
+    document.getElementById('mentions-count').textContent = `(${allMentions.length})`;
+    populateFilters('mentions', allMentions);
+    applyFilters('mentions');
+  } catch(e) {
+    document.getElementById('mentions-tbody').innerHTML =
+      `<tr><td colspan="6" class="text-center py-10 text-red-400">加载失败: ${e}</td></tr>`;
+  }
+}
+
+async function loadCandidates() {
+  try {
+    const r = await fetch('/robust-kline/api/candidates');
+    const d = await r.json();
+    allCandidates = d.items || [];
+    document.getElementById('candidates-count').textContent = `(${allCandidates.length})`;
+    populateFilters('candidates', allCandidates);
+    applyFilters('candidates');
+  } catch(e) {
+    document.getElementById('candidates-tbody').innerHTML =
+      `<tr><td colspan="9" class="text-center py-10 text-red-400">加载失败: ${e}</td></tr>`;
+  }
+}
+
+// ── 填充下拉选项 ──────────────────────────────────────────────────
+function populateFilters(type, items) {
+  const prefix = type === 'mentions' ? 'f-m' : 'f-c';
+  // 日期
+  const dates = [...new Set(items.map(i => i.scan_date))].sort().reverse();
+  const dateSel = document.getElementById(`${prefix}-date`);
+  dateSel.innerHTML = '<option value="">全部日期</option>';
+  dates.forEach(d => { dateSel.innerHTML += `<option value="${d}">${d}</option>`; });
+  // 行业
+  const industries = [...new Set(items.map(i => i.industry).filter(Boolean))].sort();
+  const indSel = document.getElementById(`${prefix}-industry`);
+  indSel.innerHTML = '<option value="">全部行业</option>';
+  industries.forEach(i => { indSel.innerHTML += `<option value="${esc(i)}">${esc(i)}</option>`; });
+}
+
+// ── 筛选 + 排序 ───────────────────────────────────────────────────
+function applyFilters(type) {
+  if (type === 'mentions') {
+    const date = document.getElementById('f-m-date').value;
+    const stock = document.getElementById('f-m-stock').value.toLowerCase();
+    const industry = document.getElementById('f-m-industry').value;
+    const theme = document.getElementById('f-m-theme').value.toLowerCase();
+    const source = document.getElementById('f-m-source').value.toLowerCase();
+
+    let rows = allMentions.filter(r =>
+      (!date || r.scan_date === date) &&
+      (!stock || r.stock_name.toLowerCase().includes(stock) || r.stock_code.includes(stock)) &&
+      (!industry || r.industry === industry) &&
+      (!theme || r.theme.toLowerCase().includes(theme)) &&
+      (!source || r.source_title.toLowerCase().includes(source))
+    );
+    rows = sortRows(rows, sortState.mentions);
+    renderMentions(rows);
+    document.getElementById('mentions-footer').textContent = `显示 ${rows.length} / ${allMentions.length} 条`;
+  } else {
+    const date = document.getElementById('f-c-date').value;
+    const stock = document.getElementById('f-c-stock').value.toLowerCase();
+    const industry = document.getElementById('f-c-industry').value;
+    const type_f = document.getElementById('f-c-type').value;
+    const gain_f = document.getElementById('f-c-gain').value;
+    const mention_f = document.getElementById('f-c-mention').value;
+
+    let rows = allCandidates.filter(r => {
+      if (date && r.scan_date !== date) return false;
+      if (stock && !r.stock_name.toLowerCase().includes(stock) && !r.stock_code.includes(stock)) return false;
+      if (industry && r.industry !== industry) return false;
+      if (type_f && String(r.match_type) !== type_f) return false;
+      if (gain_f) {
+        const g = r.gain_pct;
+        if (gain_f === 'pos' && !(g > 0)) return false;
+        if (gain_f === 'neg' && !(g < 0)) return false;
+        if (gain_f === 'lt20' && !(g < 20)) return false;
+        if (gain_f === 'gt20' && !(g >= 20)) return false;
+      }
+      if (mention_f && !(r.mention_count >= parseInt(mention_f))) return false;
+      return true;
+    });
+    rows = sortRows(rows, sortState.candidates);
+    renderCandidates(rows);
+    document.getElementById('candidates-footer').textContent = `显示 ${rows.length} / ${allCandidates.length} 条`;
+  }
+}
+
+// ── 排序 ──────────────────────────────────────────────────────────
+function sortTable(type, col) {
+  const state = sortState[type];
+  if (state.col === col) {
+    state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.col = col;
+    state.dir = 'desc';
+  }
+  // 更新表头样式
+  const prefix = type === 'mentions' ? 'panel-mentions' : 'panel-candidates';
+  document.querySelectorAll(`#${prefix} th.sortable`).forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.textContent.trim().toLowerCase().includes(col.replace('_', '')) ||
+        th.getAttribute('onclick')?.includes(col)) {
+      th.classList.add(state.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+    }
+  });
+  applyFilters(type);
+}
+
+function sortRows(rows, state) {
+  const { col, dir } = state;
+  return [...rows].sort((a, b) => {
+    let av = a[col], bv = b[col];
+    if (av === null || av === undefined) av = '';
+    if (bv === null || bv === undefined) bv = '';
+    if (typeof av === 'number' && typeof bv === 'number') {
+      return dir === 'asc' ? av - bv : bv - av;
+    }
+    return dir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+}
+
+// ── 渲染 mentions ─────────────────────────────────────────────────
+function renderMentions(rows) {
+  const tbody = document.getElementById('mentions-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-500">暂无数据</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td class="px-3 py-2 text-xs font-mono text-slate-400 whitespace-nowrap">${esc(r.scan_date)}</td>
+      <td class="px-3 py-2 whitespace-nowrap">
+        <span class="font-bold text-white">${esc(r.stock_name)}</span>
+        ${r.stock_code ? `<span class="ml-1 text-xs text-slate-500 font-mono">${esc(r.stock_code)}</span>` : ''}
+      </td>
+      <td class="px-3 py-2 text-xs text-slate-300 whitespace-nowrap">${esc(r.industry)}</td>
+      <td class="px-3 py-2 text-xs text-slate-400 max-w-[160px]">
+        <div class="flex flex-wrap gap-1">
+          ${(r.theme || '').split(',').filter(Boolean).map(t =>
+            `<span class="badge badge-type1 px-1.5 py-0.5 text-[11px]">${esc(t.trim())}</span>`
+          ).join('')}
+        </div>
+      </td>
+      <td class="px-3 py-2 text-xs text-slate-500 max-w-[180px] truncate" title="${esc(r.source_title)}">${esc(r.source_title)}</td>
+      <td class="px-3 py-2 text-xs text-slate-400 max-w-[220px]">
+        <span class="line-clamp-2 leading-relaxed">${esc(r.highlight)}</span>
+      </td>
+    </tr>`).join('');
+}
+
+// ── 渲染 candidates ───────────────────────────────────────────────
+function renderCandidates(rows) {
+  const tbody = document.getElementById('candidates-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-slate-500">暂无数据</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const badgeCls = r.match_type === 1 ? 'badge-type1' : r.match_type === 2 ? 'badge-type2' : 'badge-type3';
+    const gainColor = r.gain_pct === null ? 'text-slate-500' : r.gain_pct > 0 ? 'text-emerald-400' : 'text-red-400';
+    const gainText = r.gain_pct !== null ? `${r.gain_pct > 0 ? '+' : ''}${r.gain_pct.toFixed(1)}%` : '—';
+    const yangFmt = (r.yang_months || '').split(',').map(m => {
+      if (/^\d{6}$/.test(m)) return m.slice(2,4)+'-'+m.slice(4);
+      if (/W\d+/.test(m)) return m.replace(/^\d{4}-/,'');
+      return m;
+    }).join(' ');
+    return `
+    <tr>
+      <td class="px-3 py-2 text-xs font-mono text-slate-400 whitespace-nowrap">${esc(r.scan_dates_str || r.scan_date)}</td>
+      <td class="px-3 py-2 whitespace-nowrap">
+        <span class="font-bold text-white">${esc(r.stock_name)}</span>
+        <span class="ml-1 text-xs text-slate-500 font-mono">${esc(r.stock_code)}</span>
+      </td>
+      <td class="px-3 py-2 text-xs text-slate-300 whitespace-nowrap">${esc(r.industry)}</td>
+      <td class="px-3 py-2"><span class="badge ${badgeCls} px-2 py-0.5 text-xs whitespace-nowrap">${esc(r.match_label)}</span></td>
+      <td class="px-3 py-2 text-xs text-slate-400 font-mono whitespace-nowrap">${esc(yangFmt)}</td>
+      <td class="px-3 py-2 text-right font-mono text-sm ${gainColor} whitespace-nowrap">${gainText}</td>
+      <td class="px-3 py-2 text-right font-mono text-sm text-slate-300 whitespace-nowrap">
+        ${r.latest_price !== null && r.latest_price !== undefined ? r.latest_price.toFixed(2) : '—'}
+      </td>
+      <td class="px-3 py-2 text-right text-sm text-slate-400">${r.mention_count}</td>
+      <td class="px-3 py-2 text-xs text-slate-400 max-w-[220px]">
+        <span class="line-clamp-2 leading-relaxed">${esc(r.highlight)}</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 扫描 ──────────────────────────────────────────────────────────
+async function triggerScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true;
+  document.getElementById('scanIcon').classList.add('animate-spin');
+  document.getElementById('scanBtnText').textContent = '扫描中...';
+  showToast('扫描已启动...');
+  try {
+    const r = await fetch('/robust-kline/api/scan', { method: 'POST' });
+    const d = await r.json();
+    if (d.ok) pollScanStatus();
+    else { hideToast(); showToast('错误：' + d.msg, true); resetScanBtn(); }
+  } catch(e) { hideToast(); resetScanBtn(); }
+}
+
+function resetScanBtn() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = false;
+  document.getElementById('scanIcon').classList.remove('animate-spin');
+  document.getElementById('scanBtnText').textContent = '立即扫描';
+}
+
+async function checkScanStatus() {
+  try {
+    const r = await fetch('/robust-kline/api/scan-status');
+    const d = await r.json();
+    if (d.running) pollScanStatus();
+  } catch(e) {}
+}
+
+let pollTimer = null;
+function pollScanStatus() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    try {
+      const r = await fetch('/robust-kline/api/scan-status');
+      const d = await r.json();
+      if (!d.running) {
+        clearInterval(pollTimer);
+        hideToast();
+        resetScanBtn();
+        await Promise.all([loadMentions(), loadCandidates()]);
+        if (d.last_result && !d.last_result.error) {
+          const s = d.last_result.scan || {};
+          showToast(`完成：${s.inserted||0} 条提及，${(d.last_result.filter||{}).matched||0} 只备选`, false, 5000);
+        }
+      }
+    } catch(e) {}
+  }, 3000);
+}
+
+function showToast(msg, isError=false, autoDismiss=0) {
+  const toast = document.getElementById('scanToast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').textContent = isError ? 'error' : 'refresh';
+  toast.classList.remove('hidden'); toast.classList.add('flex');
+  if (autoDismiss > 0) setTimeout(hideToast, autoDismiss);
+}
+function hideToast() {
+  const t = document.getElementById('scanToast');
+  t.classList.add('hidden'); t.classList.remove('flex');
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+init();
+</script>
+{% endblock %}

@@ -1,0 +1,273 @@
+{# 右侧报告Chatbot组件 — 复用Agent架构，支持拖拽内容讨论 #}
+{# 使用方式: {% include "partials/_report_chatbot.html" %} #}
+{# 依赖: stockCode, currentTab (JS变量) #}
+
+<div id="report-chatbot" class="flex flex-col" style="height:calc(100vh - 120px)"
+     ondragover="event.preventDefault(); this.classList.add('ring-2','ring-primary','ring-opacity-30')"
+     ondragleave="this.classList.remove('ring-2','ring-primary','ring-opacity-30')"
+     ondrop="handleChatDrop(event); this.classList.remove('ring-2','ring-primary','ring-opacity-30')"
+>
+
+  {# 标题栏 #}
+  <div class="flex items-center justify-between mb-3 flex-shrink-0">
+    <div class="flex items-center gap-2">
+      <span class="material-icons-round text-primary text-base">smart_toy</span>
+      <span class="text-sm font-semibold text-slate-200">AI 助手</span>
+    </div>
+    <button onclick="clearChatHistory()" title="清空对话"
+      class="text-slate-600 hover:text-red-400 transition p-1 rounded">
+      <span class="material-icons-round" style="font-size:16px">delete_sweep</span>
+    </button>
+  </div>
+
+  {# 对话历史区 #}
+  <div id="chat-messages" class="overflow-y-auto space-y-3 mb-3 pr-1"
+       style="flex:1;scrollbar-width:thin;scrollbar-color:#334155 transparent">
+    <div id="chat-empty" class="text-center py-8 text-slate-600 text-xs">
+      <span class="material-icons-round text-3xl mb-2 block">chat_bubble_outline</span>
+      可以拖拽报告内容到下方输入框，或直接提问
+    </div>
+  </div>
+
+  {# 拖拽区 + 输入框 #}
+  <div class="flex-shrink-0 space-y-2">
+    {# 拖拽上下文预览 #}
+    <div id="drag-context-preview" class="hidden rounded-lg bg-blue-500/10 border border-blue-500/20 p-2">
+      <div class="flex items-start justify-between gap-2">
+        <div class="text-xs text-blue-300 flex-1 min-w-0">
+          <span class="material-icons-round text-blue-400 align-middle" style="font-size:12px">attach_file</span>
+          <span id="drag-context-text" class="ml-1 line-clamp-2"></span>
+        </div>
+        <button onclick="clearDragContext()" class="text-slate-500 hover:text-red-400 flex-shrink-0">
+          <span class="material-icons-round" style="font-size:14px">close</span>
+        </button>
+      </div>
+    </div>
+
+    {# Drop zone + 输入框 #}
+    <div id="chat-drop-zone"
+         class="rounded-xl border border-slate-700 bg-slate-800/50 transition"
+         ondragover="event.preventDefault(); this.classList.add('border-primary','bg-primary/5')"
+         ondragleave="this.classList.remove('border-primary','bg-primary/5')"
+         ondrop="handleChatDrop(event)">
+      <textarea id="chat-input"
+        class="w-full bg-transparent text-sm text-slate-200 placeholder-slate-600 resize-none outline-none p-3"
+        rows="3"
+        placeholder="提问，或拖拽报告内容到此处..."
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage()}"
+      ></textarea>
+      <div class="flex items-center justify-between px-3 pb-2">
+        <span class="text-xs text-slate-600">Enter发送 · Shift+Enter换行</span>
+        <button onclick="sendChatMessage()" id="chat-send-btn"
+          class="px-3 py-1 rounded-lg text-xs bg-primary/20 text-primary hover:bg-primary/30 transition flex items-center gap-1">
+          <span class="material-icons-round" style="font-size:13px">send</span>发送
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#chat-messages .msg-user { display: flex; justify-content: flex-end; }
+#chat-messages .msg-user .bubble {
+  max-width: 85%; background: rgba(19,91,236,0.2); border: 1px solid rgba(19,91,236,0.3);
+  color: #e2e8f0; border-radius: 12px 12px 2px 12px; padding: 8px 12px; font-size: 0.78rem; line-height: 1.5;
+}
+#chat-messages .msg-assistant { display: flex; justify-content: flex-start; }
+#chat-messages .msg-assistant .bubble {
+  max-width: 95%; background: rgba(30,41,59,0.8); border: 1px solid rgba(100,116,139,0.15);
+  color: #cbd5e1; border-radius: 12px 12px 12px 2px; padding: 8px 12px; font-size: 0.78rem; line-height: 1.6;
+}
+#chat-messages .msg-assistant .bubble pre { background: rgba(15,23,42,0.8); border-radius: 6px; padding: 8px; overflow-x: auto; font-size: 0.72rem; margin: 4px 0; }
+#chat-messages .msg-assistant .bubble code { font-family: monospace; font-size: 0.72rem; }
+.msg-user .bubble .msg-attach {
+  margin-top: 6px; padding: 4px 8px; border-radius: 6px;
+  background: rgba(100,116,139,0.15); color: #64748b; font-size: 0.68rem; line-height: 1.4;
+  border-left: 2px solid rgba(100,116,139,0.3);
+}
+.chat-typing { display: flex; gap: 4px; align-items: center; padding: 8px 12px; }
+.chat-typing span { width: 6px; height: 6px; border-radius: 50%; background: #475569; animation: chatBounce 1.2s infinite; }
+.chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+.chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes chatBounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+</style>
+
+<script>
+(function() {
+  let dragContext = '';
+  let chatStreaming = false;
+
+  // 加载历史
+  function loadChatHistory() {
+    fetch(`/stock/${stockCode}/api/chat/history`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.messages && d.messages.length) {
+          document.getElementById('chat-empty').style.display = 'none';
+          d.messages.forEach(m => appendMessage(m.role, m.content, false));
+          scrollChatBottom();
+        }
+      });
+  }
+
+  function appendMessage(role, content, scroll = true, attachContext = '') {
+    const empty = document.getElementById('chat-empty');
+    if (empty) empty.style.display = 'none';
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = `msg-${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    if (role === 'assistant') {
+      bubble.innerHTML = simpleMarkdown(content);
+    } else {
+      const textNode = document.createElement('div');
+      textNode.textContent = content;
+      bubble.appendChild(textNode);
+      if (attachContext) {
+        const attach = document.createElement('div');
+        attach.className = 'msg-attach';
+        attach.innerHTML = `<span class="material-icons-round" style="font-size:11px;vertical-align:middle;margin-right:3px">attach_file</span>${escapeHtml(attachContext.slice(0, 150))}${attachContext.length > 150 ? '…' : ''}`;
+        bubble.appendChild(attach);
+      }
+    }
+    div.appendChild(bubble);
+    container.appendChild(div);
+    if (scroll) scrollChatBottom();
+    return bubble;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function simpleMarkdown(text) {
+    return text
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/\n/g, '<br>');
+  }
+
+  function scrollChatBottom() {
+    const el = document.getElementById('chat-messages');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  // 发送消息
+  window.sendChatMessage = function() {
+    if (chatStreaming) return;
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg) return;
+
+    input.value = '';
+    appendMessage('user', msg, true, dragContext);
+
+    // 显示typing
+    const container = document.getElementById('chat-messages');
+    const typingDiv = document.createElement('div');
+    typingDiv.className = 'msg-assistant';
+    typingDiv.id = 'chat-typing';
+    typingDiv.innerHTML = '<div class="bubble"><div class="chat-typing"><span></span><span></span><span></span></div></div>';
+    container.appendChild(typingDiv);
+    scrollChatBottom();
+
+    chatStreaming = true;
+    document.getElementById('chat-send-btn').disabled = true;
+
+    const currentTab = window.currentReportTab || '';
+    fetch(`/stock/${stockCode}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg, drag_context: dragContext, current_tab: currentTab }),
+    }).then(resp => {
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantBubble = null;
+      let fullText = '';
+
+      // 移除typing，创建真实bubble
+      const typing = document.getElementById('chat-typing');
+      if (typing) typing.remove();
+      const wrapDiv = document.createElement('div');
+      wrapDiv.className = 'msg-assistant';
+      assistantBubble = document.createElement('div');
+      assistantBubble.className = 'bubble';
+      wrapDiv.appendChild(assistantBubble);
+      container.appendChild(wrapDiv);
+
+      function pump() {
+        reader.read().then(({ done, value }) => {
+          if (done) {
+            chatStreaming = false;
+            document.getElementById('chat-send-btn').disabled = false;
+            clearDragContext();
+            return;
+          }
+          const text = decoder.decode(value);
+          const lines = text.split('\n');
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const payload = line.slice(6).trim();
+            if (payload === '[DONE]') {
+              chatStreaming = false;
+              document.getElementById('chat-send-btn').disabled = false;
+              clearDragContext();
+              return;
+            }
+            try {
+              const d = JSON.parse(payload);
+              if (d.chunk) {
+                fullText += d.chunk;
+                assistantBubble.innerHTML = simpleMarkdown(fullText);
+                scrollChatBottom();
+              }
+            } catch(e) {}
+          }
+          pump();
+        });
+      }
+      pump();
+    }).catch(e => {
+      const typing = document.getElementById('chat-typing');
+      if (typing) typing.remove();
+      appendMessage('assistant', '请求失败，请重试');
+      chatStreaming = false;
+      document.getElementById('chat-send-btn').disabled = false;
+    });
+  };
+
+  // 拖拽处理
+  window.handleChatDrop = function(e) {
+    e.preventDefault();
+    document.getElementById('chat-drop-zone').classList.remove('border-primary','bg-primary/5');
+    const ctx = e.dataTransfer.getData('text/chat-context') || e.dataTransfer.getData('text/plain');
+    if (ctx) {
+      dragContext = ctx;
+      document.getElementById('drag-context-text').textContent = ctx.slice(0, 120) + (ctx.length > 120 ? '...' : '');
+      document.getElementById('drag-context-preview').classList.remove('hidden');
+    }
+  };
+
+  window.clearDragContext = function() {
+    dragContext = '';
+    document.getElementById('drag-context-preview').classList.add('hidden');
+    document.getElementById('drag-context-text').textContent = '';
+  };
+
+  window.clearChatHistory = function() {
+    if (!confirm('确定清空对话历史？')) return;
+    fetch(`/stock/${stockCode}/api/chat/history`, { method: 'DELETE' })
+      .then(() => {
+        document.getElementById('chat-messages').innerHTML =
+          '<div id="chat-empty" class="text-center py-8 text-slate-600 text-xs"><span class="material-icons-round text-3xl mb-2 block">chat_bubble_outline</span>可以拖拽报告内容到下方输入框，或直接提问</div>';
+      });
+  };
+
+  // 初始化
+  document.addEventListener('DOMContentLoaded', loadChatHistory);
+})();
+</script>

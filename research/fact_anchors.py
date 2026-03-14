@@ -44,14 +44,13 @@ def get_summary_fact_anchors(stock_code: str, limit: int = 5) -> str:
         return ""
 
     try:
-        from utils.db_utils import execute_cloud_query
+        from utils.db_utils import execute_query
 
-        rows = execute_cloud_query("""
+        rows = execute_query("""
             SELECT cs.doc_type, cs.summary, cs.type_fields, cs.created_at
             FROM content_summaries cs
             JOIN stock_mentions sm ON cs.extracted_text_id = sm.extracted_text_id
             WHERE sm.stock_code = %s AND cs.family = 1
-              AND cs.review_status != 'rejected'
             ORDER BY cs.created_at DESC
             LIMIT %s
         """, [stock_code, limit])

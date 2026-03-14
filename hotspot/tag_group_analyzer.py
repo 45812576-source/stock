@@ -2,7 +2,10 @@
 import json
 import logging
 from utils.db_utils import execute_query
-from utils.claude_client import call_claude
+from utils.model_router import call_model as _call_model
+
+def call_claude(system_prompt, user_message, max_tokens=4096, **kwargs):
+    return _call_model('hotspot', system_prompt, user_message, max_tokens=max_tokens)
 
 logger = logging.getLogger(__name__)
 

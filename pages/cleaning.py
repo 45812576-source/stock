@@ -462,8 +462,77 @@ def _render_skill_result(sj, c, item):
             for hc in hit_cats:
                 st.markdown(hc)
 
-    # --- 5. 全文逐条整理 ---
-    if items:
+    # --- 5. FOE 树状结构 / 全文逐条整理 ---
+    foe_tree = sj.get("foe_tree", [])
+    items = sj.get("items", [])
+
+    if foe_tree:
+        with st.expander(f"📝 FOE 树状结构 ({len(foe_tree)}棵)"):
+            for f_node in foe_tree:
+                fid = f_node.get("id", "")
+                fl = f_node.get("fact_level", "")
+                rl = f_node.get("reliability", "")
+                src = f_node.get("source", "")
+                header = f"**{fid}** `{fl}` 可靠性:{rl}"
+                if src:
+                    header += f" | 来源:{src}"
+                st.markdown(f"🔷 {header}")
+                st.markdown(f"  {f_node.get('text', '')}")
+                for o_node in f_node.get("children", []):
+                    oid = o_node.get("id", "")
+                    oc = o_node.get("opinion_class", "")
+                    ocn = o_node.get("opinion_class_name", "")
+                    ls = o_node.get("logic_strength", "")
+                    osrc = o_node.get("source", "")
+                    assum = o_node.get("assumption", "")
+                    badge = f"类{oc}:{ocn}" if oc else ""
+                    st.markdown(f"  　💬 **{oid}** `{badge}` 逻辑强度:{ls} | 发布方:{osrc}")
+                    st.markdown(f"  　　{o_node.get('text', '')}")
+                    if assum:
+                        st.markdown(f"  　　*↳ 假设: {assum}*")
+                    for e_node in o_node.get("children", []):
+                        eid = e_node.get("id", "")
+                        elv = e_node.get("evidence_level", "")
+                        suf = e_node.get("sufficiency", "")
+                        note = e_node.get("note", "")
+                        st.markdown(f"  　　　📎 **{eid}** L{elv} | {suf}" + (f" ⚠️ {note}" if note else ""))
+                        st.markdown(f"  　　　　{e_node.get('text', '')}")
+                st.markdown("---")
+
+            # 游离观点 & 游离事实
+            orphan_o = sj.get("orphan_opinions", [])
+            orphan_f = sj.get("orphan_facts", [])
+            if orphan_o:
+                st.markdown("**游离观点（无事实锚点）:**")
+                for oo in orphan_o:
+                    st.markdown(f"- [{oo.get('id','')}] {oo.get('text','')}")
+            if orphan_f:
+                st.markdown("**游离事实（未被任何观点引用）:**")
+                for of in orphan_f:
+                    st.markdown(f"- [{of.get('id','')}] {of.get('text','')}")
+
+        # 全景评估
+        panorama = sj.get("panorama", {})
+        if panorama:
+            well = panorama.get("well_supported", [])
+            weak = panorama.get("weakly_supported", [])
+            unsup = panorama.get("unsupported", [])
+            blind = panorama.get("blind_spots", "")
+            src_q = panorama.get("source_quality", "")
+            oae = panorama.get("opinion_as_evidence", [])
+            with st.expander("🔭 全景评估"):
+                col1, col2, col3 = st.columns(3)
+                col1.metric("充分支撑", len(well), help=", ".join(well))
+                col2.metric("弱支撑", len(weak), help=", ".join(weak))
+                col3.metric("无支撑", len(unsup), help=", ".join(unsup))
+                if oae:
+                    st.caption("⚠️ 观点用作证据: " + ", ".join(oae))
+                if blind:
+                    st.warning(f"**潜在盲区:** {blind}")
+                if src_q:
+                    st.caption(f"**信源质量:** {src_q}")
+
+    elif items:
         with st.expander(f"📝 全文逐条整理 ({len(items)}条)"):
             for it in items:
                 if not isinstance(it, dict):

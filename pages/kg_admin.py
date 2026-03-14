@@ -35,8 +35,8 @@ except Exception:
 st.markdown("---")
 
 # ==================== 功能Tab ====================
-tab_search, tab_viz, tab_path, tab_manage, tab_update = st.tabs(
-    ["🔍 搜索浏览", "🕸️ 图谱可视化", "🔗 路径查找", "✏️ 管理", "🔄 更新"]
+tab_search, tab_viz, tab_path, tab_manage, tab_update, tab_annotate = st.tabs(
+    ["🔍 搜索浏览", "🕸️ 图谱可视化", "🔗 路径查找", "✏️ 管理", "🔄 更新", "🎯 标注巡检"]
 )
 
 # ==================== Tab 1: 搜索浏览 ====================
@@ -46,8 +46,10 @@ with tab_search:
         search_kw = st.text_input("搜索实体", placeholder="输入公司名、行业名或主题...",
                                   key="search_kw")
     with sc2:
-        search_type = st.selectbox("类型过滤", ["全部", "company", "industry", "theme",
-                                                "macro_factor", "indicator"], key="search_type")
+        search_type = st.selectbox("类型过滤", ["全部", "market", "theme", "industry", "industry_chain",
+                                                "company", "macro_indicator", "commodity", "energy",
+                                                "intermediate", "consumer_good", "policy",
+                                                "revenue_element"], key="search_type")
 
     if search_kw:
         try:
@@ -56,8 +58,12 @@ with tab_search:
             if results:
                 st.caption(f"找到 {len(results)} 个实体")
                 for ent in results:
-                    type_icons = {"company": "🏢", "industry": "🏭", "theme": "🎯",
-                                  "macro_factor": "🌐", "indicator": "📊"}
+                    type_icons = {"market": "🌍", "theme": "🎯", "industry": "🏭",
+                                  "industry_chain": "🔗", "company": "🏢",
+                                  "macro_indicator": "📊", "commodity": "🪨",
+                                  "energy": "⚡", "intermediate": "🔩",
+                                  "consumer_good": "🛒", "policy": "⚖️",
+                                  "revenue_element": "💰"}
                     icon = type_icons.get(ent["entity_type"], "📌")
                     with st.expander(f"{icon} [{ent['entity_type']}] {ent['entity_name']}"):
                         if ent.get("description"):
@@ -108,8 +114,10 @@ with tab_search:
     # 实体列表浏览
     st.markdown("---")
     st.subheader("实体列表")
-    browse_type = st.selectbox("按类型浏览", ["全部", "company", "industry", "theme",
-                                              "macro_factor", "indicator"], key="browse_type")
+    browse_type = st.selectbox("按类型浏览", ["全部", "market", "theme", "industry", "industry_chain",
+                                              "company", "macro_indicator", "commodity", "energy",
+                                              "intermediate", "consumer_good", "policy",
+                                              "revenue_element"], key="browse_type")
     try:
         btype = None if browse_type == "全部" else browse_type
         count = get_entity_count(btype)
@@ -153,14 +161,20 @@ with tab_viz:
                                        spring_length=150)
 
                         type_colors = {
-                            "company": "#4CAF50", "industry": "#2196F3",
-                            "theme": "#FF9800", "macro_factor": "#E91E63",
-                            "indicator": "#9C27B0",
+                            "market": "#3b82f6", "theme": "#8b5cf6",
+                            "industry": "#f59e0b", "industry_chain": "#d97706",
+                            "company": "#10b981", "macro_indicator": "#ef4444",
+                            "commodity": "#78716c", "energy": "#f97316",
+                            "intermediate": "#06b6d4", "consumer_good": "#ec4899",
+                            "policy": "#6366f1", "revenue_element": "#14b8a6",
                         }
                         type_shapes = {
-                            "company": "dot", "industry": "diamond",
-                            "theme": "triangle", "macro_factor": "star",
-                            "indicator": "square",
+                            "market": "hexagon", "theme": "triangle",
+                            "industry": "diamond", "industry_chain": "diamond",
+                            "company": "dot", "macro_indicator": "star",
+                            "commodity": "square", "energy": "triangle",
+                            "intermediate": "square", "consumer_good": "dot",
+                            "policy": "triangle", "revenue_element": "square",
                         }
 
                         added_nodes = set()
@@ -274,10 +288,15 @@ with tab_manage:
             ae1, ae2 = st.columns(2)
             with ae1:
                 etype = st.selectbox("实体类型",
-                    ["company", "industry", "theme", "macro_factor", "indicator"],
-                    format_func=lambda x: {"company": "🏢 公司", "industry": "🏭 行业",
-                        "theme": "🎯 主题", "macro_factor": "🌐 宏观因素",
-                        "indicator": "📊 指标"}.get(x, x))
+                    ["market", "theme", "industry", "industry_chain", "company",
+                     "macro_indicator", "commodity", "energy", "intermediate",
+                     "consumer_good", "policy", "revenue_element"],
+                    format_func=lambda x: {"market": "🌍 市场", "theme": "🎯 投资主题",
+                        "industry": "🏭 行业", "industry_chain": "🔗 产业链",
+                        "company": "🏢 公司", "macro_indicator": "📊 宏观指标",
+                        "commodity": "🪨 大宗商品", "energy": "⚡ 能源",
+                        "intermediate": "🔩 半成品", "consumer_good": "🛒 消费品",
+                        "policy": "⚖️ 政策", "revenue_element": "💰 收入/成本要素"}.get(x, x))
             with ae2:
                 ename = st.text_input("实体名称")
             edesc = st.text_area("描述", height=80)
@@ -388,3 +407,245 @@ with tab_update:
             st.caption("暂无变更记录")
     except Exception:
         st.caption("变更日志加载失败")
+
+# ==================== Tab 6: 标注巡检 ====================
+import json
+from datetime import datetime
+from pathlib import Path
+
+TRAINING_DATA_FILE = Path.home() / ".claude/kg_training_data.jsonl"
+
+def save_to_training(entity_name, entity_type, action, new_value=None, category="实体"):
+    """保存操作到训练集"""
+    item = {
+        "text": f"{entity_name} | 类型:{entity_type} | 操作:{action}",
+        "entity_name": entity_name,
+        "entity_type": entity_type,
+        "category": category,
+        "issue": "用户手动标注",
+        "suggested_action": action,
+        "suggested_value": new_value,
+        "human_verdict": 1,
+        "human_action": action,
+        "human_value": new_value,
+        "annotated_at": datetime.now().isoformat()
+    }
+    with open(TRAINING_DATA_FILE, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(item, ensure_ascii=False) + '\n')
+
+with tab_annotate:
+    # 权限检查
+    if 'role' not in st.session_state:
+        st.session_state.role = "annotator"  # 默认标注员
+
+    st.subheader("🎯 标注巡检")
+
+    # 权限切换（仅演示，实际应该从登录获取）
+    c_role, c_info = st.columns([1, 3])
+    with c_role:
+        role = st.selectbox("角色", ["annotator", "admin"], format_func=lambda x: "标注员" if x == "annotator" else "管理员",
+                           index=0 if st.session_state.role == "annotator" else 1)
+        st.session_state.role = role
+    with c_info:
+        if role == "annotator":
+            st.info("👤 标注员模式：只能标记操作，等待管理员审核")
+        else:
+            st.success("🔧 管理员模式：可以执行保存操作")
+
+    # 初始化待审核队列
+    if 'pending_annotations' not in st.session_state:
+        st.session_state.pending_annotations = []
+
+    # 加载数据
+    c1, c2 = st.columns(2)
+    with c1:
+        target = st.radio("选择", ["实体", "关系"])
+    with c2:
+        if target == "实体":
+            etype_filter = st.selectbox("类型筛选", ["全部"] + [
+                "market", "theme", "industry", "industry_chain", "company",
+                "macro_indicator", "commodity", "energy", "intermediate",
+                "consumer_good", "policy", "revenue_element"
+            ])
+
+    if target == "实体":
+        # 加载实体
+        if etype_filter == "全部":
+            entities = get_all_entities()
+        else:
+            from utils.db_utils import execute_query
+            entities = execute_query(
+                "SELECT * FROM kg_entities WHERE entity_type = %s ORDER BY entity_name",
+                [etype_filter]
+            )
+
+        st.caption(f"共 {len(entities)} 个实体 | 待审核: {len(st.session_state.pending_annotations)} 条")
+
+        # 表格展示
+        for ent in entities[:50]:  # 限制显示数量
+            col1, col2, col3, col4, col5 = st.columns([2, 2, 2, 2, 1])
+            with col1:
+                st.text(ent.get('entity_name', ''))
+            with col2:
+                st.text(ent.get('entity_type', ''))
+            with col3:
+                new_type = st.selectbox("改类型", [
+                    "market", "theme", "industry", "industry_chain", "company",
+                    "macro_indicator", "commodity", "energy", "intermediate",
+                    "consumer_good", "policy", "revenue_element"
+                ], index=0, key=f"type_{ent['id']}")
+            with col4:
+                new_name = st.text_input("改名", key=f"name_{ent['id']}", placeholder="不改则留空")
+
+            # 检查是否有待处理
+            pending = [p for p in st.session_state.pending_annotations if p['id'] == ent['id']]
+
+            with col5:
+                # 标注员：标记操作
+                if st.button("✓ 标记", key=f"mark_{ent['id']}"):
+                    action = None
+                    value = None
+                    if new_name and new_name != ent.get('entity_name'):
+                        action = "rename"
+                        value = new_name
+                    elif new_type != ent.get('entity_type'):
+                        action = "change_type"
+                        value = new_type
+
+                    if action:
+                        # 移除旧的同ID记录
+                        st.session_state.pending_annotations = [p for p in st.session_state.pending_annotations if p['id'] != ent['id']]
+                        # 添加新的
+                        st.session_state.pending_annotations.append({
+                            "id": ent['id'],
+                            "name": ent['entity_name'],
+                            "type": ent['entity_type'],
+                            "action": action,
+                            "value": value,
+                            "target": "entity"
+                        })
+                        st.toast(f"已标记: {action} -> {value}")
+                    else:
+                        st.warning("未做任何修改")
+
+                # 显示已标记状态
+                if pending:
+                    st.caption(f"⏳ 已标记: {pending[0]['action']}")
+
+        st.markdown("---")
+
+        # 待审核队列
+        if st.session_state.pending_annotations:
+            st.subheader(f"📋 待审核队列 ({len(st.session_state.pending_annotations)} 条)")
+
+            for i, ann in enumerate(st.session_state.pending_annotations):
+                col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                with col1:
+                    st.text(f"{ann['name']} ({ann['type']})")
+                with col2:
+                    st.text(f"操作: {ann['action']}")
+                with col3:
+                    st.text(f"值: {ann['value']}")
+                with col4:
+                    if st.button("🗑️", key=f"del_pending_{i}"):
+                        st.session_state.pending_annotations.pop(i)
+                        st.rerun()
+
+            # 管理员操作
+            if role == "admin":
+                st.subheader("🔧 管理员操作")
+                if st.button("💾 批量保存到训练集（不修改KG）", type="secondary"):
+                    for ann in st.session_state.pending_annotations:
+                        save_to_training(ann['name'], ann['type'], ann['action'], ann['value'])
+                    count = len(st.session_state.pending_annotations)
+                    st.session_state.pending_annotations = []
+                    st.success(f"已保存 {count} 条到训练集（仅标注，未修改KG）")
+                    st.rerun()
+
+                if st.button("✅ 执行修改并保存到训练集", type="primary"):
+                    for ann in st.session_state.pending_annotations:
+                        if ann['target'] == "entity":
+                            if ann['action'] == "delete":
+                                delete_entity(ann['id'])
+                            elif ann['action'] == "change_type":
+                                update_entity(ann['id'], ann['name'], ann['value'])
+                            elif ann['action'] == "rename":
+                                update_entity(ann['id'], ann['value'], ann['type'])
+                        # 保存到训练集
+                        save_to_training(ann['name'], ann['type'], ann['action'], ann['value'])
+                    count = len(st.session_state.pending_annotations)
+                    st.session_state.pending_annotations = []
+                    st.success(f"已执行 {count} 条修改并保存到训练集")
+                    st.rerun()
+            else:
+                st.info("👤 标注员模式：请等待管理员审核执行")
+
+        st.markdown("---")
+        st.caption("💾 流程：1.标注员标记操作 → 2.管理员审核 → 3.保存到训练集/执行修改")
+
+    else:
+        # 关系管理
+        from utils.db_utils import execute_query
+
+        rels = execute_query("""
+            SELECT r.id, r.relation_type, s.entity_name as src_name, s.entity_type as src_type,
+                   t.entity_name as tgt_name, t.entity_type as tgt_type
+            FROM kg_relationships r
+            JOIN kg_entities s ON r.source_entity_id = s.id
+            JOIN kg_entities t ON r.target_entity_id = t.id
+            ORDER BY r.id DESC LIMIT 50
+        """)
+
+        st.caption(f"显示最近50条关系 | 待审核: {len(st.session_state.pending_annotations)} 条")
+
+        for rel in rels:
+            col1, col2, col3, col4 = st.columns([3, 3, 3, 1])
+            with col1:
+                st.text(f"{rel['src_name']} ({rel['src_type']})")
+            with col2:
+                st.text(f"—[{rel['relation_type']}]—>")
+            with col3:
+                st.text(f"{rel['tgt_name']} ({rel['tgt_type']})")
+            with col4:
+                if st.button("✓ 标记删除", key=f"rel_mark_{rel['id']}"):
+                    st.session_state.pending_annotations = [p for p in st.session_state.pending_annotations if p['id'] != rel['id']]
+                    st.session_state.pending_annotations.append({
+                        "id": rel['id'],
+                        "name": f"{rel['src_name']} -> {rel['tgt_name']}",
+                        "type": rel['relation_type'],
+                        "action": "delete",
+                        "value": None,
+                        "target": "relation"
+                    })
+                    st.toast("已标记删除")
+
+        # 关系审核队列
+        pending_rels = [p for p in st.session_state.pending_annotations if p.get('target') == 'relation']
+        if pending_rels:
+            st.subheader(f"📋 待审核关系 ({len(pending_rels)} 条)")
+            for i, ann in enumerate([p for p in st.session_state.pending_annotations if p.get('target') == 'relation']):
+                col1, col2, col3 = st.columns([3, 2, 1])
+                with col1:
+                    st.text(ann['name'])
+                with col2:
+                    st.text(f"操作: {ann['action']}")
+                with col3:
+                    if st.button("🗑️", key=f"rel_del_pending_{i}"):
+                        st.session_state.pending_annotations = [p for p in st.session_state.pending_annotations if p.get('target') != 'relation' or p != ann]
+                        st.rerun()
+
+            if role == "admin":
+                if st.button("💾 保存到训练集（不删除）", type="secondary"):
+                    for ann in pending_rels:
+                        save_to_training(ann['name'], ann['type'], ann['action'], category="关系")
+                    st.session_state.pending_annotations = [p for p in st.session_state.pending_annotations if p.get('target') != 'relation']
+                    st.success("已保存到训练集")
+                    st.rerun()
+
+                if st.button("✅ 执行删除并保存", type="primary"):
+                    for ann in pending_rels:
+                        delete_relationship(ann['id'])
+                        save_to_training(ann['name'], ann['type'], ann['action'], category="关系")
+                    st.session_state.pending_annotations = [p for p in st.session_state.pending_annotations if p.get('target') != 'relation']
+                    st.success("已删除并保存")
+                    st.rerun()

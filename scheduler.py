@@ -297,6 +297,36 @@ def run_market_data_monthly():
     return result
 
 
+# ── 问财行业指标采集 ─────────────────────────────────────────
+
+def run_wencai_indicators():
+    """每天 21:00：从问财采集行业指标 → LLM提取 → 写入 industry_indicators"""
+    logger.info("[Scheduler] 问财行业指标采集开始")
+    try:
+        from ingestion.wencai_indicator_fetcher import run_wencai_indicator_fetch
+        result = run_wencai_indicator_fetch()
+        logger.info(f"[Scheduler] 问财行业指标采集完成: {result}")
+        return result
+    except Exception as e:
+        logger.exception(f"[Scheduler] 问财行业指标采集失败: {e}")
+        return {"error": str(e)}
+
+
+# ── Robust Kline 日扫描 ──────────────────────────────────────
+
+def _run_robust_kline_daily():
+    """每天16:00：扫描报告提及 → 月K线过滤 → 亮点填充"""
+    logger.info("[Scheduler] Robust Kline 日扫描开始")
+    try:
+        from routers.robust_kline import run_robust_kline_scan
+        result = run_robust_kline_scan()
+        logger.info(f"[Scheduler] Robust Kline 完成: {result}")
+        return result
+    except Exception as e:
+        logger.exception(f"[Scheduler] Robust Kline 失败: {e}")
+        return {"error": str(e)}
+
+
 # ── 调度器启停 ──────────────────────────────────────────────
 
 def start_scheduler():
@@ -335,9 +365,26 @@ def start_scheduler():
         id="market_data_monthly", replace_existing=True,
         name="市场增量数据月度同步",
     )
+    # 每天 06:00 + 16:00 — Robust Kline 扫描
+    scheduler.add_job(
+        _run_robust_kline_daily, CronTrigger(hour=6, minute=0),
+        id="robust_kline_morning", replace_existing=True,
+        name="Robust Kline 早间扫描",
+    )
+    scheduler.add_job(
+        _run_robust_kline_daily, CronTrigger(hour=16, minute=0),
+        id="robust_kline_afternoon", replace_existing=True,
+        name="Robust Kline 午后扫描",
+    )
+    # 每天 21:00 — 问财行业指标采集
+    scheduler.add_job(
+        run_wencai_indicators, CronTrigger(hour=21, minute=0),
+        id="wencai_indicators_daily", replace_existing=True,
+        name="问财行业指标采集",
+    )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 06:00 + 20:00 KG自动构建, 18:30 宏观日度, 每月15日19:00 宏观月度, 每月5/15/25日20:30 市场数据同步")
+    logger.info("[Scheduler] 定时任务已启动: 06:00 + 20:00 KG自动构建, 18:30 宏观日度, 每月15日19:00 宏观月度, 每月5/15/25日20:30 市场数据同步, 06:00+16:00 Robust Kline, 21:00 问财行业指标")
 
 
 def stop_scheduler():

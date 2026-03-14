@@ -43,8 +43,8 @@ HUIBO_DAILY_LIMIT = 29
 
 # 知识星球
 ZSXQ_GROUP_ID = "28885112854841"  # 保留兼容旧代码
-ZSXQ_GROUP_IDS = os.getenv("ZSXQ_GROUP_IDS", "28885112854841,48848441254818").split(",")
-ZSXQ_COOKIE = os.getenv("ZSXQ_COOKIE", "EFDB75AE-1FDD-4D84-9797-678F0AAF4C2A_0D94B6F14EDB6784")
+ZSXQ_GROUP_IDS = os.getenv("ZSXQ_GROUP_IDS", "28885112854841").split(",")
+ZSXQ_COOKIE = os.getenv("ZSXQ_COOKIE", "490AFECD-E3EE-436D-8258-878623783ED3_0D94B6F14EDB6784")
 
 # 数据采集时间窗口
 NEWS_LOOKBACK_HOURS = 24
@@ -53,10 +53,21 @@ REPORT_LOOKBACK_DAYS = 1
 # Skills目录（Claude Code Skills作为分析prompt）
 SKILLS_DIR = Path.home() / ".claude" / "skills"
 
+# 问财 cookie（需登录 iwencai.com 后从浏览器复制，为空则跳过问财查询）
+WENCAI_COOKIE = os.getenv("WENCAI_COOKIE", "")
+
+# 问财行业指标采集
+WENCAI_MIN_DELAY = int(os.getenv("WENCAI_MIN_DELAY", "15"))
+WENCAI_MAX_DELAY = int(os.getenv("WENCAI_MAX_DELAY", "15"))
+WENCAI_MAX_DAILY_QUERIES = int(os.getenv("WENCAI_MAX_DAILY_QUERIES", "9999"))
+WENCAI_INDICATOR_DICT = PROJECT_ROOT / "config" / "industry_indicator_dict.yaml"
+
 # 向量检索
 MILVUS_HOST = os.getenv("MILVUS_HOST", "127.0.0.1")
 MILVUS_PORT = int(os.getenv("MILVUS_PORT", "19530"))
 EMBEDDING_MODEL = "BAAI/bge-m3"
+# 离线加载模型（避免访问被墙的 huggingface.co）
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
 EMBEDDING_DIM = 1024
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 100

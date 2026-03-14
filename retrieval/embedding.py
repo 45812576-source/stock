@@ -12,11 +12,13 @@ _lock = threading.Lock()
 
 
 def _get_model():
-    """懒加载 bge-m3 模型（首次调用 ~10s，之后复用）"""
+    """懒加载 bge-m3 模型（首次调用 ~5s，之后复用）"""
     global _model
     if _model is None:
         with _lock:
             if _model is None:
+                import os
+                os.environ.setdefault("HF_HUB_OFFLINE", "1")
                 from FlagEmbedding import BGEM3FlagModel
                 logger.info(f"加载 embedding 模型: {EMBEDDING_MODEL}")
                 _model = BGEM3FlagModel(EMBEDDING_MODEL, use_fp16=True)

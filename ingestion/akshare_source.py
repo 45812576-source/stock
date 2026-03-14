@@ -123,47 +123,22 @@ def fetch_industry_capital_flow():
                 """INSERT OR REPLACE INTO industry_capital_flow
                    (industry_name, trade_date, net_inflow, change_pct, leading_stock)
                    VALUES (?, ?, ?, ?, ?)""",
-                [row.get("名称"), today, row.get("主力净流入-净额"),
-                 row.get("涨跌幅"), row.get("领涨股")],
+                [row.get("名称"), today,
+                 row.get("今日主力净流入-净额", row.get("主力净流入-净额")),
+                 row.get("今日涨跌幅", row.get("涨跌幅")),
+                 row.get("今日主力净流入最大股", row.get("领涨股"))],
             )
             count += 1
     logger.info(f"行业资金流向: {count}条")
     return count
 
 
-def fetch_northbound_flow():
-    """拉取北向资金"""
-    try:
-        df = _retry(ak.stock_hsgt_north_net_flow_in_em, symbol="北向")
-    except Exception as e:
-        logger.error(f"拉取北向资金失败: {e}")
-        return 0
-    if df is None or df.empty:
-        return 0
-    count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            trade_date = str(row.get("date", row.get("日期", "")))[:10]
-            if not trade_date:
-                continue
-            conn.execute(
-                """INSERT OR REPLACE INTO northbound_flow
-                   (trade_date, total_net)
-                   VALUES (?, ?)""",
-                [trade_date, row.get("value", row.get("当日净流入", 0))],
-            )
-            count += 1
-    logger.info(f"北向资金: {count}条")
-    return count
-
-
 def fetch_all_daily_data(stock_codes=None):
     """批量拉取所有日常数据"""
-    results = {"stock_info": 0, "industry_flow": 0, "northbound": 0, "daily": 0, "capital": 0}
+    results = {"stock_info": 0, "industry_flow": 0, "daily": 0, "capital": 0}
 
     results["stock_info"] = fetch_stock_info()
     results["industry_flow"] = fetch_industry_capital_flow()
-    results["northbound"] = fetch_northbound_flow()
 
     if stock_codes is None:
         # 默认拉取watchlist中的股票

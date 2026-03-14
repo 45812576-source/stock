@@ -20,19 +20,25 @@ SOURCE_CATALOG = {
     "djyanbao":   {"label": "洞见研报",     "group": "report",    "icon": "description", "desc": "券商/行业研报元数据",           "fetcher_type": "djyanbao",  "limit": 100},
     "fxbaogao":   {"label": "发现报告",     "group": "report",    "icon": "description", "desc": "行业报告元数据",               "fetcher_type": "fxbaogao",  "limit": 100},
     "em_report":  {"label": "东财研报(PDF)", "group": "report",    "icon": "description", "desc": "东方财富研报，含PDF全文提取",   "fetcher_type": "em_report", "limit": 10},
+    "cninfo_notice": {"label": "巨潮公告",   "group": "news",      "icon": "campaign",    "desc": "巨潮资讯公司公告(业绩预告/风险提示等)", "fetcher_type": "cninfo_notice", "limit": 200},
+    "earnings":      {"label": "业绩预告/快报", "group": "news",   "icon": "trending_up", "desc": "东方财富业绩预告+业绩快报",             "fetcher_type": "earnings",      "limit": 500},
     "zsxq":       {"label": "知识星球",     "group": "community", "icon": "forum",       "desc": "知识星球社群帖子",             "fetcher_type": "zsxq",      "max_pages": 5},
+    "futu":       {"label": "富途行情",     "group": "market",    "icon": "show_chart",  "desc": "富途OpenAPI实时行情(A股+港股)", "fetcher_type": "futu"},
+    "stock_db":   {"label": "stock_db文档库", "group": "report",  "icon": "storage",     "desc": "stock_db.stock_analysis → source_documents 同步", "fetcher_type": "stock_db"},
 }
 
 # 默认启用状态
 _DEFAULT_ENABLED = {
     "cls": True, "caixin": True, "hot_stocks": True, "watchlist": True, "cctv": True,
-    "djyanbao": False, "fxbaogao": False, "em_report": True, "zsxq": True,
+    "djyanbao": False, "fxbaogao": False, "em_report": True, "cninfo_notice": True,
+    "earnings": True, "zsxq": True, "futu": False, "stock_db": True,
 }
 
 SOURCE_GROUPS = {
     "news":      {"label": "新闻资讯", "icon": "newspaper",   "color": "blue"},
     "report":    {"label": "研报数据", "icon": "description", "color": "orange"},
     "community": {"label": "社群舆情", "icon": "forum",       "color": "purple"},
+    "market":    {"label": "行情数据", "icon": "show_chart",  "color": "green"},
 }
 
 
@@ -57,6 +63,12 @@ def load_fetch_settings() -> dict:
                 if key in SOURCE_CATALOG:
                     for field in ("label", "group", "icon", "desc", "fetcher_type"):
                         src.setdefault(field, SOURCE_CATALOG[key].get(field, ""))
+            # 自动补入 CATALOG 中新增但 JSON 里没有的源
+            for key, cat in SOURCE_CATALOG.items():
+                if key not in saved.get("sources", {}):
+                    entry = dict(cat)
+                    entry["enabled"] = _DEFAULT_ENABLED.get(key, False)
+                    saved.setdefault("sources", {})[key] = entry
             saved.setdefault("news_hours", 24)
             return saved
         except Exception:

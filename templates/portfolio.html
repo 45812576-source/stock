@@ -1,0 +1,1763 @@
+{% extends "base.html" %}
+{% block title %}Portfolio实验室{% endblock %}
+
+{% block extra_styles %}
+/* ── Tab Bar ── */
+.tab-bar { display: flex; align-items: end; gap: 0; border-bottom: 2px solid #1e293b; padding: 0 16px; }
+.tab-item { position: relative; padding: 8px 18px 10px; font-size: 0.8rem; font-weight: 600; color: #64748b; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 10px 10px 0 0; transition: all .15s; user-select: none; white-space: nowrap; }
+.tab-item:hover { color: #e2e8f0; background: rgba(255,255,255,0.03); }
+/* active 样式由 JS 内联注入颜色，这里只设结构 */
+.tab-item.active { background: #101622; border-color: #1e293b; margin-bottom: -2px; padding-bottom: 12px; }
+/* 顶部色条 */
+.tab-item.active::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:10px 10px 0 0; background: var(--tab-accent, #135bec); }
+/* tab 关闭按钮 */
+.tab-close { display:none; position:absolute; top:3px; right:3px; width:14px; height:14px; border-radius:50%; align-items:center; justify-content:center; font-size:10px; line-height:1; color:#64748b; background:rgba(15,23,42,0.8); border:none; cursor:pointer; padding:0; }
+.tab-item:hover .tab-close { display:flex; }
+.tab-close:hover { background:rgba(239,68,68,0.25); color:#ef4444; }
+.tab-close.confirm { background:rgba(239,68,68,0.3); color:#ef4444; }
+/* 拖拽中 */
+.tab-item.dragging { opacity:0.4; }
+.tab-item.drag-over { background:rgba(255,255,255,0.06); border-color:#475569; }
+/* Header 左侧色条 */
+#projectHeader .header-accent-bar { width:4px; border-radius:2px; align-self:stretch; flex-shrink:0; background: var(--project-accent, #135bec); opacity:0.8; }
+.tab-add { padding: 6px 10px; color: #475569; cursor: pointer; border-radius: 8px; transition: all .15s; }
+.tab-add:hover { color: #135bec; background: rgba(19,91,236,0.1); }
+
+/* ── Project Content ── */
+.info-section { margin-bottom: 12px; }
+.info-section-title { font-size: 0.85rem; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.info-section-body { font-size: 0.7rem; }
+.info-section-body p, .info-section-body .text-sm { font-size: 0.7rem !important; }
+.info-section-body h3 { font-size: 0.7rem !important; }
+.info-section-body h4 { font-size: 0.7rem !important; }
+.news-item { padding: 6px 0; border-bottom: 1px solid rgba(30,41,59,0.5); }
+.news-item:last-child { border-bottom: none; }
+.rec-card { padding: 6px 8px; border-radius: 8px; background: rgba(19,91,236,0.04); border: 1px solid rgba(19,91,236,0.15); }
+
+/* ── Stock Basket ── */
+.basket-stock { overflow: hidden; }
+.basket-stock:hover { background: rgba(255,255,255,0.03); }
+.basket-add-btn { padding: 2px 6px; border-radius: 6px; cursor: pointer; color: #22c55e; transition: all .15s; }
+.basket-add-btn:hover { background: rgba(34,197,94,0.15); }
+.basket-remove-btn { padding: 2px 6px; border-radius: 6px; cursor: pointer; color: #475569; transition: all .15s; }
+.basket-remove-btn:hover { color: #ef4444; background: rgba(239,68,68,0.1); }
+
+/* ── Sector Flow Heatmap Table ── */
+.sf-table { width:100%; border-collapse:separate; border-spacing:2px; }
+.sf-table th { font-size:9px; color:#94a3b8; font-weight:600; padding:3px 4px; text-align:center; }
+.sf-table td { font-size:9px; padding:4px 3px; text-align:center; border-radius:3px; font-weight:600; }
+.sf-label { text-align:left !important; white-space:nowrap; max-width:90px; overflow:hidden; text-overflow:ellipsis; color:#e2e8f0; font-size:10px; }
+
+/* ── Hotspot Report Panel ── */
+.hotspot-report-item { border-radius:8px; border:1px solid rgba(30,41,59,0.8); margin-bottom:4px; overflow:hidden; }
+.hotspot-report-header { display:flex; align-items:center; gap:5px; padding:6px 10px; cursor:pointer; transition:background .15s; overflow:hidden; }
+.hotspot-report-header:hover { background:rgba(255,255,255,0.03); }
+.hotspot-report-body { display:none; padding:0 10px 10px; }
+.hotspot-report-body.open { display:block; }
+/* ── Strategy Tags ── */
+.strat-tag { display:inline-flex; align-items:center; gap:3px; padding:2px 8px; border-radius:9999px; font-size:10px; cursor:pointer; border:1px solid; transition:all .15s; position:relative; }
+.strat-tag:hover .strat-tag-tooltip { display:block; }
+.strat-tag-tooltip { display:none; position:absolute; bottom:calc(100% + 4px); left:0; z-index:50; min-width:160px; max-width:240px; background:#0f172a; border:1px solid #334155; border-radius:8px; padding:6px 8px; font-size:10px; color:#e2e8f0; white-space:normal; box-shadow:0 4px 16px rgba(0,0,0,0.5); }
+/* ── Chat drag context ── */
+.chat-ctx-badge { display:flex; align-items:center; gap:4px; background:rgba(19,91,236,0.1); border:1px solid rgba(19,91,236,0.2); border-radius:6px; padding:3px 7px; margin-bottom:4px; font-size:10px; color:#7aa8f8; }
+.chat-ctx-badge .material-icons-round { font-size:11px; }
+#chatInputWrap.drag-over { background:rgba(19,91,236,0.06); border-radius:8px; }
+.chat-panel { display: flex; flex-direction: column; height: 100%; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 12px; }
+.chat-msg { margin-bottom: 10px; max-width: 95%; }
+.chat-msg-user { margin-left: auto; }
+.chat-msg-user .chat-bubble { background: rgba(19,91,236,0.15); border: 1px solid rgba(19,91,236,0.25); border-radius: 12px 12px 4px 12px; }
+.chat-msg-ai .chat-bubble { background: rgba(30,41,59,0.6); border: 1px solid #1e293b; border-radius: 12px 12px 12px 4px; }
+.chat-bubble { padding: 8px 12px; font-size: 0.8rem; line-height: 1.5; color: #e2e8f0; }
+.inline-stock-btn { display: inline-flex; align-items: center; padding: 0 4px; border-radius: 4px; background: rgba(19,91,236,0.15); border: 1px solid rgba(19,91,236,0.3); color: #60a5fa; font-size: 0.7rem; font-family: monospace; cursor: pointer; transition: background .15s; }
+.inline-stock-btn:hover { background: rgba(19,91,236,0.3); }
+.chat-rec-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 8px; font-size: 0.7rem; background: rgba(34,197,94,0.1); color: #34d399; border: 1px solid rgba(34,197,94,0.2); cursor: pointer; transition: all .15s; margin: 2px 4px 2px 0; }
+.chat-rec-btn:hover { background: rgba(34,197,94,0.25); }
+.strategy-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 9999px; font-size: 0.65rem; cursor: pointer; transition: all .15s; border: 1px solid #334155; color: #94a3b8; }
+.strategy-chip:hover { border-color: #475569; color: #e2e8f0; }
+.strategy-chip.selected { background: rgba(19,91,236,0.15); border-color: rgba(19,91,236,0.4); color: #60a5fa; }
+.quick-action { padding: 4px 12px; border-radius: 8px; font-size: 0.65rem; font-weight: 600; cursor: pointer; transition: all .15s; border: 1px solid #334155; color: #94a3b8; }
+.quick-action:hover { border-color: #135bec; color: #60a5fa; background: rgba(19,91,236,0.08); }
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full overflow-hidden">
+  <!-- ══════ 固定顶部 Header ══════ -->
+  <div class="flex-shrink-0 flex items-center justify-between px-5 py-3 border-b border-slate-800 bg-background-dark/95 backdrop-blur-sm">
+    <div class="flex items-center gap-3">
+      <span class="material-icons-round text-primary text-base">science</span>
+      <div>
+        <h1 class="text-sm font-extrabold tracking-tight leading-tight">Portfolio 实验室</h1>
+        <p class="text-[10px] text-slate-500 leading-tight">主题组合管理 · 智能选股 · AI 助手</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="openNewProjectModal()"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 transition">
+        <span class="material-icons-round text-sm">add</span>新建项目
+      </button>
+    </div>
+  </div>
+
+  <!-- ══════ Tab Bar 行（左侧项目标签 + 右侧 chat 占位） ══════ -->
+  <div class="flex flex-shrink-0">
+    <div class="tab-bar flex-1 min-w-0" id="tabBar">
+      <div class="text-center py-3 text-slate-500 text-sm">加载中...</div>
+    </div>
+    <!-- chat 侧 tab 行占位，维持视觉边框连续 -->
+    <div class="flex-shrink-0 bg-slate-900/50 border-l border-slate-800" style="width:320px;border-bottom:2px solid #1e293b"></div>
+  </div>
+
+  <!-- ══════ 共享 Project Header（title + logic，JS填充） ══════ -->
+  <div id="projectHeader" class="hidden flex-shrink-0"></div>
+
+  <!-- ══════ 内容行 ══════ -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Project Content -->
+    <div class="flex-1 overflow-hidden flex min-w-0" id="projectContent">
+      <div class="text-center py-20 text-slate-500 text-sm w-full">选择一个项目</div>
+    </div>
+
+    <!-- ══════ Chat Assistant ══════ -->
+    <div class="flex-shrink-0 border-l border-slate-800 bg-slate-900/50 flex flex-col" style="width: 320px">
+      <div class="chat-panel">
+        <!-- Chat Header（与 title+logic 行顶部对齐） -->
+        <div class="px-4 py-3 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="material-icons-round text-sm text-primary">smart_toy</span>
+            <span class="text-xs font-bold text-slate-400">AI 选股助手</span>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chatMessages">
+          <div class="text-center text-xs text-slate-600 py-4">选择项目后开始对话</div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="px-3 py-2 border-t border-slate-800/50 flex flex-wrap gap-1.5">
+          <button class="quick-action" onclick="sendQuickAction('commonality')">共性分析</button>
+          <button class="quick-action" onclick="sendQuickAction('review')">优势风险点评</button>
+          <button class="quick-action" onclick="sendQuickAction('lookalike')">Lookalike推荐</button>
+        </div>
+
+        <!-- Chat Input -->
+        <div class="px-3 pb-3 pt-1 relative" id="chatInputWrap"
+             ondragover="event.preventDefault(); document.getElementById('chatInputWrap').classList.add('drag-over')"
+             ondragleave="document.getElementById('chatInputWrap').classList.remove('drag-over')"
+             ondrop="handlePortfolioChatDrop(event)">
+          <!-- Drag context badge -->
+          <div id="chatCtxBadge" class="chat-ctx-badge hidden">
+            <span class="material-icons-round">drag_indicator</span>
+            <span id="chatCtxLabel" class="flex-1 truncate"></span>
+            <button onclick="clearChatCtx()" class="ml-1 text-slate-500 hover:text-white">
+              <span class="material-icons-round" style="font-size:11px">close</span>
+            </button>
+          </div>
+          <div id="strategySuggest" class="hidden absolute bottom-full left-3 right-3 mb-1 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-30"></div>
+          <div class="flex gap-2">
+            <input type="text" id="chatInput" placeholder="描述选股需求，或拖入标签/报告..."
+                   class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none"
+                   oninput="onChatInputChange(this.value)"
+                   onkeydown="onChatInputKeydown(event)">
+            <button onclick="sendChat()" id="chatSendBtn"
+                    class="bg-primary/20 text-primary px-3 py-2 rounded-lg text-sm hover:bg-primary/30 transition">
+              <span class="material-icons-round text-base">send</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 新建项目弹窗 ── -->
+<div id="newProjectModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-[480px] max-w-[95vw] p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-base font-bold flex items-center gap-2">
+        <span class="material-icons-round text-primary">add_circle</span>新建项目
+      </h3>
+      <button onclick="closeNewProjectModal()" class="text-slate-500 hover:text-white transition">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">项目名称 *</label>
+        <input type="text" id="npName" placeholder="如 半导体设备龙头"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">项目类型</label>
+        <select id="npType" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-primary focus:outline-none">
+          <option value="theme">主题研究</option>
+          <option value="custom">自定义</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">核心投资逻辑</label>
+        <textarea id="npLogic" rows="3" placeholder="描述这个项目的投资逻辑..."
+                  class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none resize-none"></textarea>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="createProject()" class="bg-primary hover:bg-primary/90 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">创建</button>
+        <button onclick="closeNewProjectModal()" class="text-slate-400 hover:text-white text-sm transition">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- ── 合并项目弹窗 ── -->
+<div id="mergeModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/60 backdrop-blur-sm">
+  <div class="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-[480px] max-w-[95vw] p-6">
+    <div class="flex items-center justify-between mb-5">
+      <h3 class="text-base font-bold flex items-center gap-2">
+        <span class="material-icons-round text-emerald-400">merge</span>合并项目
+      </h3>
+      <button onclick="closeMergeModal()" class="text-slate-500 hover:text-white transition">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+    <p class="text-xs text-slate-500 mb-4">将两个高度相关项目合并：股票篮子取并集，并触发 AI 重新生成投资逻辑</p>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">来源项目（被合并方）</label>
+        <select id="mergeSrcId" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-primary focus:outline-none"></select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">目标项目（保留方）</label>
+        <select id="mergeDstId" class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white focus:border-primary focus:outline-none"></select>
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">合并后名称（留空则保持目标项目名称）</label>
+        <input type="text" id="mergeNewName" placeholder="可选，如 消费+出行龙头组合"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-slate-600 focus:border-primary focus:outline-none">
+      </div>
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="mergeKeepSrc" class="accent-primary">
+        <label for="mergeKeepSrc" class="text-xs text-slate-400">合并后保留来源项目</label>
+      </div>
+      <div class="flex gap-3">
+        <button onclick="doMerge()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-semibold transition">合并</button>
+        <button onclick="closeMergeModal()" class="text-slate-400 hover:text-white text-sm transition">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 项目配色表 ────────────────────────────────────────────────
+// 每种颜色：[accent色(hex), tab文字色, header背景色(rgba)]
+const PROJECT_COLORS = [
+  { accent: '#6366f1', text: '#a5b4fc', bg: 'rgba(99,102,241,0.06)'  },  // indigo
+  { accent: '#10b981', text: '#6ee7b7', bg: 'rgba(16,185,129,0.06)'  },  // emerald
+  { accent: '#f59e0b', text: '#fcd34d', bg: 'rgba(245,158,11,0.06)'  },  // amber
+  { accent: '#ec4899', text: '#f9a8d4', bg: 'rgba(236,72,153,0.06)'  },  // pink
+  { accent: '#14b8a6', text: '#5eead4', bg: 'rgba(20,184,166,0.06)'  },  // teal
+  { accent: '#8b5cf6', text: '#c4b5fd', bg: 'rgba(139,92,246,0.06)'  },  // violet
+  { accent: '#ef4444', text: '#fca5a5', bg: 'rgba(239,68,68,0.06)'   },  // red
+  { accent: '#3b82f6', text: '#93c5fd', bg: 'rgba(59,130,246,0.06)'  },  // blue
+];
+
+function getProjectColor(projectId) {
+  // 用项目 id 的哈希稳定分配颜色，同一个项目每次颜色不变
+  const idx = (projectId * 2654435761) % PROJECT_COLORS.length;
+  return PROJECT_COLORS[Math.abs(idx)];
+}
+
+// ── 全局状态 ──────────────────────────────────────────────────
+let _projects = [];       // watchlist_lists (非strategy类型)
+let _strategies = [];     // investment_strategies
+let _activeProjectId = null;
+let _basketStocks = [];
+let _selectedStrategyIds = new Set();
+let _chatPollTimer = null;
+
+// ── 初始化 ────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadProjects(), loadStrategies()]);
+}
+
+async function loadProjects() {
+  const resp = await fetch('/portfolio/api/lists');
+  const data = await resp.json();
+  _projects = (data.lists || []).filter(l => l.list_type !== 'strategy');
+  renderTabBar();
+  if (_projects.length > 0) {
+    switchProject(_projects[0].id);
+  }
+}
+
+async function loadStrategies() {
+  const resp = await fetch('/portfolio/api/strategies');
+  const data = await resp.json();
+  _strategies = data.strategies || [];
+  renderStrategyChips();
+}
+
+// ── Tab Bar ───────────────────────────────────────────────────
+let _tabDeleteConfirm = null; // 当前等待二次确认的 project id
+
+function renderTabBar() {
+  const bar = document.getElementById('tabBar');
+  let html = _projects.map(p => {
+    const c = getProjectColor(p.id);
+    const isActive = p.id === _activeProjectId;
+    const style = isActive ? `--tab-accent:${c.accent}; color:${c.text};` : '';
+    const canDelete = p.id !== 1; // id=1 默认组不可删
+    const closeBtn = canDelete
+      ? `<button class="tab-close${_tabDeleteConfirm === p.id ? ' confirm' : ''}"
+                onclick="event.stopPropagation();confirmDeleteProject(${p.id})"
+                title="${_tabDeleteConfirm === p.id ? '再次点击确认删除' : '删除项目'}">×</button>`
+      : '';
+    return `<div class="tab-item ${isActive ? 'active' : ''}" style="${style}"
+                 id="tab-${p.id}"
+                 draggable="true"
+                 onclick="switchProject(${p.id})"
+                 ondragstart="onTabDragStart(event,${p.id})"
+                 ondragover="onTabDragOver(event,${p.id})"
+                 ondragleave="onTabDragLeave(event,${p.id})"
+                 ondrop="onTabDrop(event,${p.id})"
+                 ondragend="onTabDragEnd()">
+      ${p.list_name}${closeBtn}
+    </div>`;
+  }).join('');
+  html += `<div class="tab-add" onclick="openNewProjectModal()" title="新建项目">
+    <span class="material-icons-round text-sm">add</span>
+  </div>`;
+  html += `<div class="tab-add" onclick="openMergeModal()" title="合并项目" style="margin-left:2px">
+    <span class="material-icons-round text-sm">merge</span>
+  </div>`;
+  bar.innerHTML = html;
+}
+
+// ── Tab 删除 ──────────────────────────────────────────────────
+function confirmDeleteProject(projectId) {
+  if (_tabDeleteConfirm === projectId) {
+    // 二次确认：执行删除
+    _tabDeleteConfirm = null;
+    deleteProject(projectId);
+  } else {
+    // 第一次点击：进入确认态，3s 后自动取消
+    _tabDeleteConfirm = projectId;
+    renderTabBar();
+    setTimeout(() => {
+      if (_tabDeleteConfirm === projectId) {
+        _tabDeleteConfirm = null;
+        renderTabBar();
+      }
+    }, 3000);
+  }
+}
+
+async function deleteProject(projectId) {
+  const resp = await fetch(`/portfolio/api/lists/${projectId}`, { method: 'DELETE' });
+  const d = await resp.json();
+  if (!d.ok) { showToast(d.error || '删除失败', true); return; }
+  showToast('项目已删除');
+  // 从内存中移除
+  _projects = _projects.filter(p => p.id !== projectId);
+  if (_activeProjectId === projectId) {
+    _activeProjectId = null;
+    document.getElementById('projectHeader').classList.add('hidden');
+    document.getElementById('projectContent').innerHTML =
+      '<div class="text-center py-20 text-slate-500 text-sm w-full">选择一个项目</div>';
+    document.getElementById('chatMessages').innerHTML =
+      '<div class="text-center text-xs text-slate-600 py-4">选择项目后开始对话</div>';
+  }
+  renderTabBar();
+  if (_projects.length > 0 && !_activeProjectId) switchProject(_projects[0].id);
+}
+
+// ── Tab 拖拽排序 ──────────────────────────────────────────────
+let _dragSrcId = null;
+
+function onTabDragStart(e, projectId) {
+  _dragSrcId = projectId;
+  e.dataTransfer.effectAllowed = 'move';
+  document.getElementById(`tab-${projectId}`)?.classList.add('dragging');
+}
+
+function onTabDragOver(e, projectId) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  if (projectId !== _dragSrcId) {
+    document.getElementById(`tab-${projectId}`)?.classList.add('drag-over');
+  }
+}
+
+function onTabDragLeave(e, projectId) {
+  document.getElementById(`tab-${projectId}`)?.classList.remove('drag-over');
+}
+
+function onTabDrop(e, targetId) {
+  e.preventDefault();
+  if (!_dragSrcId || _dragSrcId === targetId) return;
+  document.getElementById(`tab-${targetId}`)?.classList.remove('drag-over');
+
+  // 重排 _projects 数组
+  const srcIdx = _projects.findIndex(p => p.id === _dragSrcId);
+  const dstIdx = _projects.findIndex(p => p.id === targetId);
+  if (srcIdx < 0 || dstIdx < 0) return;
+  const [moved] = _projects.splice(srcIdx, 1);
+  _projects.splice(dstIdx, 0, moved);
+
+  renderTabBar();
+  // 持久化排序
+  fetch('/portfolio/api/lists/reorder', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ ids: _projects.map(p => p.id) }),
+  });
+}
+
+function onTabDragEnd() {
+  _dragSrcId = null;
+  document.querySelectorAll('.tab-item').forEach(el => {
+    el.classList.remove('dragging', 'drag-over');
+  });
+}
+
+async function switchProject(projectId) {
+  _activeProjectId = projectId;
+  // 更新 tab 高亮 + 颜色
+  document.querySelectorAll('.tab-item').forEach(el => {
+    el.classList.remove('active');
+    el.style.color = '';
+    el.style.removeProperty('--tab-accent');
+  });
+  const activeTab = document.getElementById(`tab-${projectId}`);
+  if (activeTab) {
+    const c = getProjectColor(projectId);
+    activeTab.classList.add('active');
+    activeTab.style.setProperty('--tab-accent', c.accent);
+    activeTab.style.color = c.text;
+  }
+  // 加载项目内容
+  await Promise.all([loadProjectContent(projectId), loadChatHistory(projectId)]);
+}
+
+async function loadProjectContent(projectId) {
+  const content = document.getElementById('projectContent');
+  content.innerHTML = '<div class="text-center py-20 text-slate-500 text-sm w-full"><span class="material-icons-round animate-spin text-2xl block mb-2">refresh</span>加载中...</div>';
+  try {
+    const [ctxResp, stocksResp] = await Promise.all([
+      fetch(`/portfolio/api/projects/${projectId}/context`),
+      fetch(`/portfolio/api/lists/${projectId}/stocks`),
+    ]);
+    const ctx = await ctxResp.json();
+    const stocksData = await stocksResp.json();
+    _basketStocks = stocksData.stocks || [];
+    renderProjectContent(ctx, _basketStocks);
+  } catch(e) {
+    content.innerHTML = '<div class="text-center py-20 text-rose-400 text-sm w-full">加载失败</div>';
+  }
+}
+
+// ── 项目内容渲染 ──────────────────────────────────────────────
+function renderProjectContent(ctx, stocks) {
+  const project = ctx.project || {};
+  const logic = (project.investment_logic || '').trim();
+
+  // ── 共享 Header（title + logic，跨越左右列上方） ──
+  const meta = ctx.analysis_meta;
+  const hasAnalysis = project.has_analysis;
+  const analysisLabel = hasAnalysis
+    ? (meta ? `已生成 · ${(meta.generated_at || '').slice(0,10)} · 来源:${meta.source === 'hotspot_import' ? '机会发现导入' : '项目生成'}` : '已生成')
+    : '尚未生成';
+  const analysisColor = hasAnalysis ? 'text-emerald-400' : 'text-slate-500';
+
+  const pColor = getProjectColor(project.id);
+  const header = document.getElementById('projectHeader');
+  header.classList.remove('hidden');
+  header.style.setProperty('--project-accent', pColor.accent);
+  header.innerHTML = `
+    <div class="flex items-center border-b border-slate-800/60 gap-3" style="padding:10px 16px 10px; background:${pColor.bg}">
+      <!-- 左侧色条 -->
+      <div class="header-accent-bar"></div>
+      <!-- 标题行 + 核心逻辑内联 -->
+      <div class="flex items-baseline gap-2 flex-1 min-w-0 flex-wrap" id="titleLogicRow">
+        <h2 class="text-base font-extrabold shrink-0" style="color:${pColor.text}">${project.name || ''}</h2>
+        <span id="logicText" class="text-xs leading-snug min-w-0 truncate ${logic ? 'text-slate-400' : 'text-slate-600 italic'}">${logic || '暂无核心投资逻辑'}</span>
+        <button onclick="openLogicEditor(${project.id})" title="编辑核心投资逻辑"
+                class="shrink-0 text-slate-600 hover:text-primary transition ml-1">
+          <span class="material-icons-round text-sm">edit</span>
+        </button>
+      </div>
+      <!-- 编辑态（默认隐藏） -->
+      <div id="logicEditor" class="hidden flex-1 min-w-0">
+        <textarea id="investmentLogic" rows="2" placeholder="记录这个组合的核心投资逻辑..."
+                  class="w-full bg-slate-800/30 border border-slate-700/50 rounded-lg px-3 py-2 text-xs text-slate-300 placeholder-slate-600 focus:border-primary focus:outline-none resize-none"
+                  >${logic}</textarea>
+        <div class="flex gap-2 mt-1.5">
+          <button onclick="saveInvestmentLogic(${project.id})"
+                  class="text-[10px] px-3 py-1 rounded bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition">保存</button>
+          <button onclick="closeLogicEditor()"
+                  class="text-[10px] px-3 py-1 rounded text-slate-500 hover:text-white transition">取消</button>
+        </div>
+      </div>
+      <!-- 分析状态 + 生成按钮 -->
+      <div class="shrink-0 flex items-center gap-2">
+        <span class="text-[10px] ${analysisColor}">${analysisLabel}</span>
+        <button id="generateAnalysisBtn" onclick="triggerGenerateAnalysis(${project.id})"
+                class="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-slate-700 text-slate-400 hover:border-primary hover:text-primary transition">
+          <span class="material-icons-round text-[13px]">auto_awesome</span>生成分析
+        </button>
+      </div>
+    </div>
+    <!-- 进度条（默认隐藏） -->
+    <div id="analysisProgressBar" class="hidden px-4 py-2 border-b border-slate-800/40 bg-slate-900/40">
+      <div class="flex items-center gap-3">
+        <div class="flex-1 bg-slate-800 rounded-full h-1.5">
+          <div id="analysisProgressFill" class="bg-primary h-1.5 rounded-full transition-all" style="width:0%"></div>
+        </div>
+        <span id="analysisProgressMsg" class="text-[10px] text-slate-400 shrink-0 w-40 truncate">准备中...</span>
+      </div>
+    </div>`;
+
+  const content = document.getElementById('projectContent');
+  content.innerHTML = `
+    <div class="flex flex-1 overflow-hidden w-full">
+      <!-- 左列: 信息面板 (flex:3) -->
+      <div class="flex flex-col border-r border-slate-800" style="flex: 3; min-width: 0">
+        <!-- 滚动区：策略标签 → 热点报告 → 细分行业资金流 → 宏观 → 行业 → 关联新闻 -->
+        <div class="flex-1 overflow-y-auto p-4">
+          <!-- 策略标签（聚类） -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-primary">label</span>策略聚类标签
+              <span class="ml-1 text-[10px] text-slate-600 font-normal normal-case tracking-normal">命中股数/篮子总数，悬停看详情</span>
+              <button onclick="_runStrategyTags(${project.id})"
+                      id="strategyTagsBtn"
+                      class="ml-auto flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border border-slate-700 text-slate-400 hover:border-primary hover:text-primary transition">
+                <span class="material-icons-round text-[11px]">auto_awesome</span>聚类分析
+              </button>
+            </div>
+            <div id="strategyTags" class="info-section-body">
+              <div class="text-xs text-slate-600 text-center py-3">点击「聚类分析」运行</div>
+            </div>
+          </div>
+          <!-- 热点研究报告 -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-amber-400">local_fire_department</span>关联热点研究
+              <span class="ml-1 text-[10px] text-slate-600 font-normal normal-case tracking-normal">点击展开，推荐个股自动入篮</span>
+            </div>
+            <div id="hotspotReports" class="info-section-body">
+              <div class="flex items-center justify-center py-4 gap-2 text-slate-600 text-xs">
+                <span class="material-icons-round text-base animate-spin">refresh</span>加载中...
+              </div>
+            </div>
+          </div>
+          <!-- 细分行业资金流 -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-rose-400">waterfall_chart</span>细分行业资金流
+              <span class="ml-1 text-[10px] text-slate-600 font-normal normal-case tracking-normal">近15交易日主力净流入（万元）</span>
+            </div>
+            <div id="sectorFlow" class="info-section-body">
+              <div class="flex items-center justify-center py-8 gap-2 text-slate-600 text-xs">
+                <span class="material-icons-round text-base animate-spin">refresh</span>加载中...
+              </div>
+            </div>
+          </div>
+          <!-- 宏观分析 -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-violet-400">public</span>宏观分析
+            </div>
+            <div id="macroAnalysis" class="info-section-body">${renderMacro(ctx.macro_analysis || null)}</div>
+          </div>
+          <!-- 行业分析 -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-emerald-400">factory</span>行业分析
+            </div>
+            <div id="industryAnalysis" class="info-section-body">${renderIndustry(ctx.industry_analysis || null)}</div>
+          </div>
+          <!-- 关联新闻（置底，折叠式 FOE） -->
+          <div class="info-section">
+            <div class="info-section-title">
+              <span class="material-icons-round text-xs text-amber-400">newspaper</span>关联新闻
+              <span class="ml-1 text-[10px] text-slate-600 font-normal normal-case tracking-normal">importance ≥ 3，点击展开全文</span>
+            </div>
+            <div id="relatedNews" class="info-section-body">${renderNews(ctx.related_news || [])}</div>
+          </div>
+        </div>
+      </div>
+      <!-- 右列: 股票篮子 -->
+      <div class="flex flex-col" style="flex: 1.1; min-width: 0">
+        <!-- 篮子 header -->
+        <div class="shrink-0 p-4 border-b border-slate-800/60">
+          <div class="info-section-title mb-3">
+            <span class="material-icons-round text-xs text-primary">shopping_basket</span>股票篮子
+            <span id="basketCount" class="ml-auto text-[10px] text-slate-500">${stocks.length} 只</span>
+          </div>
+          <!-- 搜索框 -->
+          <div class="relative">
+            <input type="text" id="basketSearch" placeholder="搜索添加股票..."
+                   class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-600 focus:border-primary focus:outline-none"
+                   oninput="onBasketSearchInput(this.value)" onkeydown="if(event.key==='Enter')addFirstSearchResult()">
+            <div id="basketSearchResults" class="absolute top-full left-0 right-0 mt-1 z-20 bg-slate-900 border border-slate-700 rounded-lg shadow-xl hidden max-h-[200px] overflow-y-auto"></div>
+          </div>
+        </div>
+        <!-- 股票列表 -->
+        <div class="flex-1 overflow-y-auto p-4">
+          <div id="basketList">${renderBasketStocks(stocks, project)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  // 异步加载
+  _loadSectorFlow(project.id);
+  _loadHotspotReports(project.id);
+}
+
+// ── 渲染辅助函数 ──────────────────────────────────────────────
+
+// 新闻：按 news-importance-scoring 题材容器标准（importance ≥ 3），
+// 折叠式展示：标题行（highlight/fact） + 点击展开 FOE 全文
+let _newsExpandId = 0;
+function renderNews(newsList) {
+  if (!newsList || !newsList.length) return '<div class="text-xs text-slate-600 text-center py-4">暂无关联新闻</div>';
+
+  // 题材容器阈值 ≥ 3（news-importance-scoring Skill 规定）
+  const filtered = [...newsList]
+    .filter(n => (n.importance || n.match_tags || 0) >= 3 || (n.direction && n.direction !== 'neutral'))
+    .sort((a, b) => (b.importance || 0) - (a.importance || 0))
+    .slice(0, 20);
+
+  if (!filtered.length) {
+    // 无 ≥3 时降级全展示
+    const all = [...newsList].sort((a, b) => (b.importance || 0) - (a.importance || 0)).slice(0, 10);
+    return _renderNewsItems(all);
+  }
+  return _renderNewsItems(filtered);
+}
+
+function _renderNewsItems(items) {
+  return items.map((n, i) => {
+    const uid = 'news-' + (++_newsExpandId);
+    const imp = n.importance || 0;
+    const dir = n.direction || 'neutral';
+
+    // 标题文本 = highlight 优先，退而 fact，再退 summary
+    const title = (n.highlight || n.fact || n.summary || '').trim();
+
+    // 重要性色点：≥4 红/橙，3 黄，<3 灰
+    const dotColor = imp >= 5 ? 'bg-red-400' : imp >= 4 ? 'bg-orange-400' : imp >= 3 ? 'bg-amber-400' : 'bg-slate-600';
+
+    // 方向徽章
+    const dirBadge = dir === 'positive'
+      ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">利好</span>'
+      : dir === 'negative'
+      ? '<span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">利空</span>'
+      : '';
+
+    // FOE 展开内容
+    const factHtml = n.fact && n.fact !== title
+      ? `<div class="flex items-start gap-1.5 mb-2">
+           <span class="text-[10px] text-slate-500 shrink-0 mt-0.5 w-4">F</span>
+           <p class="text-xs text-slate-400 leading-relaxed">${n.fact}</p>
+         </div>` : '';
+    const opinionHtml = n.opinion && n.opinion !== '无明确观点'
+      ? `<div class="flex items-start gap-1.5 mb-2">
+           <span class="text-[10px] text-slate-500 shrink-0 mt-0.5 w-4">O</span>
+           <p class="text-xs text-slate-500 italic leading-relaxed">${n.opinion}</p>
+         </div>` : '';
+    const supportingBg = dir === 'positive' ? 'bg-red-500/5 border-red-500/15 text-red-300'
+                       : dir === 'negative' ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-300'
+                       : 'bg-slate-700/20 border-slate-600/20 text-slate-400';
+    const evidenceHtml = n.supporting
+      ? `<div class="flex items-start gap-1.5 mt-2 p-2 rounded-lg border ${supportingBg}">
+           <span class="text-[10px] shrink-0 mt-0.5 w-4 font-bold">E</span>
+           <p class="text-xs leading-relaxed">${n.supporting}</p>
+         </div>` : '';
+
+    const hasDetail = factHtml || opinionHtml || evidenceHtml;
+
+    return `<div class="mb-1.5 rounded-lg border border-transparent hover:border-slate-700/60 transition-colors">
+      <!-- 标题行（常驻） -->
+      <button class="w-full text-left flex items-start gap-2 px-2.5 py-2 ${hasDetail ? 'cursor-pointer' : 'cursor-default'}"
+              onclick="${hasDetail ? `toggleNewsDetail('${uid}')` : ''}">
+        <span class="shrink-0 mt-1.5 w-1.5 h-1.5 rounded-full ${dotColor}"></span>
+        <span class="flex-1 min-w-0 text-xs text-slate-300 leading-snug text-left">${title}</span>
+        <div class="shrink-0 flex items-center gap-1 ml-1">${dirBadge}${hasDetail ? `<span id="${uid}-icon" class="material-icons-round text-[12px] text-slate-600">expand_more</span>` : ''}</div>
+      </button>
+      <!-- FOE 折叠区 -->
+      ${hasDetail ? `<div id="${uid}" class="hidden px-5 pb-2.5 pt-0.5">${factHtml}${opinionHtml}${evidenceHtml}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function toggleNewsDetail(uid) {
+  const el = document.getElementById(uid);
+  const icon = document.getElementById(uid + '-icon');
+  if (!el) return;
+  const hidden = el.classList.toggle('hidden');
+  if (icon) icon.textContent = hidden ? 'expand_more' : 'expand_less';
+}
+
+// ── 细分行业资金流 ────────────────────────────────────────────
+async function _loadSectorFlow(projectId) {
+  const el = document.getElementById('sectorFlow');
+  if (!el) return;
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${projectId}/sector-flow`);
+    const d = await resp.json();
+    if (!d.ok || !d.dates || !d.dates.length || !d.series || !d.series.length) {
+      el.innerHTML = `<div class="text-xs text-slate-600 text-center py-4">${d.message || '暂无行业资金流数据'}</div>`;
+      return;
+    }
+    el.innerHTML = _renderSectorHeatTable(d.dates, d.series, projectId);
+  } catch(e) {
+    el.innerHTML = '<div class="text-xs text-rose-500 text-center py-4">加载失败</div>';
+  }
+}
+
+function _renderSectorHeatTable(dates, series, projectId) {
+  const shortDates = dates.map(d => d.slice(5).replace('-', '/'));
+
+  // 各行业15日总净流入（单位：万元）
+  const totals = series.map(s => s.values.reduce((a, b) => a + b, 0));
+  const totalInflow  = totals.filter(v => v > 0).reduce((a, b) => a + b, 0) || 1;
+  const totalOutflow = totals.filter(v => v < 0).reduce((a, b) => a + Math.abs(b), 0) || 1;
+
+  // 全局最大绝对值（用于格子色深归一化）
+  const maxAbs = Math.max(...series.flatMap(s => s.values).map(Math.abs)) || 1;
+
+  function cellStyle(v) {
+    if (v === 0) return 'color:#475569;';
+    const alpha = Math.min(0.6, Math.abs(v) / maxAbs * 0.6).toFixed(2);
+    return v > 0
+      ? `background:rgba(239,68,68,${alpha});color:#fca5a5;`
+      : `background:rgba(34,197,94,${alpha});color:#86efac;`;
+  }
+
+  // 万元 → 亿元，保留1位小数
+  function fmt(wan) {
+    if (wan === 0) return '<span style="color:#475569">-</span>';
+    const yi = wan / 10000;
+    const s = yi >= 0 ? yi.toFixed(1) : yi.toFixed(1);
+    return s;
+  }
+
+  // 分流入/流出两组，各自按合计排序
+  const inflows  = series.filter((_, i) => totals[i] >= 0)
+                         .sort((a, b) => totals[series.indexOf(b)] - totals[series.indexOf(a)]);
+  const outflows = series.filter((_, i) => totals[i] < 0)
+                         .sort((a, b) => totals[series.indexOf(a)] - totals[series.indexOf(b)]);
+
+  const nCols = dates.length;
+
+  function renderRows(group, isInflow) {
+    return group.map(s => {
+      const total = s.values.reduce((a, b) => a + b, 0);
+      const pct   = (Math.abs(total) / (isInflow ? totalInflow : totalOutflow) * 100).toFixed(1);
+      const cells = s.values.map(v =>
+        `<td style="${cellStyle(v)}">${fmt(v)}</td>`
+      ).join('');
+      const totalColor = isInflow ? 'color:#fca5a5;font-weight:700;' : 'color:#86efac;font-weight:700;';
+      const pctColor   = isInflow ? 'color:#f87171;' : 'color:#4ade80;';
+      const cap = s.market_cap || 0;
+      const capStr = cap >= 10000 ? (cap/10000).toFixed(1) + '万亿' : cap >= 1000 ? (cap/1000).toFixed(1) + '千亿' : cap + '亿';
+      return `<tr>
+        <td class="sf-label" title="${s.name} — 点击查看选股详情">
+          <a href="/sector/${encodeURIComponent(s.name)}?project=${projectId||''}"
+             style="color:inherit;text-decoration:none;"
+             onmouseover="this.style.color='#60a5fa'" onmouseout="this.style.color=''"
+          >${s.name}</a>
+        </td>
+        ${cells}
+        <td style="white-space:nowrap;${totalColor}">${fmt(total)}</td>
+        <td style="text-align:right;font-size:9px;white-space:nowrap;${pctColor}">${pct}%</td>
+        <td style="text-align:right;font-size:9px;white-space:nowrap;color:#94a3b8;">${cap ? capStr : '-'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  let tbody = '';
+  if (inflows.length) {
+    tbody += `<tr><td colspan="${nCols + 4}" style="font-size:9px;color:#f87171;font-weight:700;padding-top:6px;padding-bottom:2px;">▲ 净流入</td></tr>`;
+    tbody += renderRows(inflows, true);
+  }
+  if (outflows.length) {
+    tbody += `<tr><td colspan="${nCols + 4}" style="font-size:9px;color:#4ade80;font-weight:700;padding-top:8px;padding-bottom:2px;">▼ 净流出</td></tr>`;
+    tbody += renderRows(outflows, false);
+  }
+
+  return `<div class="overflow-x-auto">
+    <table class="sf-table">
+      <thead><tr>
+        <th style="text-align:left;">行业（KG）</th>
+        ${shortDates.map(d => `<th>${d}</th>`).join('')}
+        <th>合计</th><th style="text-align:right;">占比</th><th style="text-align:right;">市值</th>
+      </tr></thead>
+      <tbody>${tbody}</tbody>
+    </table>
+    <p style="font-size:9px;color:#475569;text-align:right;margin-top:4px;">净流入口径 · 单位: 亿元</p>
+  </div>`;
+}
+
+// ── 热点研究报告 ──────────────────────────────────────────────
+
+async function _loadHotspotReports(projectId) {
+  const el = document.getElementById('hotspotReports');
+  if (!el) return;
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${projectId}/hotspot-reports`);
+    const d = await resp.json();
+    if (!d.ok || !d.reports || !d.reports.length) {
+      el.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">暂无关联热点研究</div>';
+      return;
+    }
+    el.innerHTML = d.reports.map((r, i) => _renderHotspotReportItem(r, i)).join('');
+    // 自动将推荐个股加入篮子（静默）
+    d.reports.forEach(r => {
+      if (r.auto_add_stocks && r.auto_add_stocks.length) {
+        r.auto_add_stocks.forEach(s => {
+          _silentAddToBasket(s.stock_code, s.stock_name, 'hotspot_import');
+        });
+      }
+    });
+  } catch(e) {
+    el.innerHTML = '<div class="text-xs text-rose-500 text-center py-4">加载失败</div>';
+  }
+}
+
+function _renderHotspotReportItem(r, idx) {
+  const dateStr = r.research_date ? r.research_date.slice(0, 10) : '';
+  const autoCount = (r.auto_add_stocks || []).length;
+  const autoHint = autoCount > 0
+    ? `<span class="text-[9px] text-emerald-400 shrink-0">+${autoCount}股入篮</span>`
+    : '';
+  const bodyId = `hsr-body-${idx}`;
+  const iconId = `hsr-icon-${idx}`;
+
+  // 展开体内容（不含推荐个股）
+  const macroSummary = r.macro_json?.summary || '';
+  const industrySummary = r.industry_json?.summary || '';
+  const thesis = r.logic_synthesis_json?.thesis_summary || '';
+  const newsItems = (r.news_parsed_json || []).slice(0, 5);
+  const oppPoints = r.logic_synthesis_json?.investment_opportunity_points || [];
+
+  let bodyHtml = '';
+  if (thesis) {
+    bodyHtml += `<div class="mb-3 p-2.5 rounded-lg bg-primary/5 border border-primary/15">
+      <p class="text-[10px] text-slate-300 leading-relaxed">${thesis}</p>
+    </div>`;
+  }
+  if (macroSummary) {
+    bodyHtml += `<div class="mb-2">
+      <p class="text-[9px] font-bold text-violet-400 mb-1">宏观</p>
+      <p class="text-[10px] text-slate-400 leading-relaxed">${macroSummary}</p>
+    </div>`;
+  }
+  if (industrySummary) {
+    bodyHtml += `<div class="mb-2">
+      <p class="text-[9px] font-bold text-emerald-400 mb-1">行业</p>
+      <p class="text-[10px] text-slate-400 leading-relaxed">${industrySummary}</p>
+    </div>`;
+  }
+  if (oppPoints.length) {
+    bodyHtml += `<div class="mb-2">
+      <p class="text-[9px] font-bold text-amber-400 mb-1">机会点</p>
+      ${oppPoints.map(op => `<div class="text-[10px] text-slate-400 mb-1">▸ ${op.trigger} → ${op.beneficiary}</div>`).join('')}
+    </div>`;
+  }
+  if (newsItems.length) {
+    bodyHtml += `<div class="mb-2">
+      <p class="text-[9px] font-bold text-amber-400 mb-1">关联新闻</p>
+      ${newsItems.map(n => `<p class="text-[10px] text-slate-500 mb-0.5">• ${n.fact || n.highlight || n.summary || ''}</p>`).join('')}
+    </div>`;
+  }
+
+  const dragText = [r.group_name, r.group_logic, thesis, macroSummary, industrySummary].filter(Boolean).join('\n').slice(0, 800);
+
+  // 标题行：研究ID · 报告名 · 一句话逻辑
+  const logicSnippet = r.group_logic
+    ? `<span class="text-[10px] text-slate-500 truncate min-w-0 flex-1">${r.group_logic}</span>`
+    : '';
+
+  return `<div class="hotspot-report-item" data-drag-label="热点报告：${r.group_name}" data-drag-text="${escapeAttr(dragText)}"
+               draggable="true" ondragstart="onReportDragStart(event, this)">
+    <div class="hotspot-report-header" onclick="toggleHotspotReport('${bodyId}','${iconId}')">
+      <span class="material-icons-round text-[12px] text-amber-400 shrink-0">local_fire_department</span>
+      <span class="text-[9px] text-slate-600 font-mono shrink-0">#${r.group_id}</span>
+      <span class="text-[11px] font-semibold text-slate-200 shrink-0">${r.group_name}</span>
+      ${logicSnippet}
+      ${autoHint}
+      ${dateStr ? `<span class="text-[9px] text-slate-600 shrink-0">${dateStr}</span>` : ''}
+      <span id="${iconId}" class="material-icons-round text-[12px] text-slate-500 shrink-0">expand_more</span>
+    </div>
+    <div id="${bodyId}" class="hotspot-report-body">${bodyHtml || '<p class="text-xs text-slate-600 py-1">暂无内容</p>'}</div>
+  </div>`;
+}
+
+function toggleHotspotReport(bodyId, iconId) {
+  const body = document.getElementById(bodyId);
+  const icon = document.getElementById(iconId);
+  if (!body) return;
+  const isOpen = body.classList.toggle('open');
+  if (icon) icon.textContent = isOpen ? 'expand_less' : 'expand_more';
+}
+
+async function _silentAddToBasket(code, name, source) {
+  if (!_activeProjectId) return;
+  if (_basketStocks.some(s => s.stock_code === code)) return;
+  try {
+    const resp = await fetch(`/portfolio/api/lists/${_activeProjectId}/stocks`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({stock_code: code, stock_name: name, source: source || 'hotspot_import'}),
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      _basketStocks.push({stock_code: code, stock_name: name});
+      _syncBasketCount();
+    }
+  } catch(e) {}
+}
+
+// ── 策略聚类标签 ──────────────────────────────────────────────
+
+async function _runStrategyTags(projectId) {
+  const btn = document.getElementById('strategyTagsBtn');
+  const el = document.getElementById('strategyTags');
+  if (!el) return;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="material-icons-round text-[11px] animate-spin">refresh</span>分析中...'; }
+  el.innerHTML = '<div class="flex items-center gap-2 py-3 text-slate-500 text-xs"><span class="material-icons-round text-sm animate-spin">refresh</span>向量计算中，首次约需15秒...</div>';
+  await _loadStrategyTags(projectId);
+  if (btn) { btn.disabled = false; btn.innerHTML = '<span class="material-icons-round text-[11px]">auto_awesome</span>重新分析'; }
+}
+
+async function _loadStrategyTags(projectId) {
+  const el = document.getElementById('strategyTags');
+  if (!el) return;
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${projectId}/strategy-tags`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      el.innerHTML = `<div class="text-xs text-rose-500 text-center py-4">API错误 ${resp.status}: ${text.slice(0,100)}</div>`;
+      return;
+    }
+    const d = await resp.json();
+    if (!d.ok || !d.tags || !d.tags.length) {
+      el.innerHTML = '<div class="text-xs text-slate-600 text-center py-4">暂无匹配策略标签</div>';
+      return;
+    }
+    const total = d.total || 1;
+    // 按 category 分组，每组内按 match_count 降序
+    const CAT_ORDER = ['profit_quality','growth_momentum','revenue_structure','valuation',
+      'capital_flow','smart_money','technical','industry_chain','event_catalyst',
+      'macro_policy','risk_return','sentiment_behavior'];
+    const CAT_META = {
+      profit_quality:    {label:'盈利质量',  color:'emerald'},
+      growth_momentum:   {label:'成长动能',  color:'blue'},
+      revenue_structure: {label:'收入结构',  color:'violet'},
+      valuation:         {label:'估值洼地',  color:'amber'},
+      capital_flow:      {label:'资金面',    color:'red'},
+      smart_money:       {label:'聪明钱',    color:'pink'},
+      technical:         {label:'技术形态',  color:'cyan'},
+      industry_chain:    {label:'产业链·龙头', color:'orange'},
+      event_catalyst:    {label:'事件驱动',  color:'yellow'},
+      macro_policy:      {label:'宏观政策',  color:'indigo'},
+      risk_return:       {label:'风险收益',  color:'teal'},
+      sentiment_behavior:{label:'情绪·行为', color:'slate'},
+    };
+    // 分组
+    const groups = {};
+    for (const tag of d.tags) {
+      const cat = tag.category || 'other';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(tag);
+    }
+    // 每组内按 match_count 降序
+    for (const g of Object.values(groups)) g.sort((a, b) => b.match_count - a.match_count);
+
+    const renderTag = tag => {
+      const color = (CAT_META[tag.category] || {}).color || 'slate';
+      const pct = Math.round(tag.match_count / total * 100);
+      const stockList = tag.stocks.map(s => `${s.stock_name}(${s.stock_code})`).join('、');
+      const isContrarian = tag.is_contrarian;
+      const contraHint = isContrarian ? ' ⚠' : '';
+      const borderColor = isContrarian
+        ? 'border-rose-500/40 text-rose-300'
+        : `border-${color}-500/30 text-${color}-300`;
+      const dragText = `策略标签：${tag.tag_name}\n覆盖股票：${stockList}`;
+      return `<span class="strat-tag ${borderColor} bg-${color}-500/5 mr-1 mb-1"
+                    draggable="true"
+                    data-drag-label="策略：${tag.tag_name}"
+                    data-drag-text="${escapeAttr(dragText)}"
+                    ondragstart="onReportDragStart(event, this)">
+        ${tag.tag_name}${contraHint}
+        <span class="ml-1 text-[9px] opacity-70">${tag.match_count}/${total}</span>
+        <span class="strat-tag-tooltip">
+          <strong>${tag.tag_name}</strong>（${tag.category_label}）<br>
+          命中 ${tag.match_count}/${total} 只（${pct}%）<br>
+          <span class="text-slate-400">${stockList}</span>
+          ${isContrarian ? '<br><span class="text-rose-400">⚠ 反向提醒：该策略可能为逆势信号</span>' : ''}
+        </span>
+      </span>`;
+    };
+
+    const catOrder = [...CAT_ORDER, ...Object.keys(groups).filter(k => !CAT_ORDER.includes(k))];
+    const sectionsHtml = catOrder.filter(cat => groups[cat]).map(cat => {
+      const meta = CAT_META[cat] || {label: cat, color: 'slate'};
+      const color = meta.color;
+      const tagsInGroup = groups[cat].map(renderTag).join('');
+      return `<div class="mb-2">
+        <div class="flex items-center gap-1 mb-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-${color}-400 shrink-0"></span>
+          <span class="text-[10px] font-medium text-${color}-400 uppercase tracking-wide">${meta.label}</span>
+        </div>
+        <div class="flex flex-wrap">${tagsInGroup}</div>
+      </div>`;
+    }).join('');
+    el.innerHTML = sectionsHtml;
+  } catch(e) {
+    el.innerHTML = `<div class="text-xs text-rose-500 text-center py-4">加载失败: ${e.message || e}</div>`;
+  }
+}
+
+// ── 拖入 Chat ─────────────────────────────────────────────────
+
+var _chatCtxData = null; // {label, text}
+
+function escapeAttr(str) {
+  return (str || '').replace(/"/g, '&quot;').replace(/\n/g, '&#10;');
+}
+
+function onReportDragStart(event, el) {
+  const label = el.dataset.dragLabel || '报告';
+  const text = el.dataset.dragText || el.innerText || '';
+  event.dataTransfer.setData('text/plain', text);
+  event.dataTransfer.setData('text/x-chat-label', label);
+  event.dataTransfer.effectAllowed = 'copy';
+}
+
+function handlePortfolioChatDrop(event) {
+  event.preventDefault();
+  document.getElementById('chatInputWrap').classList.remove('drag-over');
+  const label = event.dataTransfer.getData('text/x-chat-label') || '内容';
+  const text = event.dataTransfer.getData('text/plain') || '';
+  if (!text) return;
+  _chatCtxData = {label, text};
+  document.getElementById('chatCtxLabel').textContent = label;
+  document.getElementById('chatCtxBadge').classList.remove('hidden');
+  document.getElementById('chatInput').focus();
+}
+
+function clearChatCtx() {
+  _chatCtxData = null;
+  document.getElementById('chatCtxBadge').classList.add('hidden');
+  document.getElementById('chatCtxLabel').textContent = '';
+}
+
+
+function renderMacro(macroJson) {
+  if (!macroJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无宏观分析</div>';
+  let html = '<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">宏观分析</h3>';
+  if (macroJson.summary) {
+    html += `<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-4">
+      <p class="text-sm text-slate-300 leading-relaxed">${macroJson.summary}</p>
+    </div>`;
+  }
+  if (macroJson.factors && macroJson.factors.length) {
+    html += '<div class="space-y-3">' + macroJson.factors.map(f => {
+      const dir = f.direction || 'neutral';
+      const borderCls = dir === 'positive' ? 'border-red-500/30 bg-red-500/5' : dir === 'negative' ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-slate-700/50 bg-slate-800/20';
+      const dirBadge = dir === 'positive'
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">利好</span>'
+        : dir === 'negative'
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">利空</span>'
+        : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">中性</span>';
+      const dbBadge = f.db_hit !== undefined
+        ? (f.db_hit ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400">已命中</span>' : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-600/30 text-slate-500">未命中</span>')
+        : '';
+      return `<div class="p-4 rounded-xl border ${borderCls}">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-bold text-sm">${f.name || ''}</h4>
+          <div class="flex items-center gap-2">${dbBadge}${dirBadge}<span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">${f.confidence || 'medium'}</span></div>
+        </div>
+        ${f.current_state ? `<p class="text-xs text-slate-500 mb-1">当前状态: ${f.current_state}</p>` : ''}
+        ${f.logic_relation ? `<p class="text-sm text-slate-300">${f.logic_relation}</p>` : ''}
+        ${f.db_evidence ? `<div class="mt-2 px-3 py-1.5 rounded bg-cyan-500/5 border border-cyan-500/15">
+          <p class="text-[10px] text-cyan-400/70 mb-0.5">数据库证据</p>
+          <p class="text-xs text-cyan-300/80">${f.db_evidence}</p>
+        </div>` : ''}
+      </div>`;
+    }).join('') + '</div>';
+  }
+  if (macroJson.not_tracked && macroJson.not_tracked.length) {
+    html += `<div class="mt-4">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="material-icons-round text-sm text-amber-400">visibility_off</span>
+        <h4 class="font-bold text-sm text-slate-400">未跟踪因素</h4>
+      </div>
+      <div class="flex flex-wrap gap-2">${macroJson.not_tracked.map(item => `<span class="px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">${item}</span>`).join('')}</div>
+    </div>`;
+  }
+  return html;
+}
+
+function renderIndustry(industryJson) {
+  if (!industryJson) return '<div class="text-xs text-slate-600 text-center py-4">暂无行业分析</div>';
+  let html = '<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">行业分析</h3>';
+  if (industryJson.summary) {
+    html += `<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-4">
+      <p class="text-sm text-slate-300 leading-relaxed">${industryJson.summary}</p>
+    </div>`;
+  }
+  const indList = industryJson.industries || industryJson.benefiting_industries || [];
+  if (indList.length) {
+    html += '<div class="space-y-3">' + indList.map(ind => {
+      const impactBadge = ind.impact_type
+        ? (ind.impact_type === 'direct' ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400">直接</span>' : '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-500/20 text-violet-400">间接</span>')
+        : '';
+      const chainBadge = ind.chain_position ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">${ind.chain_position}</span>` : '';
+      const dirBadge = ind.impact_direction === 'positive'
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">利好</span>'
+        : ind.impact_direction === 'negative'
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">利空</span>'
+        : ind.impact_direction === 'mixed'
+        ? '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">混合</span>'
+        : '';
+      const catalysts = ind.key_catalysts && ind.key_catalysts.length
+        ? `<div class="flex flex-wrap gap-1 mt-2">${ind.key_catalysts.map(c => `<span class="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px]">${c}</span>`).join('')}</div>`
+        : '';
+      return `<div class="p-4 rounded-xl bg-slate-800/20 border border-slate-700/50">
+        <div class="flex items-center justify-between mb-2">
+          <h4 class="font-bold text-sm">${ind.name || ''}</h4>
+          <div class="flex items-center gap-2">${impactBadge}${chainBadge}${dirBadge}<span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">${ind.confidence || 'medium'}</span></div>
+        </div>
+        ${ind.benefit_reason ? `<p class="text-sm text-slate-300 mb-2">${ind.benefit_reason}</p>` : ''}
+        ${ind.transmission_path ? `<div class="flex items-start gap-1.5 mb-2">
+          <span class="material-icons-round text-[11px] text-slate-500 mt-0.5 shrink-0">route</span>
+          <p class="text-xs text-slate-500">${ind.transmission_path}</p>
+        </div>` : ''}
+        ${ind.supporting_evidence ? `<div class="flex items-start gap-1.5 mb-2">
+          <span class="material-icons-round text-[11px] text-cyan-500/70 mt-0.5 shrink-0">fact_check</span>
+          <p class="text-xs text-cyan-400/70">${ind.supporting_evidence}</p>
+        </div>` : ''}
+        ${catalysts}
+      </div>`;
+    }).join('') + '</div>';
+  }
+  return html;
+}
+
+function renderBasketStockRow(s, project) {
+  const isPortfolio = project && project.project_type === 'portfolio';
+  const pctColor = (s.change_pct || 0) >= 0 ? 'text-red-400' : 'text-emerald-400';
+  const pctBg    = (s.change_pct || 0) >= 0 ? 'bg-red-500/10' : 'bg-emerald-500/10';
+  const pctStr   = s.change_pct != null ? (s.change_pct >= 0 ? '+' : '') + Number(s.change_pct).toFixed(2) + '%' : '-';
+  const priceStr = s.price != null ? Number(s.price).toFixed(2) : '-';
+  let pnlHtml = '';
+  if (isPortfolio && s.buy_price && s.price) {
+    const pnl = ((s.price / s.buy_price) - 1) * 100;
+    const pnlColor = pnl >= 0 ? 'text-red-400' : 'text-emerald-400';
+    pnlHtml = `<span class="text-[10px] font-mono ${pnlColor}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(1)}%</span>`;
+  }
+  return `<div class="basket-stock group flex items-center gap-1.5 px-2 py-1 rounded-lg border border-transparent hover:border-slate-700 hover:bg-slate-800/30 transition-all cursor-pointer mb-0.5"
+       onclick="window.location='/stock/${s.stock_code}'">
+    <span class="font-mono text-[10px] text-slate-500 w-[52px] shrink-0 leading-tight">${s.stock_code}</span>
+    <span class="text-[10px] text-slate-200 flex-1 min-w-0 leading-tight break-all">${s.stock_name || ''}</span>
+    <span class="font-mono text-[10px] text-slate-300 shrink-0">${priceStr}</span>
+    <span class="text-[9px] font-mono font-bold px-1 py-0.5 rounded ${pctColor} ${pctBg} shrink-0">${pctStr}</span>
+    ${pnlHtml}
+    <button onclick="event.stopPropagation();removeFromBasket('${s.stock_code}')"
+            class="opacity-0 group-hover:opacity-100 shrink-0 transition-opacity" title="移除">
+      <span class="material-icons-round text-[12px] text-slate-500 hover:text-rose-400">close</span>
+    </button>
+  </div>`;
+}
+
+function renderBasketStocks(stocks, project) {
+  if (!stocks.length) return '<div class="text-[11px] text-slate-600 text-center py-6">篮子为空，搜索添加股票</div>';
+  return stocks.map(s => renderBasketStockRow(s, project)).join('');
+}
+
+// ── 篮子操作（optimistic update，无闪烁） ─────────────────────
+
+async function _syncBasketCount() {
+  // 仅更新计数，不重绘列表
+  const countEl = document.getElementById('basketCount');
+  if (countEl) countEl.textContent = _basketStocks.length + ' 只';
+}
+
+async function removeFromBasket(stockCode) {
+  if (!_activeProjectId) return;
+
+  // Optimistic：即时从内存和 DOM 移除
+  _basketStocks = _basketStocks.filter(s => s.stock_code !== stockCode);
+  const rows = document.querySelectorAll('#basketList .basket-stock');
+  for (const row of rows) {
+    if (row.querySelector('.font-mono')?.textContent?.trim() === stockCode) {
+      row.style.transition = 'opacity 0.15s, max-height 0.2s, margin-bottom 0.2s';
+      row.style.opacity = '0';
+      row.style.maxHeight = row.offsetHeight + 'px';
+      requestAnimationFrame(() => {
+        row.style.maxHeight = '0';
+        row.style.marginBottom = '0';
+        row.style.paddingTop = '0';
+        row.style.paddingBottom = '0';
+      });
+      setTimeout(() => row.remove(), 220);
+      break;
+    }
+  }
+  _syncBasketCount();
+
+  // 后台同步
+  fetch(`/portfolio/api/lists/${_activeProjectId}/stocks/${stockCode}`, { method: 'DELETE' });
+}
+
+async function addToBasket(stockCode, stockName) {
+  if (!_activeProjectId) return;
+
+  // 检查重复
+  if (_basketStocks.some(s => s.stock_code === stockCode)) {
+    showToast(`${stockCode} 已在篮子中`, true);
+    return;
+  }
+
+  const project = _projects.find(p => p.id === _activeProjectId) || {};
+
+  // Optimistic：立即插入占位行（无价格数据，稍后刷新）
+  const placeholder = { stock_code: stockCode, stock_name: stockName };
+  _basketStocks.unshift(placeholder);
+  const list = document.getElementById('basketList');
+  if (list) {
+    const emptyMsg = list.querySelector('.text-slate-600');
+    if (emptyMsg) emptyMsg.remove();
+    const rowHtml = renderBasketStockRow(placeholder, project);
+    const tmp = document.createElement('div');
+    tmp.innerHTML = rowHtml;
+    const newRow = tmp.firstElementChild;
+    newRow.style.opacity = '0';
+    list.prepend(newRow);
+    requestAnimationFrame(() => {
+      newRow.style.transition = 'opacity 0.15s';
+      newRow.style.opacity = '1';
+    });
+  }
+  _syncBasketCount();
+
+  // 后台 API
+  const resp = await fetch(`/portfolio/api/lists/${_activeProjectId}/stocks`, {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({stock_code: stockCode, stock_name: stockName, source: 'manual'}),
+  });
+  const d = await resp.json();
+  if (d.ok) {
+    showToast(`${stockCode} 已添加`);
+    // 静默刷新带价格的真实数据（不 fade）
+    _silentRefreshBasket();
+  } else {
+    // 回滚
+    _basketStocks = _basketStocks.filter(s => s.stock_code !== stockCode);
+    if (list) {
+      const rows = list.querySelectorAll('.basket-stock');
+      for (const row of rows) {
+        if (row.querySelector('.font-mono')?.textContent?.trim() === stockCode) {
+          row.remove(); break;
+        }
+      }
+    }
+    _syncBasketCount();
+    showToast(d.error || '添加失败', true);
+  }
+}
+
+async function _silentRefreshBasket() {
+  // 拉取真实数据后直接替换内容，不做 fade
+  const projectId = _activeProjectId;
+  if (!projectId) return;
+  const project = _projects.find(p => p.id === projectId) || {};
+  const resp = await fetch(`/portfolio/api/lists/${projectId}/stocks`);
+  const data = await resp.json();
+  _basketStocks = data.stocks || [];
+  const list = document.getElementById('basketList');
+  if (list) list.innerHTML = renderBasketStocks(_basketStocks, project);
+  _syncBasketCount();
+}
+
+// ── 生成分析 ──────────────────────────────────────────────────
+let _analysisTaskId = null;
+let _analysisPollTimer = null;
+
+async function triggerGenerateAnalysis(projectId) {
+  const btn = document.getElementById('generateAnalysisBtn');
+  const bar = document.getElementById('analysisProgressBar');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="material-icons-round text-[13px] animate-spin">refresh</span>生成中...'; }
+  if (bar) bar.classList.remove('hidden');
+
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${projectId}/generate-analysis`, { method: 'POST' });
+    const d = await resp.json();
+    if (!d.ok && !d.task_id) {
+      showToast(d.error || '生成失败', true);
+      _resetAnalysisBtn();
+      return;
+    }
+    _analysisTaskId = d.task_id;
+    _pollAnalysis(projectId);
+  } catch (e) {
+    showToast('网络错误', true);
+    _resetAnalysisBtn();
+  }
+}
+
+function _pollAnalysis(projectId) {
+  if (_analysisPollTimer) clearInterval(_analysisPollTimer);
+  _analysisPollTimer = setInterval(async () => {
+    try {
+      const url = `/portfolio/api/projects/${projectId}/generate-analysis/poll` +
+                  (_analysisTaskId ? `?task_id=${_analysisTaskId}` : '');
+      const resp = await fetch(url);
+      const d = await resp.json();
+
+      // 更新进度条
+      const fill = document.getElementById('analysisProgressFill');
+      const msg = document.getElementById('analysisProgressMsg');
+      if (fill) fill.style.width = (d.progress || 0) + '%';
+      if (msg) msg.textContent = d.message || '';
+
+      if (d.status === 'done') {
+        clearInterval(_analysisPollTimer);
+        _analysisPollTimer = null;
+        showToast('分析生成完成');
+        // 刷新当前项目内容（重新拉 context，渲染四个模块）
+        await loadProjectContent(projectId);
+        _resetAnalysisBtn();
+      } else if (d.status === 'error') {
+        clearInterval(_analysisPollTimer);
+        _analysisPollTimer = null;
+        showToast(d.message || '生成失败', true);
+        _resetAnalysisBtn();
+      } else if (d.status === 'no_task') {
+        clearInterval(_analysisPollTimer);
+        _analysisPollTimer = null;
+        _resetAnalysisBtn();
+      }
+    } catch(e) { /* ignore network flicker */ }
+  }, 1500);
+}
+
+function _resetAnalysisBtn() {
+  const btn = document.getElementById('generateAnalysisBtn');
+  const bar = document.getElementById('analysisProgressBar');
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="material-icons-round text-[13px]">auto_awesome</span>生成分析';
+  }
+  if (bar) bar.classList.add('hidden');
+}
+
+function openLogicEditor(projectId) {
+  document.getElementById('logicEditor')?.classList.remove('hidden');
+  document.getElementById('titleLogicRow')?.classList.add('hidden');
+  document.getElementById('investmentLogic')?.focus();
+}
+
+function closeLogicEditor() {
+  document.getElementById('logicEditor')?.classList.add('hidden');
+  document.getElementById('titleLogicRow')?.classList.remove('hidden');
+}
+
+async function saveInvestmentLogic(projectId) {
+  const logic = (document.getElementById('investmentLogic')?.value || '').trim();
+  const resp = await fetch(`/portfolio/api/lists/${projectId}`, {
+    method: 'PUT', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({investment_logic: logic}),
+  });
+  const d = await resp.json();
+  if (d.ok) {
+    showToast('投资逻辑已保存');
+    // 更新只读态文字
+    const span = document.getElementById('logicText');
+    if (span) {
+      span.textContent = logic || '暂无核心投资逻辑';
+      span.style.fontStyle = logic ? '' : 'italic';
+      span.style.color = logic ? '' : '#475569';
+    }
+    closeLogicEditor();
+  } else {
+    showToast(d.error || '保存失败', true);
+  }
+}
+
+// ── 搜索添加股票 ──────────────────────────────────────────────
+let _searchTimer = null;
+function onBasketSearchInput(q) {
+  clearTimeout(_searchTimer);
+  if (!q.trim()) { hideSearchResults(); return; }
+  _searchTimer = setTimeout(() => doBasketSearch(q), 300);
+}
+
+async function doBasketSearch(q) {
+  const resp = await fetch(`/portfolio/api/search-stocks?q=${encodeURIComponent(q)}&limit=8`);
+  const data = await resp.json();
+  const stocks = data.stocks || [];
+  const box = document.getElementById('basketSearchResults');
+  if (!box) return;
+  if (!stocks.length) { box.classList.add('hidden'); return; }
+  box.innerHTML = stocks.map(s => `
+    <div class="flex items-center justify-between px-3 py-2 hover:bg-slate-800/50 cursor-pointer transition"
+         onclick="addToBasket('${s.stock_code}','${(s.stock_name||'').replace(/'/g,"\\'")}');hideSearchResults()">
+      <span class="text-xs font-mono text-primary">${s.stock_code}</span>
+      <span class="text-xs text-slate-300 flex-1 ml-2">${s.stock_name}</span>
+      <span class="text-[10px] text-slate-500">${s.industry_l1 || ''}</span>
+    </div>
+  `).join('');
+  box.classList.remove('hidden');
+}
+
+function addFirstSearchResult() {
+  const first = document.querySelector('#basketSearchResults > div');
+  if (first) first.click();
+}
+
+function hideSearchResults() {
+  document.getElementById('basketSearchResults')?.classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#basketSearch') && !e.target.closest('#basketSearchResults')) {
+    hideSearchResults();
+  }
+});
+
+// ── 策略 Chips ────────────────────────────────────────────────
+function renderStrategyChips() {} // no-op, no header chips anymore
+
+function toggleStrategy(id) {
+  const s = _strategies.find(x => x.id === id);
+  if (!s) return;
+  const input = document.getElementById('chatInput');
+  if (!input) return;
+  if (_selectedStrategyIds.has(id)) {
+    // deselect: remove strategy name from input
+    _selectedStrategyIds.delete(id);
+    input.value = input.value
+      .split('，')
+      .filter(p => p.trim() !== s.strategy_name)
+      .join('，');
+  } else {
+    // select: replace the current search term (last segment) with the strategy name
+    _selectedStrategyIds.add(id);
+    const parts = input.value.split('，');
+    parts[parts.length - 1] = s.strategy_name;
+    input.value = parts.join('，');
+  }
+  input.focus();
+}
+
+// ── 聊天输入联想 ──────────────────────────────────────────────
+let _suggestIdx = -1;
+let _lastSearchQ = '';
+
+function onChatInputChange(val) {
+  // extract the last segment after the last '，' as the search term
+  const parts = val.split('，');
+  const q = parts[parts.length - 1].trim().toLowerCase();
+  _lastSearchQ = q;
+  const box = document.getElementById('strategySuggest');
+  if (!q) { box.classList.add('hidden'); box.innerHTML = ''; _suggestIdx = -1; return; }
+  showStrategySuggest(q);
+}
+
+function showStrategySuggest(q) {
+  const box = document.getElementById('strategySuggest');
+  const matches = _strategies.filter(s =>
+    s.strategy_name.toLowerCase().includes(q) || (s.category_label || '').toLowerCase().includes(q)
+  ).slice(0, 12);
+  if (!matches.length) { box.classList.add('hidden'); box.innerHTML = ''; _suggestIdx = -1; return; }
+  _suggestIdx = -1;
+  box.innerHTML = matches.map((s, i) => `
+    <div class="suggest-item flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-800 transition"
+         data-id="${s.id}" onmousedown="selectStrategySuggest(${s.id})">
+      <span class="text-xs text-white flex-1">${s.strategy_name}</span>
+      ${s.category_label ? `<span class="text-[10px] text-slate-500">${s.category_label}</span>` : ''}
+      ${_selectedStrategyIds.has(s.id) ? '<span class="material-icons-round text-[12px] text-primary">check</span>' : ''}
+    </div>
+  `).join('');
+  box.classList.remove('hidden');
+}
+
+function selectStrategySuggest(id) {
+  toggleStrategy(id);
+  // keep dropdown open, refresh with same search term
+  if (_lastSearchQ) {
+    showStrategySuggest(_lastSearchQ);
+  }
+}
+
+function onChatInputKeydown(e) {
+  const box = document.getElementById('strategySuggest');
+  const items = box.querySelectorAll('.suggest-item');
+  const isOpen = !box.classList.contains('hidden') && items.length;
+
+  if (e.key === 'Escape') { box.classList.add('hidden'); _suggestIdx = -1; return; }
+
+  if (e.key === 'ArrowDown') { e.preventDefault(); if (isOpen) { _suggestIdx = Math.min(_suggestIdx + 1, items.length - 1); highlightSuggest(items); } return; }
+  if (e.key === 'ArrowUp')   { e.preventDefault(); if (isOpen) { _suggestIdx = Math.max(_suggestIdx - 1, 0); highlightSuggest(items); } return; }
+
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (isOpen) {
+      // select highlighted item, or first item if none highlighted
+      const idx = _suggestIdx >= 0 ? _suggestIdx : 0;
+      if (items[idx]) {
+        selectStrategySuggest(parseInt(items[idx].dataset.id));
+      }
+      // keep dropdown open for more selections — don't send
+    }
+    // Enter never sends — use the send button
+  }
+}
+
+function highlightSuggest(items) {
+  items.forEach((el, i) => el.classList.toggle('bg-slate-800', i === _suggestIdx));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#strategySuggest') && !e.target.closest('#chatInput')) {
+    document.getElementById('strategySuggest')?.classList.add('hidden');
+  }
+});
+
+// ── Chat ──────────────────────────────────────────────────────
+const QUICK_PROMPTS = {
+  commonality: '分析篮子中所有股票的共性特征，包括行业分布、估值水平、资金流向、技术形态的共同点',
+  review: '逐一点评篮子中每只股票的核心优势和主要风险',
+  lookalike: '基于篮子中股票的共性特征，推荐具有相似特征但不在篮子中的股票',
+};
+
+function sendQuickAction(type) {
+  const input = document.getElementById('chatInput');
+  if (input) input.value = QUICK_PROMPTS[type] || '';
+  sendChat();
+}
+
+async function sendChat() {
+  if (!_activeProjectId) { showToast('请先选择项目', true); return; }
+  const input = document.getElementById('chatInput');
+  const userText = (input?.value || '').trim();
+  if (!userText) return;
+
+  const strategyIds = [..._selectedStrategyIds];
+  input.value = '';
+  _selectedStrategyIds.clear();
+  document.getElementById('strategySuggest')?.classList.add('hidden');
+
+  // 构建完整消息（含拖入上下文）
+  let fullMessage = userText;
+  if (_chatCtxData) {
+    fullMessage = `【${_chatCtxData.label}】\n${_chatCtxData.text}\n\n${userText}`;
+    clearChatCtx();
+  }
+
+  appendChatMessage('user', userText); // UI 只显示用户输入文字
+  const pendingId = 'pending-' + Date.now();
+  appendChatMessage('assistant', '思考中...', pendingId, true);
+
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${_activeProjectId}/chat`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({message: fullMessage, strategy_ids: strategyIds}),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      startChatPoll(pendingId);
+    } else {
+      updatePendingMessage(pendingId, '发送失败: ' + (data.error || ''));
+    }
+  } catch(e) {
+    updatePendingMessage(pendingId, '请求失败');
+  }
+}
+
+function startChatPoll(pendingId) {
+  if (_chatPollTimer) clearInterval(_chatPollTimer);
+  let attempts = 0;
+  _chatPollTimer = setInterval(async () => {
+    attempts++;
+    try {
+      const resp = await fetch(`/portfolio/api/projects/${_activeProjectId}/chat/poll`);
+      const data = await resp.json();
+      if (data.status === 'done') {
+        clearInterval(_chatPollTimer);
+        _chatPollTimer = null;
+        updatePendingMessage(pendingId, data.reply, data.recommendations || []);
+      } else if (attempts > 60) { // 2min timeout
+        clearInterval(_chatPollTimer);
+        _chatPollTimer = null;
+        updatePendingMessage(pendingId, 'AI 响应超时，请重试');
+      }
+    } catch(e) {}
+  }, 2000);
+}
+
+async function loadChatHistory(projectId) {
+  const container = document.getElementById('chatMessages');
+  container.innerHTML = '';
+  try {
+    const resp = await fetch(`/portfolio/api/projects/${projectId}/chat/history`);
+    const data = await resp.json();
+    (data.messages || []).forEach(m => appendChatMessage(m.role, m.content, null, false, m.recommendations || []));
+  } catch(e) {}
+}
+
+function appendChatMessage(role, content, id, isPending = false, recs = []) {
+  const container = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-msg-${role}`;
+  if (id) div.id = id;
+  div.innerHTML = `<div class="chat-bubble">${isPending ? '<span class="animate-pulse">' + content + '</span>' : formatChatContent(content, recs)}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+function updatePendingMessage(id, content, recs = []) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.querySelector('.chat-bubble').innerHTML = formatChatContent(content, recs);
+  document.getElementById('chatMessages').scrollTop = 99999;
+}
+
+function formatChatContent(text, recs = []) {
+  // Basic markdown: bold, newlines
+  let html = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+
+  // Inline stock mentions: match A-share codes (6 digits) or name+code patterns
+  // Highlight any 6-digit code that looks like a stock code
+  html = html.replace(/\b([036]\d{5})\b/g, (match, code) => {
+    // check if already inside an add-btn (avoid double-wrap)
+    return `<button class="inline-stock-btn" onclick="addStockFromChat('${code}','${code}')" title="添加到篮子">${code}<span class="material-icons-round text-[10px] ml-0.5 align-middle">add_circle</span></button>`;
+  });
+
+  // Render explicit recommendations as cards at the bottom
+  if (recs && recs.length) {
+    html += '<div class="rec-cards mt-3 space-y-1.5">';
+    recs.forEach(r => {
+      html += `<div class="rec-card">
+        <div class="flex items-center gap-1.5 mb-0.5">
+          <span class="font-mono text-[10px] text-primary/70">${r.stock_code}</span>
+          <span class="text-[11px] font-semibold text-white">${r.stock_name}</span>
+          <button onclick="addStockFromChat('${r.stock_code}','${r.stock_name}')"
+                  class="ml-1 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-primary/20 border border-primary/30 text-primary text-[10px] font-bold hover:bg-primary/40 transition">
+            <span class="material-icons-round text-[11px]">add</span>加入
+          </button>
+        </div>
+        ${r.reason ? `<p class="text-[10px] text-slate-400 leading-snug">${r.reason}</p>` : ''}
+      </div>`;
+    });
+    html += '</div>';
+  }
+  return html;
+}
+
+async function addStockFromChat(code, name) {
+  if (!_activeProjectId) { showToast('请先选择项目', true); return; }
+  await addToBasket(code, name);
+}
+
+// ── 新建项目 ──────────────────────────────────────────────────
+function openNewProjectModal() {
+  document.getElementById('newProjectModal').classList.remove('hidden');
+  document.getElementById('npName').value = '';
+  document.getElementById('npLogic').value = '';
+}
+
+function closeNewProjectModal() {
+  document.getElementById('newProjectModal').classList.add('hidden');
+}
+
+// ── 合并弹窗 ──────────────────────────────────────────────────
+function openMergeModal() {
+  if (_projects.length < 2) { showToast('至少需要两个项目才能合并', true); return; }
+  // 填充下拉框
+  const opts = _projects.map(p => `<option value="${p.id}">${p.list_name}</option>`).join('');
+  document.getElementById('mergeSrcId').innerHTML = opts;
+  document.getElementById('mergeDstId').innerHTML = opts;
+  // 默认目标选第二个，避免两个选同一个
+  if (_projects.length >= 2) document.getElementById('mergeDstId').value = _projects[1].id;
+  document.getElementById('mergeNewName').value = '';
+  document.getElementById('mergeKeepSrc').checked = false;
+  document.getElementById('mergeModal').classList.remove('hidden');
+}
+
+function closeMergeModal() {
+  document.getElementById('mergeModal').classList.add('hidden');
+}
+
+async function doMerge() {
+  const srcId = parseInt(document.getElementById('mergeSrcId').value);
+  const dstId = parseInt(document.getElementById('mergeDstId').value);
+  const newName = document.getElementById('mergeNewName').value.trim();
+  const keepSrc = document.getElementById('mergeKeepSrc').checked;
+
+  if (srcId === dstId) { showToast('来源和目标不能是同一个项目', true); return; }
+
+  const btn = document.querySelector('#mergeModal button[onclick="doMerge()"]');
+  if (btn) { btn.disabled = true; btn.textContent = '合并中...'; }
+
+  try {
+    const resp = await fetch('/portfolio/api/projects/merge', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ source_id: srcId, target_id: dstId, new_name: newName, keep_source: keepSrc }),
+    });
+    const d = await resp.json();
+    if (d.ok) {
+      showToast(d.message || '合并成功');
+      closeMergeModal();
+      await loadProjects();          // 刷新 tab bar
+      switchProject(dstId);          // 切换到目标项目
+    } else {
+      showToast(d.error || '合并失败', true);
+    }
+  } catch(e) {
+    showToast('请求失败', true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '合并'; }
+  }
+}
+
+async function createProject() {
+  const name = document.getElementById('npName').value.trim();
+  const type = document.getElementById('npType').value;
+  const logic = document.getElementById('npLogic').value.trim();
+  if (!name) { alert('请填写项目名称'); return; }
+
+  const resp = await fetch('/portfolio/api/lists', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({list_type: type === 'portfolio' ? 'like' : 'theme', list_name: name,
+                          background_info: logic}),
+  });
+  const d = await resp.json();
+  if (!d.ok) { alert(d.error || '创建失败'); return; }
+
+  // 如果有投资逻辑，更新
+  if (logic) {
+    await fetch(`/portfolio/api/lists/${d.id}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({investment_logic: logic, project_type: type}),
+    });
+  }
+
+  showToast(`项目"${name}"已创建`);
+  closeNewProjectModal();
+  await loadProjects();
+  switchProject(d.id);
+}
+
+// ── 启动 ──────────────────────────────────────────────────────
+init();
+</script>
+{% endblock %}

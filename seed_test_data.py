@@ -1,6 +1,5 @@
-"""生成测试数据 — 填充所有榜单所需的表"""
+"""生成测试数据 — 填充所有榜单所需的表（MySQL版）"""
 import sys
-import sqlite3
 import json
 import random
 from pathlib import Path
@@ -8,18 +7,17 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-DB_PATH = Path(__file__).parent / "db" / "stock_analysis.db"
-
-conn = sqlite3.connect(str(DB_PATH))
-cur = conn.cursor()
+from utils.db_utils import execute_insert, execute_query
 
 today = datetime.now().strftime("%Y-%m-%d")
 now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 # ============ 1. data_sources ============
-cur.execute("INSERT OR IGNORE INTO data_sources (name, source_type, base_url, enabled) VALUES (?, ?, ?, ?)",
-            ("测试数据源", "manual", "http://localhost", 1))
-source_id = cur.execute("SELECT id FROM data_sources WHERE name='测试数据源'").fetchone()[0]
+execute_insert(
+    "INSERT IGNORE INTO data_sources (name, source_type, base_url, enabled) VALUES (%s, %s, %s, %s)",
+    ("测试数据源", "manual", "http://localhost", 1))
+rows = execute_query("SELECT id FROM data_sources WHERE name='测试数据源'")
+source_id = rows[0]["id"]
 
 # ============ 2. stock_info ============
 stocks = [
@@ -39,13 +37,13 @@ stocks = [
 
 for code, name, ind1, ind2, mkt in stocks:
     cap = random.uniform(500, 30000)
-    cur.execute("""INSERT OR IGNORE INTO stock_info
+    execute_insert(
+        """INSERT IGNORE INTO stock_info
         (stock_code, stock_name, industry_l1, industry_l2, market, market_cap)
-        VALUES (?, ?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s, %s)""",
         (code, name, ind1, ind2, mkt, cap))
 
 # ============ 3. raw_items + cleaned_items ============
-# 宏观利好
 macro_positive = [
     ("央行宣布降准0.5个百分点，释放长期资金约1万亿元", ["降准", "货币政策", "流动性"], 5),
     ("国务院发布促进民营经济发展壮大31条措施", ["民营经济", "政策利好", "营商环境"], 4),
@@ -53,7 +51,6 @@ macro_positive = [
     ("发改委批复多个重大基建项目，总投资超3000亿", ["基建", "投资", "稳增长"], 4),
     ("证监会：进一步优化IPO和再融资监管", ["IPO", "资本市场", "改革"], 3),
 ]
-# 宏观利空
 macro_negative = [
     ("美联储暗示可能再次加息，全球市场承压", ["美联储", "加息", "外部风险"], 4),
     ("1月CPI同比下降0.3%，通缩压力加大", ["CPI", "通缩", "消费疲软"], 4),
@@ -61,7 +58,6 @@ macro_negative = [
     ("中美贸易摩擦升级，部分商品加征关税", ["贸易摩擦", "关税", "出口压力"], 4),
 ]
 
-# 行业利好新闻
 industry_news = [
     ("新能源", "工信部发布新能源汽车产业发展规划，目标2027年渗透率达60%", ["新能源", "汽车", "政策"], 5),
     ("半导体", "国家大基金三期成立，注册资本3440亿元聚焦先进制程", ["半导体", "大基金", "国产替代"], 5),
@@ -75,48 +71,51 @@ industry_news = [
     ("汽车", "比亚迪1月销量突破30万辆，同比增长62%", ["比亚迪", "销量", "新能源车"], 4),
 ]
 
-raw_id_counter = cur.execute("SELECT COALESCE(MAX(id),0) FROM raw_items").fetchone()[0]
+rows = execute_query("SELECT COALESCE(MAX(id),0) as max_id FROM raw_items")
+raw_id_counter = rows[0]["max_id"]
+
 
 def insert_news(event_type, sentiment, summary, tags, importance, industries=None, stock_codes=None):
     global raw_id_counter
     raw_id_counter += 1
     ext_id = f"test_{raw_id_counter}_{random.randint(1000,9999)}"
-    cur.execute("""INSERT OR IGNORE INTO raw_items
+    execute_insert(
+        """INSERT IGNORE INTO raw_items
         (source_id, external_id, title, content, fetched_at, processing_status, item_type)
-        VALUES (?, ?, ?, ?, ?, 'cleaned', 'news')""",
+        VALUES (%s, %s, %s, %s, %s, 'cleaned', 'news')""",
         (source_id, ext_id, summary[:50], summary, now_ts))
-    raw_id = cur.lastrowid or cur.execute("SELECT id FROM raw_items WHERE external_id=?", (ext_id,)).fetchone()[0]
+    rows = execute_query("SELECT id FROM raw_items WHERE external_id=%s", (ext_id,))
+    raw_id = rows[0]["id"]
 
-    cur.execute("""INSERT INTO cleaned_items
+    ci_id = execute_insert(
+        """INSERT INTO cleaned_items
         (raw_item_id, event_type, sentiment, importance, summary, tags_json, cleaned_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s, %s, %s)""",
         (raw_id, event_type, sentiment, importance, summary, json.dumps(tags, ensure_ascii=False), now_ts))
-    ci_id = cur.lastrowid
 
     if industries:
         for ind in industries:
-            cur.execute("INSERT INTO item_industries (cleaned_item_id, industry_name, impact) VALUES (?, ?, ?)",
-                        (ci_id, ind, "positive" if sentiment == "positive" else "negative"))
+            execute_insert(
+                "INSERT INTO item_industries (cleaned_item_id, industry_name, impact) VALUES (%s, %s, %s)",
+                (ci_id, ind, "positive" if sentiment == "positive" else "negative"))
     if stock_codes:
         for sc in stock_codes:
             sname = dict((s[0], s[1]) for s in stocks).get(sc, "")
-            cur.execute("INSERT INTO item_companies (cleaned_item_id, stock_code, stock_name, impact) VALUES (?, ?, ?, ?)",
-                        (ci_id, sc, sname, sentiment))
+            execute_insert(
+                "INSERT INTO item_companies (cleaned_item_id, stock_code, stock_name, impact) VALUES (%s, %s, %s, %s)",
+                (ci_id, sc, sname, sentiment))
     return ci_id
 
-# 插入宏观利好
+
 for summary, tags, imp in macro_positive:
     insert_news("macro_policy", "positive", summary, tags, imp)
 
-# 插入宏观利空
 for summary, tags, imp in macro_negative:
     insert_news("macro_policy", "negative", summary, tags, imp)
 
-# 插入行业新闻
 for ind, summary, tags, imp in industry_news:
     insert_news("industry_news", "positive", summary, tags, imp, industries=[ind])
 
-# 插入个股相关新闻
 stock_news = [
     ("600519", "贵州茅台2025年报净利润同比增长18%，超市场预期", ["茅台", "业绩", "白酒"], 5),
     ("300750", "宁德时代获特斯拉新一代电池大单，价值超200亿", ["宁德时代", "特斯拉", "电池"], 5),
@@ -132,7 +131,6 @@ stock_news = [
 for code, summary, tags, imp in stock_news:
     insert_news("company_event", "positive", summary, tags, imp, stock_codes=[code])
 
-# 负面个股新闻
 neg_stock_news = [
     ("600519", "茅台批价短期回落至2700元，渠道库存偏高", ["茅台", "批价", "库存"], 3),
     ("601012", "隆基绿能硅片价格持续下跌，盈利承压", ["隆基", "硅片", "价格战"], 3),
@@ -149,7 +147,6 @@ for code, name, _, _, _ in stocks:
     price = base_price
     for d in range(180, -1, -1):
         dt = (datetime.now() - timedelta(days=d)).strftime("%Y-%m-%d")
-        # 跳过周末
         wd = (datetime.now() - timedelta(days=d)).weekday()
         if wd >= 5:
             continue
@@ -161,9 +158,10 @@ for code, name, _, _, _ in stocks:
         vol = random.uniform(50000, 500000)
         amt = vol * (o + c) / 2
         tr = random.uniform(0.5, 5.0)
-        cur.execute("""INSERT OR IGNORE INTO stock_daily
+        execute_insert(
+            """INSERT IGNORE INTO stock_daily
             (stock_code, trade_date, open, high, low, close, volume, amount, turnover_rate, change_pct)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
             (code, dt, round(o, 2), round(h, 2), round(l, 2), round(c, 2),
              round(vol), round(amt), round(tr, 2), round(change * 100, 2)))
         price = c
@@ -181,9 +179,10 @@ for code, name, _, _, _ in stocks:
         large = main * random.uniform(0.2, 0.4)
         medium = -main * random.uniform(0.1, 0.3)
         small = -main * random.uniform(0.1, 0.3)
-        cur.execute("""INSERT OR IGNORE INTO capital_flow
+        execute_insert(
+            """INSERT IGNORE INTO capital_flow
             (stock_code, trade_date, main_net_inflow, super_large_net, large_net, medium_net, small_net)
-            VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s, %s, %s, %s)""",
             (code, dt, round(main), round(super_l), round(large), round(medium), round(small)))
 
 # ============ 6. industry_capital_flow ============
@@ -194,9 +193,10 @@ for ind in industries_list:
     net = random.uniform(-20e8, 20e8)
     chg = random.uniform(-3, 3)
     lead = random.choice([s[1] for s in stocks])
-    cur.execute("""INSERT OR IGNORE INTO industry_capital_flow
+    execute_insert(
+        """INSERT IGNORE INTO industry_capital_flow
         (industry_name, trade_date, net_inflow, change_pct, leading_stock)
-        VALUES (?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s)""",
         (ind, today, round(net), round(chg, 2), lead))
 
 # ============ 7. financial_reports (财报超预期) ============
@@ -207,9 +207,10 @@ for code, name, _, _, _ in stocks:
     beat = 1 if random.random() > 0.4 else 0
     actual_vs = random.uniform(5, 30) if beat else random.uniform(-10, 5)
     eps = random.uniform(0.5, 15)
-    cur.execute("""INSERT OR IGNORE INTO financial_reports
+    execute_insert(
+        """INSERT IGNORE INTO financial_reports
         (stock_code, report_period, revenue_yoy, profit_yoy, beat_expectation, actual_vs_consensus, eps)
-        VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s, %s, %s)""",
         (code, "2025Q3", round(rev_yoy, 1), round(prof_yoy, 1), beat, round(actual_vs, 1), round(eps, 2)))
 
 # ============ 8. research_reports (券商覆盖) ============
@@ -217,29 +218,30 @@ print("生成券商研报数据...")
 brokers = ["中信证券", "中金公司", "华泰证券", "国泰君安", "海通证券",
            "招商证券", "广发证券", "申万宏源", "兴业证券", "东方证券"]
 for code, name, _, _, _ in stocks:
-    # 每只股票随机3-8篇研报，分布在近3个月
     n_reports = random.randint(3, 8)
     for _ in range(n_reports):
         broker = random.choice(brokers)
         days_ago = random.randint(0, 90)
         rdate = (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
         tp = random.uniform(10, 300)
-        # 需要一个 cleaned_item 关联
         ext_id = f"rr_{code}_{broker}_{rdate}_{random.randint(1000,9999)}"
-        cur.execute("""INSERT OR IGNORE INTO raw_items
+        execute_insert(
+            """INSERT IGNORE INTO raw_items
             (source_id, external_id, title, content, fetched_at, processing_status, item_type)
-            VALUES (?, ?, ?, ?, ?, 'cleaned', 'report')""",
+            VALUES (%s, %s, %s, %s, %s, 'cleaned', 'report')""",
             (source_id, ext_id, f"{broker}研报:{name}", f"{broker}发布{name}研报", rdate))
-        raw_id = cur.lastrowid or cur.execute("SELECT id FROM raw_items WHERE external_id=?", (ext_id,)).fetchone()[0]
-        cur.execute("""INSERT INTO cleaned_items
+        rows = execute_query("SELECT id FROM raw_items WHERE external_id=%s", (ext_id,))
+        raw_id = rows[0]["id"]
+        ci_id = execute_insert(
+            """INSERT INTO cleaned_items
             (raw_item_id, event_type, sentiment, importance, summary, tags_json, cleaned_at)
-            VALUES (?, 'research_report', 'positive', ?, ?, ?, ?)""",
+            VALUES (%s, 'research_report', 'positive', %s, %s, %s, %s)""",
             (raw_id, random.randint(3, 5), f"{broker}发布{name}研报，目标价{tp:.0f}",
              json.dumps([name, broker], ensure_ascii=False), rdate))
-        ci_id = cur.lastrowid
-        cur.execute("""INSERT OR IGNORE INTO research_reports
+        execute_insert(
+            """INSERT IGNORE INTO research_reports
             (cleaned_item_id, broker_name, report_type, rating, target_price, stock_code, stock_name, report_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
             (ci_id, broker, random.choice(["initiate", "maintain", "upgrade"]),
              random.choice(["buy", "overweight"]), round(tp, 2), code, name, rdate))
 
@@ -252,9 +254,10 @@ for d in range(30, -1, -1):
         continue
     sh = random.uniform(-80e8, 80e8)
     sz = random.uniform(-60e8, 60e8)
-    cur.execute("""INSERT OR IGNORE INTO northbound_flow
+    execute_insert(
+        """INSERT IGNORE INTO northbound_flow
         (trade_date, sh_net, sz_net, total_net)
-        VALUES (?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s)""",
         (dt, round(sh), round(sz), round(sh + sz)))
 
 # ============ 10. macro_indicators ============
@@ -270,9 +273,10 @@ indicators = [
     ("美元兑人民币", 7.18, ""),
 ]
 for name, val, unit in indicators:
-    cur.execute("""INSERT OR IGNORE INTO macro_indicators
+    execute_insert(
+        """INSERT IGNORE INTO macro_indicators
         (indicator_name, indicator_date, value, unit, source)
-        VALUES (?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s)""",
         (name, today, val, unit, "测试数据"))
 
 # ============ 11. dashboard_tag_frequency ============
@@ -285,16 +289,15 @@ all_tags = [
     ("比亚迪", "stock"), ("宁德时代", "stock"), ("茅台", "stock"), ("中芯国际", "stock"),
 ]
 
-# 为近14天生成标签频次
 for d in range(14, -1, -1):
     dt = (datetime.now() - timedelta(days=d)).strftime("%Y-%m-%d")
     for tag_name, tag_type in all_tags:
-        # 每个标签随机出现在1-4个榜单中
         dashboards = random.sample(range(1, 9), random.randint(1, 4))
         for db_type in dashboards:
-            cur.execute("""INSERT OR IGNORE INTO dashboard_tag_frequency
+            execute_insert(
+                """INSERT IGNORE INTO dashboard_tag_frequency
                 (tag_name, tag_type, dashboard_type, appear_date, rank_position)
-                VALUES (?, ?, ?, ?, ?)""",
+                VALUES (%s, %s, %s, %s, %s)""",
                 (tag_name, tag_type, db_type, dt, random.randint(1, 20)))
 
 # ============ 12. investment_opportunities ============
@@ -307,9 +310,10 @@ opps = [
     ("300760", "迈瑞医疗", "growth", "B", "海外收入占比突破50%，全球化进入收获期"),
 ]
 for code, name, otype, rating, summary in opps:
-    cur.execute("""INSERT OR IGNORE INTO investment_opportunities
+    execute_insert(
+        """INSERT IGNORE INTO investment_opportunities
         (stock_code, stock_name, opportunity_type, source, rating, summary, status)
-        VALUES (?, ?, ?, 'deep_research', ?, ?, 'active')""",
+        VALUES (%s, %s, %s, 'deep_research', %s, %s, 'active')""",
         (code, name, otype, rating, summary))
 
 # ============ 13. watchlist ============
@@ -323,9 +327,10 @@ watchlist_items = [
     ("300760", "迈瑞医疗", "interested", '["医疗器械","出海"]', "关注海外订单"),
 ]
 for code, name, wtype, tags, notes in watchlist_items:
-    cur.execute("""INSERT OR IGNORE INTO watchlist
+    execute_insert(
+        """INSERT IGNORE INTO watchlist
         (stock_code, stock_name, watch_type, related_tags, notes)
-        VALUES (?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s)""",
         (code, name, wtype, tags, notes))
 
 # ============ 14. tag_groups ============
@@ -336,9 +341,10 @@ tag_groups = [
     ("消费复苏", '["白酒","消费","食品饮料","茅台"]', "消费复苏+春节效应", 14, 58),
 ]
 for gname, tags_json, logic, tr, freq in tag_groups:
-    cur.execute("""INSERT OR IGNORE INTO tag_groups
+    execute_insert(
+        """INSERT IGNORE INTO tag_groups
         (group_name, tags_json, group_logic, time_range, total_frequency)
-        VALUES (?, ?, ?, ?, ?)""",
+        VALUES (%s, %s, %s, %s, %s)""",
         (gname, tags_json, logic, tr, freq))
 
 # ============ 15. holding_positions ============
@@ -349,13 +355,11 @@ positions = [
     ("601318", "中国平安", "2025-11-01", 45, 2000),
 ]
 for code, name, bdate, bprice, qty in positions:
-    cur.execute("""INSERT OR IGNORE INTO holding_positions
+    execute_insert(
+        """INSERT IGNORE INTO holding_positions
         (stock_code, stock_name, buy_date, buy_price, quantity, status)
-        VALUES (?, ?, ?, ?, ?, 'open')""",
+        VALUES (%s, %s, %s, %s, %s, 'open')""",
         (code, name, bdate, bprice, qty))
-
-conn.commit()
-conn.close()
 
 print(f"\n测试数据生成完成！日期: {today}")
 print("涵盖: stock_info(12只), raw_items, cleaned_items(宏观+行业+个股),")

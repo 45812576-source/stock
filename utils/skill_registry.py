@@ -15,7 +15,7 @@ ANALYSIS_REGISTRY = {
                 "function": "clean_single_item()",
                 "file": "cleaning/claude_processor.py",
                 "label": "信息结构化清洗",
-                "desc": "将原始信息清洗为结构化数据",
+                "desc": "FOE三测试（可验证性/合理分歧/功能）拆解原文，构建F→O→E树状结构，输出全景评估与投资机会标注",
                 "skill_name": "information-cleaning-structuring",
                 "prompt_var": "CLEANING_SYSTEM_PROMPT",
                 "icon": "auto_fix_high",
@@ -187,6 +187,15 @@ ANALYSIS_REGISTRY = {
                 "prompt_var": "TAG_VALIDATION_PROMPT",
                 "icon": "verified",
             },
+            {
+                "function": "research_tag_group() 个股推荐",
+                "file": "hotspot/tag_group_research.py",
+                "label": "标签组个股推荐",
+                "desc": "基于投资主题四维评分（龙头属性/受益直接性/估值/流动性）推荐个股并打标签",
+                "skill_name": "stock-recommendation",
+                "prompt_var": "STOCK_RANKING_PROMPT",
+                "icon": "recommend",
+            },
         ],
     },
     "knowledge_graph": {
@@ -218,6 +227,31 @@ ANALYSIS_REGISTRY = {
                 "skill_name": None,
                 "prompt_var": "CHANGE_HIGHLIGHT_PROMPT",
                 "icon": "notifications_active",
+            },
+        ],
+    },
+    "portfolio": {
+        "label": "自选与策略",
+        "icon": "folder_special",
+        "color": "green",
+        "entries": [
+            {
+                "function": "api_theme_recommend()",
+                "file": "routers/portfolio.py",
+                "label": "主题股票推荐",
+                "desc": "根据自选主题背景四维评分推荐相关股票并打标签",
+                "skill_name": "stock-recommendation",
+                "prompt_var": None,
+                "icon": "lightbulb",
+            },
+            {
+                "function": "api_run_screening() AI筛选",
+                "file": "routers/portfolio.py",
+                "label": "策略选股AI筛选",
+                "desc": "基于策略规则四维评分（龙头属性/受益直接性/估值/流动性）精筛股票",
+                "skill_name": "stock-recommendation",
+                "prompt_var": None,
+                "icon": "filter_alt",
             },
         ],
     },
@@ -261,3 +295,11 @@ def get_skill_content(skill_name: str) -> Optional[str]:
     if skill_path.exists():
         return skill_path.read_text(encoding="utf-8")
     return None
+
+
+def save_skill_content(skill_name: str, content: str) -> str:
+    """写入 Skill 文件，目录不存在时自动创建。返回文件路径。"""
+    skill_path = SKILLS_DIR / skill_name / "SKILL.md"
+    skill_path.parent.mkdir(parents=True, exist_ok=True)
+    skill_path.write_text(content, encoding="utf-8")
+    return str(skill_path)

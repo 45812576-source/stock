@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>升级订阅 - StockAI Pro</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: {
+          primary: '#135bec',
+          'background-dark': '#101622',
+          'card-dark': '#1a2233',
+          'border-dark': '#2d3748',
+        },
+        fontFamily: { display: ['Manrope', 'sans-serif'] },
+      }}
+    }
+  </script>
+  <style>
+    body { font-family: 'Manrope', sans-serif; }
+  </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-display min-h-screen">
+  <!-- Header -->
+  <header class="border-b border-border-dark bg-card-dark">
+    <div class="flex items-center justify-between px-6 py-3 max-w-5xl mx-auto">
+      <a href="/" class="flex items-center gap-2">
+        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+          <span class="material-icons-round text-white text-sm">insights</span>
+        </div>
+        <span class="font-bold">StockAI Pro</span>
+      </a>
+      <nav class="flex items-center gap-4">
+        <a href="/overview" class="text-sm text-slate-400 hover:text-white">返回首页</a>
+        {% if user %}
+        <span class="text-sm text-slate-500">{{ user.username }}</span>
+        {% else %}
+        <a href="/auth/login" class="text-sm text-primary hover:underline">登录</a>
+        {% endif %}
+      </nav>
+    </div>
+  </header>
+
+  <main class="p-8 max-w-4xl mx-auto">
+    <div class="text-center mb-10">
+      <h1 class="text-3xl font-bold mb-3">升级订阅，解锁全部功能</h1>
+      <p class="text-slate-400">免费版功能受限，升级订阅后享受完整体验</p>
+    </div>
+
+    <!-- 功能对比 -->
+    <div class="card p-6 mb-8">
+      <h2 class="text-lg font-semibold mb-4">功能对比</h2>
+      <table class="w-full">
+        <thead>
+          <tr class="text-left text-sm text-slate-400 border-b border-border-dark">
+            <th class="pb-3">功能</th>
+            <th class="pb-3 text-center">免费版</th>
+            <th class="pb-3 text-center text-primary">订阅版</th>
+          </tr>
+        </thead>
+        <tbody class="text-sm">
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">每日概览</td>
+            <td class="py-3 text-center text-emerald-400">✓</td>
+            <td class="py-3 text-center text-primary">✓ 无限</td>
+          </tr>
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">Portfolio 实验室</td>
+            <td class="py-3 text-center">2个</td>
+            <td class="py-3 text-center text-primary">无限</td>
+          </tr>
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">AI 助手对话</td>
+            <td class="py-3 text-center">20次/月</td>
+            <td class="py-3 text-center text-primary">100次/月</td>
+          </tr>
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">热点发现</td>
+            <td class="py-3 text-center text-slate-500">✗</td>
+            <td class="py-3 text-center text-primary">✓ 无限</td>
+          </tr>
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">AI 标签组推荐</td>
+            <td class="py-3 text-center text-slate-500">✗</td>
+            <td class="py-3 text-center text-primary">5次/月</td>
+          </tr>
+          <tr class="border-b border-border-dark/50">
+            <td class="py-3">深度研究报告</td>
+            <td class="py-3 text-center text-slate-500">✗</td>
+            <td class="py-3 text-center text-primary">10次/月</td>
+          </tr>
+          <tr>
+            <td class="py-3">K线阶段分析</td>
+            <td class="py-3 text-center text-slate-500">✗</td>
+            <td class="py-3 text-center text-primary">✓ 无限</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 积分包 -->
+    <h2 class="text-lg font-semibold mb-4">选择套餐</h2>
+    <div class="grid grid-cols-4 gap-4 mb-8">
+      {% for p in packages %}
+      <div class="card p-4 hover:border-primary/50 transition-colors">
+        <div class="text-center mb-3">
+          <div class="text-lg font-bold">{{ p.name }}</div>
+          <div class="text-3xl font-bold text-primary mt-2">¥{{ p.price }}</div>
+        </div>
+        <div class="text-center text-sm text-slate-400 mb-4">
+          <span class="text-emerald-400">{{ p.points }}</span> 积分
+          {% if p.bonus_points > 0 %}
+          <span class="ml-1">+{{ p.bonus_points }}赠送</span>
+          {% endif %}
+        </div>
+        <button onclick="purchasePackage({{ p.id }})"
+          class="w-full py-2 bg-primary/20 hover:bg-primary/30 text-primary rounded-lg text-sm font-semibold transition-colors">
+          立即购买
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- 订阅按钮（如果已登录） -->
+    {% if user %}
+    <div class="text-center">
+      {% if user.role == 'subscriber' %}
+      <div class="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+        <span class="text-emerald-400 font-semibold">您已是订阅用户</span>
+      </div>
+      {% else %}
+      <button onclick="upgradeSubscription()"
+        class="px-8 py-3 bg-gradient-to-r from-amber-500 to-primary text-white rounded-xl font-semibold hover:from-amber-600 hover:to-primary/90 transition-all">
+        一键升级为订阅版
+      </button>
+      {% endif %}
+    </div>
+    {% else %}
+    <div class="text-center">
+      <a href="/auth/login?redirect=/auth/subscription"
+        class="inline-block px-8 py-3 bg-primary text-white rounded-xl font-semibold hover:bg-primary/90 transition-all">
+        登录后升级
+      </a>
+    </div>
+    {% endif %}
+  </main>
+
+  <script>
+    async function purchasePackage(packageId) {
+      {% if not user %}
+      alert('请先登录');
+      window.location.href = '/auth/login?redirect=/auth/subscription';
+      return;
+      {% endif %}
+
+      try {
+        const res = await fetch('/auth/points/purchase?package_id=' + packageId, {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('购买成功！' + data.message);
+          location.reload();
+        } else {
+          alert(data.detail || '购买失败');
+        }
+      } catch (e) {
+        alert('请求失败');
+      }
+    }
+
+    async function upgradeSubscription() {
+      try {
+        const res = await fetch('/auth/subscription/upgrade', {
+          method: 'POST',
+          credentials: 'same-origin'
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('升级成功！' + data.message);
+          window.location.href = '/auth/login';
+        } else {
+          alert(data.detail || '升级失败');
+        }
+      } catch (e) {
+        alert('请求失败');
+      }
+    }
+  </script>
+</body>
+</html>

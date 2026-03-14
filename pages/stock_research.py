@@ -148,8 +148,8 @@ with st.expander("➕ 添加跟踪"):
         with tc1:
             tag_name = st.text_input("标签名称", key="add_tag_name")
         with tc2:
-            tag_type = st.selectbox("标签类型", ["theme", "industry", "macro"], key="add_tag_type",
-                                    format_func=lambda x: {"theme": "主题", "industry": "行业", "macro": "宏观"}.get(x, x))
+            tag_type = st.selectbox("标签类型", ["theme", "industry", "macro_indicator"], key="add_tag_type",
+                                    format_func=lambda x: {"theme": "主题", "industry": "行业", "macro_indicator": "宏观指标"}.get(x, x))
         with tc3:
             tag_watch = st.selectbox("关注类型", ["interested", "holding"], key="add_tag_watch",
                                      format_func=lambda x: "感兴趣" if x == "interested" else "重点关注")

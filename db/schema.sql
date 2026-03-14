@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS financial_reports (
 
 CREATE TABLE IF NOT EXISTS kg_entities (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    entity_type TEXT NOT NULL,  -- macro_factor/industry/company/theme/indicator
+    entity_type TEXT NOT NULL,  -- market/theme/industry/industry_chain/company/macro_indicator/commodity/energy/intermediate/consumer_good/policy/revenue_element
     entity_name TEXT NOT NULL,
     properties_json TEXT,
     description TEXT,
@@ -385,6 +385,7 @@ CREATE TABLE IF NOT EXISTS tag_groups (
     group_logic TEXT,
     time_range TEXT,
     total_frequency INTEGER DEFAULT 0,
+    extra_json TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -393,10 +394,38 @@ CREATE TABLE IF NOT EXISTS tag_group_research (
     group_id INTEGER NOT NULL,
     research_date TEXT NOT NULL,
     macro_report TEXT,
+    macro_json TEXT,
     industry_report TEXT,
+    industry_json TEXT,
     news_summary_json TEXT,
+    news_parsed_json TEXT,
     sector_heat_json TEXT,
+    theme_heat_json TEXT,
     top10_stocks_json TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (group_id) REFERENCES tag_groups(id)
 );
+
+-- ============ 文档存储层 ============
+
+CREATE TABLE IF NOT EXISTS documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    doc_type TEXT NOT NULL,        -- 'news' / 'report'
+    file_type TEXT NOT NULL,       -- 'pdf' / 'word' / 'txt'
+    title TEXT NOT NULL,
+    author TEXT,
+    publish_date TEXT NOT NULL,
+    source TEXT,
+    oss_url TEXT,                  -- 文件存储路径（pdf/word）
+    text_content TEXT,             -- 纯文本内容（txt 或提取后的文本）
+    page_count INTEGER DEFAULT 0,
+    file_size INTEGER DEFAULT 0,
+    status INTEGER DEFAULT 1,     -- 0=删除 1=正常
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_doc_type ON documents(doc_type);
+CREATE INDEX IF NOT EXISTS idx_doc_publish_date ON documents(publish_date);
+CREATE INDEX IF NOT EXISTS idx_doc_source ON documents(source);
+CREATE INDEX IF NOT EXISTS idx_doc_status ON documents(status);

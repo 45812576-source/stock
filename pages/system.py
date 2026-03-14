@@ -5,7 +5,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db_utils import execute_query, table_row_count
-from config import DB_PATH
 
 st.title("⚙️ 系统管理")
 
@@ -30,8 +29,6 @@ try:
         except Exception:
             stats.append({"表名": t, "行数": "N/A"})
     st.dataframe(pd.DataFrame(stats), use_container_width=True)
-    db_size = DB_PATH.stat().st_size / 1024 / 1024 if DB_PATH.exists() else 0
-    st.caption(f"数据库大小: {db_size:.2f} MB")
 except Exception as e:
     st.error(f"数据库未初始化: {e}")
     if st.button("初始化数据库"):

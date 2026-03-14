@@ -1,0 +1,607 @@
+2026-03-01 02:45:15,120 [INFO] ===== Step 1: 删除 mp3/audio =====
+2026-03-01 02:45:21,509 [INFO]   删除 extracted_texts 音频: 75 条
+2026-03-01 02:45:27,170 [INFO]   标记 source_documents mp3/audio 为 rejected: 164 条
+2026-03-01 02:45:27,171 [INFO] ===== Step 2: 清空 ABC 管线输出 =====
+2026-03-01 02:45:34,002 [INFO]   清空云端 content_summaries: 9296 条
+2026-03-01 02:45:39,975 [INFO]   清空云端 stock_mentions: 32152 条
+2026-03-01 02:45:39,984 [WARNING]   本地 kg_entities 操作失败: (1451, 'Cannot delete or update a parent row: a foreign key constraint fails (`stock_analysis`.`kg_relationships`, CONSTRAINT `kg_relationships_ibfk_2` FOREIGN KEY (`target_entity_id`) REFERENCES `kg_entities` (`id`))')
+2026-03-01 02:45:40,315 [INFO]   清空本地 kg_relationships: 25646 条
+2026-03-01 02:45:40,315 [INFO] ===== Step 3: 清空 extracted_texts =====
+2026-03-01 02:45:46,495 [INFO]   清空 extracted_texts: 13863 条
+2026-03-01 02:45:46,495 [INFO] 
+完成！耗时 0.5 分钟
+2026-03-01 02:46:23,784 [INFO] ===== Step 4: 重新提取+清洗 =====
+2026-03-01 02:46:28,374 [INFO]   已重置所有非 audio 文档状态为 pending
+2026-03-01 02:46:30,529 [INFO]   待处理文档总数: 10566
+2026-03-01 02:46:33,495 [INFO]   [1/10566] 处理 id=1 type=txt 【预告】国务院新闻办公室将于2...
+2026-03-01 02:46:37,387 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:46:40,219 [INFO] [S] 语义清洗完成 doc_id=1 type=txt understand=True (119→115字, 1段)
+2026-03-01 02:46:43,450 [INFO]   [2/10566] 处理 id=2 type=txt 最讽刺的一幕发生在价格底部。在...
+2026-03-01 02:46:43,672 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:46:51,115 [INFO] [S] 语义清洗完成 doc_id=2 type=txt understand=True (449→355字, 1段)
+2026-03-01 02:46:54,589 [INFO]   [3/10566] 处理 id=3 type=txt 【国泰海通电子】谷歌业绩点评
+...
+2026-03-01 02:46:55,014 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:47:08,107 [INFO] [S] 语义清洗完成 doc_id=3 type=txt understand=True (637→718字, 1段)
+2026-03-01 02:47:11,895 [INFO]   [4/10566] 处理 id=4 type=txt (西部郑宏达)市场看到美股软件...
+2026-03-01 02:47:12,201 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:47:18,039 [INFO] [S] 语义清洗完成 doc_id=4 type=txt understand=True (280→280字, 1段)
+2026-03-01 02:47:21,212 [INFO]   [5/10566] 处理 id=5 type=txt 重视 HDD 硬盘存储技术升级...
+2026-03-01 02:47:21,451 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:47:27,867 [INFO] [S] 语义清洗完成 doc_id=5 type=txt understand=True (252→276字, 1段)
+2026-03-01 02:47:31,146 [INFO]   [6/10566] 处理 id=6 type=txt [独家] 英伟达向三星索要：跳...
+2026-03-01 02:47:31,369 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:47:49,169 [INFO] [S] 语义清洗完成 doc_id=6 type=txt understand=True (1427→985字, 1段)
+2026-03-01 02:47:52,020 [INFO]   [7/10566] 处理 id=7 type=txt 周一，将发生什么？
+
+首先，一...
+2026-03-01 02:47:52,215 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:48:03,708 [INFO] [S] 语义清洗完成 doc_id=7 type=txt understand=True (596→597字, 1段)
+2026-03-01 02:48:07,607 [INFO]   [8/10566] 处理 id=8 type=txt 【国内宏观周度观察】行程过半的...
+2026-03-01 02:48:08,215 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:48:15,625 [INFO] [S] 语义清洗完成 doc_id=8 type=txt understand=True (396→473字, 1段)
+2026-03-01 02:48:19,066 [INFO]   [9/10566] 处理 id=10 type=txt 1月28日，阿斯麦Q4营收97...
+2026-03-01 02:48:19,251 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:48:23,666 [INFO] [S] 语义清洗完成 doc_id=10 type=txt understand=True (127→229字, 1段)
+2026-03-01 02:48:27,151 [INFO]   [10/10566] 处理 id=11 type=txt 2025年四季度公募纯债与混合...
+2026-03-01 02:48:27,362 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:48:38,010 [INFO] [S] 语义清洗完成 doc_id=11 type=txt understand=True (422→625字, 1段)
+2026-03-01 02:48:40,671 [INFO]   进度: 10/10566 (成功=10, 失败=0, 跳过=0)
+2026-03-01 02:48:40,671 [INFO]   [11/10566] 处理 id=12 type=txt 【东北计算机】20260125...
+2026-03-01 02:48:40,877 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:48:46,180 [INFO] [S] 语义清洗完成 doc_id=12 type=txt understand=True (349→275字, 1段)
+2026-03-01 02:48:49,223 [INFO]   [12/10566] 处理 id=13 type=txt 【中泰策略】宽基etf大额流出...
+2026-03-01 02:48:49,428 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:49:10,901 [INFO] [S] 语义清洗完成 doc_id=13 type=txt understand=True (1253→1174字, 1段)
+2026-03-01 02:49:13,561 [INFO]   [13/10566] 处理 id=14 type=mixed 特斯拉机器人概念股汇总
+FSD
+2026-03-01 02:49:22,577 [INFO] Loading faiss.
+2026-03-01 02:49:22,605 [INFO] Successfully loaded faiss.
+2026-03-01 02:49:59,133 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:50:51,173 [INFO] [S] 语义清洗完成 doc_id=14 type=mixed understand=True (2008→2833字, 1段)
+2026-03-01 02:50:54,100 [INFO]   [14/10566] 处理 id=15 type=txt ❗【天风电新】太空能源+Spa...
+2026-03-01 02:50:54,607 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:51:06,372 [INFO] [S] 语义清洗完成 doc_id=15 type=txt understand=True (515→627字, 1段)
+2026-03-01 02:51:09,659 [INFO]   [15/10566] 处理 id=16 type=txt 🔥【国联民生电子】先进封装板块...
+2026-03-01 02:51:09,924 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:51:24,781 [INFO] [S] 语义清洗完成 doc_id=16 type=txt understand=True (855→770字, 1段)
+2026-03-01 02:51:27,923 [INFO]   [16/10566] 处理 id=17 type=txt 建投金属新材｜为何粉末冶金和M...
+2026-03-01 02:51:28,163 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:51:56,660 [INFO] [S] 语义清洗完成 doc_id=17 type=txt understand=True (1520→1623字, 1段)
+2026-03-01 02:51:59,186 [INFO]   [17/10566] 处理 id=18 type=txt 各位领导好，今日【佰维存储】举...
+2026-03-01 02:51:59,401 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:52:13,284 [INFO] [S] 语义清洗完成 doc_id=18 type=txt understand=True (712→800字, 1段)
+2026-03-01 02:52:16,571 [INFO]   [18/10566] 处理 id=19 type=txt 20260119复盘
+
+半导体...
+2026-03-01 02:52:16,806 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:52:41,819 [INFO] [S] 语义清洗完成 doc_id=19 type=txt understand=True (1297→1438字, 1段)
+2026-03-01 02:52:44,583 [INFO]   [19/10566] 处理 id=20 type=mixed 下面这个划分不太准，康波进入萧...
+2026-03-01 02:52:52,051 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:07,434 [INFO] [S] 语义清洗完成 doc_id=20 type=mixed understand=True (1005→769字, 1段)
+2026-03-01 02:53:10,359 [INFO]   [20/10566] 处理 id=4472335 type=pdf 2025年中国农产品加工行业研究报告
+2026-03-01 02:53:16,043 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:18,198 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:33,938 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:36,498 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:53,439 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:55,896 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:53:58,380 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:54:25,378 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:54:27,937 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:54:55,898 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:04,957 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:07,428 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:21,289 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:24,736 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:32,346 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:55:34,970 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:10,585 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:13,418 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:15,730 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:18,182 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:20,746 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:23,280 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:25,758 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:38,133 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:41,528 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:44,412 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:47,569 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:50,651 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:52,997 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:55,876 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:56:56,580 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:57:35,015 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:58:35,017 [INFO] Retrying request to /chat/completions in 0.434225 seconds
+2026-03-01 02:58:36,010 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 02:59:36,011 [INFO] Retrying request to /chat/completions in 0.886792 seconds
+2026-03-01 02:59:37,447 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:00:53,464 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:01:53,466 [INFO] Retrying request to /chat/completions in 0.407338 seconds
+2026-03-01 03:01:54,597 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:03:12,232 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:18:54,591 [INFO] Retrying request to /chat/completions in 0.476341 seconds
+2026-03-01 03:18:58,078 [INFO] Retrying request to /chat/completions in 0.894626 seconds
+2026-03-01 03:18:59,524 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:34:41,493 [WARNING] [S] 语义清洗第4/6段失败 doc_id=4472335: Request timed out.
+2026-03-01 03:34:42,199 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:35:50,905 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:35:59,735 [INFO] [S] 语义清洗完成 doc_id=4472335 type=pdf understand=False (23432→21687字, 6段)
+2026-03-01 03:36:03,929 [INFO]   进度: 20/10566 (成功=20, 失败=0, 跳过=0)
+2026-03-01 03:36:06,575 [INFO]   [21/10566] 处理 id=4474574 type=pdf 玻璃期货日报
+2026-03-01 03:39:39,221 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:39:41,523 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:39:44,389 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 03:39:44,391 [INFO] PDF 文字密度低（0 字/页），切换 PaddleOCR
+2026-03-01 03:45:18,973 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:02:07,394 [INFO] Retrying request to /chat/completions in 0.490169 seconds
+2026-03-01 04:02:08,624 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:02:28,227 [INFO] [S] 语义清洗完成 doc_id=4474574 type=pdf understand=True (1366→924字, 1段)
+2026-03-01 04:02:30,594 [INFO]   [22/10566] 处理 id=4474577 type=pdf 假期临近，铅价持续盘整
+2026-03-01 04:02:38,455 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:02:40,854 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:03:16,217 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:03:54,511 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:04:36,525 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:04:39,888 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:04:42,417 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:04:42,870 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:05:32,838 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:06:54,200 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:07:06,291 [INFO] [S] 语义清洗完成 doc_id=4474577 type=pdf understand=False (11732→10152字, 3段)
+2026-03-01 04:07:09,812 [INFO]   [23/10566] 处理 id=4474579 type=pdf 光通信重要增量：北美资本开支增长并未见顶，Scaleup是光通信重要增量
+2026-03-01 04:07:27,422 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:07:30,339 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:07:32,605 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:07:35,672 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:07:38,583 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:00,392 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:16,659 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:45,755 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:47,699 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:50,567 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:54,152 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:08:54,677 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:09:35,417 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:10:41,079 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:11:33,598 [INFO] [S] 语义清洗完成 doc_id=4474579 type=pdf understand=False (14540→11923字, 3段)
+2026-03-01 04:11:36,816 [INFO]   [24/10566] 处理 id=4474580 type=pdf 农林牧渔行业月报：猪价企稳回升，《一号文件》再提生物育种
+2026-03-01 04:11:57,749 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:12:01,947 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:12:25,601 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:13:02,463 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:13:04,933 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:13:33,490 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:14:21,521 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:14:52,233 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:15:14,555 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:15:46,471 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:16:15,482 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:16:18,862 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:16:22,444 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:17:09,047 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:17:28,388 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:17:30,948 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:17:34,430 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:17:34,998 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:18:03,137 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:18:30,682 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:19:30,681 [INFO] Retrying request to /chat/completions in 0.403004 seconds
+2026-03-01 04:19:31,520 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:20:31,634 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:21:31,634 [INFO] Retrying request to /chat/completions in 0.402025 seconds
+2026-03-01 04:21:32,432 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:22:32,433 [INFO] Retrying request to /chat/completions in 0.796141 seconds
+2026-03-01 04:22:33,940 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:23:49,500 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:24:49,501 [INFO] Retrying request to /chat/completions in 0.490366 seconds
+2026-03-01 04:24:50,438 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:52:50,007 [INFO] Retrying request to /chat/completions in 0.938863 seconds
+2026-03-01 04:52:51,406 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:53:51,406 [WARNING] [S] 语义清洗第5/9段失败 doc_id=4474580: Request timed out.
+2026-03-01 04:53:52,189 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:55:03,814 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:56:03,813 [INFO] Retrying request to /chat/completions in 0.408208 seconds
+2026-03-01 04:56:04,712 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:57:04,714 [INFO] Retrying request to /chat/completions in 0.837413 seconds
+2026-03-01 04:57:06,150 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:58:20,661 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:59:21,212 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:59:32,681 [INFO] [S] 语义清洗完成 doc_id=4474580 type=pdf understand=False (37234→34098字, 9段)
+2026-03-01 04:59:36,399 [INFO]   [25/10566] 处理 id=4474581 type=pdf 市场交投清淡，豆粕震荡运行
+2026-03-01 04:59:46,711 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:59:48,757 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 04:59:51,316 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:00:30,945 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:01:17,330 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:02:13,630 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:02:48,566 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:03:28,510 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:03:58,410 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:04:37,009 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:02,603 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:07,211 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:09,669 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:10,106 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:28,437 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:36,601 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:05:42,882 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:06:42,883 [INFO] Retrying request to /chat/completions in 0.447693 seconds
+2026-03-01 05:06:43,803 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:07:43,806 [INFO] Retrying request to /chat/completions in 0.988045 seconds
+2026-03-01 05:07:45,517 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:09:02,315 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:10:16,481 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:11:16,482 [INFO] Retrying request to /chat/completions in 0.475255 seconds
+2026-03-01 05:11:17,546 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:12:17,547 [INFO] Retrying request to /chat/completions in 0.936666 seconds
+2026-03-01 05:12:19,446 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:13:30,579 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:14:28,875 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:14:40,538 [INFO] [S] 语义清洗完成 doc_id=4474581 type=pdf understand=False (28473→23037字, 8段)
+2026-03-01 05:14:44,732 [INFO]   [26/10566] 处理 id=4474582 type=pdf 果蔬品日报：苹果备货进入尾声，红枣市场逐渐闭市
+2026-03-01 05:14:52,953 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:14:55,295 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:14:57,944 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:15:41,359 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:16:12,385 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:16:45,972 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:17:32,355 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:01,951 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:04,744 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:07,601 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:07,962 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:43,011 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:18:58,387 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:19:58,389 [INFO] Retrying request to /chat/completions in 0.377744 seconds
+2026-03-01 05:19:59,111 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:20:59,112 [INFO] Retrying request to /chat/completions in 0.962403 seconds
+2026-03-01 05:21:00,459 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:22:00,460 [WARNING] [S] 语义清洗第3/5段失败 doc_id=4474582: Request timed out.
+2026-03-01 05:22:00,898 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:23:09,581 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:23:35,252 [INFO] [S] 语义清洗完成 doc_id=4474582 type=pdf understand=False (20144→18490字, 5段)
+2026-03-01 05:23:38,806 [INFO]   [27/10566] 处理 id=4474584 type=pdf 下游开工季节性走弱，关注节后累库幅度
+2026-03-01 05:23:50,919 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:23:53,396 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:23:55,313 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:24:35,360 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:25:11,198 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:25:56,355 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:26:30,419 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:27:18,271 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:28:11,433 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:28:56,880 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:29:30,210 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:29:32,720 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:29:34,867 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:29:35,379 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:29:56,929 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:30:04,594 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:30:07,489 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:30:47,385 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:31:58,205 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:32:58,206 [INFO] Retrying request to /chat/completions in 0.377056 seconds
+2026-03-01 05:32:59,092 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:33:59,093 [INFO] Retrying request to /chat/completions in 0.995885 seconds
+2026-03-01 05:34:00,793 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:35:00,792 [WARNING] [S] 语义清洗第6/8段失败 doc_id=4474584: Request timed out.
+2026-03-01 05:35:01,617 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:36:04,744 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:36:36,036 [INFO] [S] 语义清洗完成 doc_id=4474584 type=pdf understand=False (31198→25097字, 8段)
+2026-03-01 05:36:39,611 [INFO]   [28/10566] 处理 id=4474587 type=pdf 下游开工节前走弱
+2026-03-01 05:36:50,014 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:36:52,002 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:36:54,496 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:37:36,852 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:38:32,050 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:39:19,555 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:40:13,928 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:40:54,014 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:41:42,850 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:15,268 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:18,137 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:20,485 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:20,908 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:45,027 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:52,950 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:42:57,387 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:43:57,388 [INFO] Retrying request to /chat/completions in 0.385162 seconds
+2026-03-01 05:43:58,409 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:45:04,743 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:46:04,745 [INFO] Retrying request to /chat/completions in 0.474032 seconds
+2026-03-01 05:46:05,675 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:47:05,675 [INFO] Retrying request to /chat/completions in 0.783275 seconds
+2026-03-01 05:47:06,980 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:48:06,979 [WARNING] [S] 语义清洗第5/7段失败 doc_id=4474587: Request timed out.
+2026-03-01 05:48:07,826 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:49:10,809 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:49:37,458 [INFO] [S] 语义清洗完成 doc_id=4474587 type=pdf understand=False (26294→20071字, 7段)
+2026-03-01 05:49:40,132 [INFO]   [29/10566] 处理 id=4474588 type=pdf 节前交易清淡，油脂震荡运行
+2026-03-01 05:49:48,989 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:49:52,163 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:50:30,174 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:51:11,080 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:52:11,833 [INFO] Retrying request to /chat/completions in 0.487870 seconds
+2026-03-01 05:52:52,998 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:54:00,456 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:54:30,094 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:54:41,048 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:54:45,939 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 05:54:46,469 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:11:39,744 [INFO] Retrying request to /chat/completions in 0.421775 seconds
+2026-03-01 06:11:40,901 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:12:01,235 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:12:26,608 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:29:51,301 [INFO] Retrying request to /chat/completions in 0.399685 seconds
+2026-03-01 06:29:52,059 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:45:36,988 [INFO] Retrying request to /chat/completions in 0.764955 seconds
+2026-03-01 06:45:40,761 [WARNING] [S] 语义清洗第3/5段失败 doc_id=4474588: Connection error.
+2026-03-01 06:45:41,216 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 06:53:59,952 [INFO] Retrying request to /chat/completions in 0.419811 seconds
+2026-03-01 06:54:03,385 [INFO] Retrying request to /chat/completions in 0.817598 seconds
+2026-03-01 06:54:04,805 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:26:42,068 [WARNING] [S] 语义清洗第4/5段失败 doc_id=4474588: Request timed out.
+2026-03-01 07:26:42,116 [INFO] Retrying request to /chat/completions in 0.470793 seconds
+2026-03-01 07:26:43,224 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:27:17,284 [INFO] [S] 语义清洗完成 doc_id=4474588 type=pdf understand=False (20065→18562字, 5段)
+2026-03-01 07:27:20,981 [INFO]   [30/10566] 处理 id=4474589 type=pdf 合成橡胶期货日报
+2026-03-01 07:27:25,747 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:27:28,306 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:27:30,212 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:27:30,213 [INFO] PDF 文字密度低（0 字/页），切换 PaddleOCR
+2026-03-01 07:32:01,582 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:18,253 [INFO] [S] 语义清洗完成 doc_id=4474589 type=pdf understand=True (1692→1091字, 1段)
+2026-03-01 07:32:21,236 [INFO]   进度: 30/10566 (成功=30, 失败=0, 跳过=0)
+2026-03-01 07:32:21,237 [INFO]   [31/10566] 处理 id=4474592 type=pdf （2026-02-12 09:00——2026-02-13 15:00）：每日报告精选
+2026-03-01 07:32:26,996 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:29,558 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:33,181 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:36,139 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:39,028 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:41,689 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:44,042 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:47,731 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:49,640 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:52,235 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:32:52,676 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:33:44,740 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:34:36,884 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:34:56,074 [INFO] [S] 语义清洗完成 doc_id=4474592 type=pdf understand=False (12728→9750字, 3段)
+2026-03-01 07:34:59,358 [INFO]   [32/10566] 处理 id=4474593 type=pdf 白糖期货日报
+2026-03-01 07:35:20,418 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:35:22,543 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:35:24,806 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:35:25,240 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:35:38,326 [INFO] [S] 语义清洗完成 doc_id=4474593 type=pdf understand=False (894→888字, 1段)
+2026-03-01 07:35:41,498 [INFO]   [33/10566] 处理 id=4474594 type=pdf 淀粉期货日报
+2026-03-01 07:36:00,407 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:02,698 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:05,176 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:05,640 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:16,008 [INFO] [S] 语义清洗完成 doc_id=4474594 type=pdf understand=False (705→705字, 1段)
+2026-03-01 07:36:19,589 [INFO]   [34/10566] 处理 id=4474595 type=pdf 白银期货日报
+2026-03-01 07:36:23,988 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:27,271 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:36:27,272 [INFO] PDF 文字密度低（0 字/页），切换 PaddleOCR
+2026-03-01 07:39:43,644 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:39:52,378 [INFO] [S] 语义清洗完成 doc_id=4474595 type=pdf understand=True (1094→604字, 1段)
+2026-03-01 07:39:56,152 [INFO]   [35/10566] 处理 id=4474596 type=pdf 2025年财政数据回顾与2026年财政政策展望
+2026-03-01 07:40:03,968 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:40:44,184 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:41:14,596 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:42:12,140 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:42:52,179 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:43:12,278 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:43:38,870 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:44:24,950 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:44:27,314 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:44:31,777 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:44:32,630 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:45:28,334 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:45:46,558 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:46:43,155 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:47:29,529 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:48:04,794 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:49:04,797 [INFO] Retrying request to /chat/completions in 0.433196 seconds
+2026-03-01 07:49:05,751 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:50:05,752 [INFO] Retrying request to /chat/completions in 0.788505 seconds
+2026-03-01 07:50:07,051 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:51:07,051 [WARNING] [S] 语义清洗第6/8段失败 doc_id=4474596: Request timed out.
+2026-03-01 07:51:07,487 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:51:22,094 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:51:23,551 [INFO] [S] 语义清洗完成 doc_id=4474596 type=pdf understand=False (32649→22525字, 8段)
+2026-03-01 07:51:27,644 [INFO]   [36/10566] 处理 id=4474597 type=pdf 机械设备行业点评报告：维谛25Q4财报订单超预期，液冷市场扩容看好国产链导入
+2026-03-01 07:51:47,200 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:51:50,361 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:51:50,804 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:52:18,537 [INFO] [S] 语义清洗完成 doc_id=4474597 type=pdf understand=False (3458→1885字, 1段)
+2026-03-01 07:52:21,404 [INFO]   [37/10566] 处理 id=4474598 type=pdf 计算机行业月报：中国AI超级周开启，算力呈现提价趋势
+2026-03-01 07:52:56,932 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:52:59,493 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:53:03,075 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:53:05,639 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:53:25,093 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:53:51,941 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:54:18,542 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:54:47,010 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:55:28,077 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:56:28,898 [INFO] Retrying request to /chat/completions in 0.482719 seconds
+2026-03-01 07:57:21,014 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:58:00,899 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:58:28,800 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:59:27,621 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 07:59:42,698 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:00:08,944 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:00:32,528 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:00:41,600 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:01:10,382 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:01:25,959 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:02:08,468 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:02:44,701 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:03:15,071 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:03:54,627 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:04:30,363 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:04:51,866 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:05:10,708 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:05:31,906 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:06:06,104 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:06:37,438 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:06:55,482 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:07:22,145 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:07:48,503 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:08:12,268 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:08:53,026 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:09:37,861 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:10:02,230 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:10:35,585 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:10:37,970 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:11:07,862 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:11:26,261 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:11:52,881 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:12:22,001 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:12:54,051 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:13:21,832 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:13:50,062 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:14:15,969 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:14:41,735 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:14:44,742 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:15:11,642 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:15:15,471 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:15:15,908 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:15:39,744 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:16:00,004 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:16:17,175 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:16:51,514 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:17:48,088 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:18:13,865 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:18:45,257 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:19:10,058 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:19:57,667 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:20:57,667 [INFO] Retrying request to /chat/completions in 0.458638 seconds
+2026-03-01 08:20:59,002 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:21:54,765 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:22:50,205 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:23:44,463 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:24:39,240 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:25:39,181 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:26:33,532 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:27:21,196 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:34:05,473 [INFO] Retrying request to /chat/completions in 0.461160 seconds
+2026-03-01 08:34:06,457 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:39:08,175 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:41:43,814 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:42:40,476 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:43:38,349 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:44:38,350 [INFO] Retrying request to /chat/completions in 0.437156 seconds
+2026-03-01 08:44:39,232 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:45:38,984 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:46:17,692 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:46:49,877 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:47:25,642 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:48:23,189 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:48:57,502 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:49:53,066 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:50:41,899 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:51:27,158 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:52:24,233 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:53:17,815 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:53:22,011 [INFO] [S] 语义清洗完成 doc_id=4474598 type=pdf understand=False (135988→119221字, 32段)
+2026-03-01 08:53:40,046 [ERROR]     处理失败 id=4474598: (2013, 'Lost connection to MySQL server during query')
+2026-03-01 08:53:42,870 [INFO]   [38/10566] 处理 id=4474599 type=pdf 消息扰动盘面偏强，春节收单基本完成
+2026-03-01 08:54:07,353 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:54:13,343 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:54:55,938 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:55:40,091 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:56:21,128 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:57:02,663 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:57:39,546 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:20,868 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:23,418 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:26,144 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:27,218 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:40,789 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:49,721 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:58:52,250 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 08:59:52,251 [INFO] Retrying request to /chat/completions in 0.435175 seconds
+2026-03-01 08:59:53,754 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:01:00,005 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:02:15,984 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:03:15,985 [INFO] Retrying request to /chat/completions in 0.443949 seconds
+2026-03-01 09:03:17,190 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:04:25,310 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:04:27,361 [INFO] [S] 语义清洗完成 doc_id=4474599 type=pdf understand=False (23193→21412字, 7段)
+2026-03-01 09:04:30,648 [INFO]   [39/10566] 处理 id=4474600 type=pdf 2026年1月美国就业数据点评：美国就业趋势企稳？仍需更多数据确认
+2026-03-01 09:04:36,931 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:05:22,399 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:05:58,159 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:06:01,461 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:06:04,130 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:06:04,644 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:11,194 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:32,288 [INFO] [S] 语义清洗完成 doc_id=4474600 type=pdf understand=False (8021→6158字, 2段)
+2026-03-01 09:07:35,768 [INFO]   [40/10566] 处理 id=4474601 type=pdf 东兴首席周观点：2026年第7周
+2026-03-01 09:07:38,693 [WARNING] Cannot set gray non-stroke color because /'P33' is an invalid float value
+2026-03-01 09:07:42,835 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:46,008 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:46,059 [WARNING] Cannot set gray non-stroke color because /'P41' is an invalid float value
+2026-03-01 09:07:48,978 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:51,845 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:54,352 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:57,274 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:07:57,886 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:08:54,205 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:08:55,126 [INFO] [S] 语义清洗完成 doc_id=4474601 type=pdf understand=False (5942→4045字, 2段)
+2026-03-01 09:08:58,119 [INFO]   进度: 40/10566 (成功=39, 失败=1, 跳过=0)
+2026-03-01 09:09:00,682 [INFO]   [41/10566] 处理 id=4474602 type=pdf 黑色建材日报：供需同步走弱，钢价震荡运行
+2026-03-01 09:09:11,434 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:09:13,763 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:09:16,630 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:10:13,871 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:11:15,206 [INFO] Retrying request to /chat/completions in 0.491597 seconds
+2026-03-01 09:11:50,533 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:12:36,396 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:13:18,619 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:14:11,328 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:14:54,642 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:15:55,428 [INFO] Retrying request to /chat/completions in 0.429043 seconds
+2026-03-01 09:16:53,220 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:17:27,522 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:17:45,442 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:17:49,538 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:17:50,873 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:18:17,222 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:18:27,897 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:18:35,564 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:19:35,565 [INFO] Retrying request to /chat/completions in 0.395746 seconds
+2026-03-01 09:19:37,500 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:20:37,500 [INFO] Retrying request to /chat/completions in 0.829977 seconds
+2026-03-01 09:20:38,946 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:21:38,946 [WARNING] [S] 语义清洗第4/8段失败 doc_id=4474602: Request timed out.
+2026-03-01 09:21:39,571 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:22:39,572 [INFO] Retrying request to /chat/completions in 0.387883 seconds
+2026-03-01 09:22:40,370 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:23:40,370 [INFO] Retrying request to /chat/completions in 0.888686 seconds
+2026-03-01 09:23:41,815 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:24:41,815 [WARNING] [S] 语义清洗第5/8段失败 doc_id=4474602: Request timed out.
+2026-03-01 09:24:42,286 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:25:42,286 [INFO] Retrying request to /chat/completions in 0.453299 seconds
+2026-03-01 09:25:47,014 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:26:52,241 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:27:43,401 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:27:53,272 [INFO] [S] 语义清洗完成 doc_id=4474602 type=pdf understand=False (28452→23447字, 8段)
+2026-03-01 09:27:56,986 [INFO]   [42/10566] 处理 id=4474603 type=pdf 关注下游扩消费活动开展
+2026-03-01 09:28:12,842 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:28:15,847 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:28:51,596 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:29:28,923 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:30:04,543 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:30:43,363 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:30:46,525 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:30:49,375 [INFO] HTTP Request: POST https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:30:49,963 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:31:29,546 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:32:29,547 [INFO] Retrying request to /chat/completions in 0.448886 seconds
+2026-03-01 09:32:30,529 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-03-01 09:33:30,529 [INFO] Retrying request to /chat/completions in 0.780550 seconds
+2026-03-01 09:33:32,616 [INFO] HTTP Request: POST https://api.deepseek.com/v1/chat/completions "HTTP/1.1 200 OK"

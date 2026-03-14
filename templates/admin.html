@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - StockAI Pro</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: {
+          primary: '#135bec',
+          'background-dark': '#101622',
+          'card-dark': '#1a2233',
+          'border-dark': '#2d3748',
+        },
+        fontFamily: { display: ['Manrope', 'sans-serif'] },
+      }}
+    }
+  </script>
+  <style>
+    body { font-family: 'Manrope', sans-serif; }
+  </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-display min-h-screen">
+  <!-- 顶部导航 -->
+  <header class="border-b border-border-dark bg-card-dark">
+    <div class="flex items-center justify-between px-6 py-3">
+      <div class="flex items-center gap-3">
+        <a href="/admin" class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <span class="material-icons-round text-white text-sm">admin_panel_settings</span>
+          </div>
+          <span class="font-bold">管理后台</span>
+        </a>
+      </div>
+      <nav class="flex items-center gap-4">
+        <a href="/admin" class="text-sm hover:text-primary">概览</a>
+        <a href="/admin/users" class="text-sm hover:text-primary">用户管理</a>
+        <a href="/admin/packages" class="text-sm hover:text-primary">积分包</a>
+        <span class="text-slate-500">|</span>
+        <a href="/overview" class="text-sm text-slate-400 hover:text-white">返回系统</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="p-6">
+    <h1 class="text-2xl font-bold mb-6">系统概览</h1>
+
+    <!-- 统计卡片 -->
+    <div class="grid grid-cols-4 gap-4 mb-8">
+      <div class="card p-4">
+        <div class="text-slate-400 text-sm mb-1">总用户数</div>
+        <div class="text-3xl font-bold text-primary">{{ total_users }}</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-slate-400 text-sm mb-1">今日活跃</div>
+        <div class="text-3xl font-bold text-emerald-400">{{ active_today }}</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-slate-400 text-sm mb-1">积分总量</div>
+        <div class="text-3xl font-bold text-amber-400">{{ total_points }}</div>
+      </div>
+      <div class="card p-4">
+        <div class="text-slate-400 text-sm mb-1">今日日期</div>
+        <div class="text-xl font-bold">{{ today }}</div>
+      </div>
+    </div>
+
+    <!-- 角色分布 -->
+    <div class="card p-6">
+      <h2 class="text-lg font-semibold mb-4">用户角色分布</h2>
+      <div class="grid grid-cols-4 gap-4">
+        {% for role, cnt in role_distribution.items() %}
+        <div class="bg-slate-800/50 rounded-lg p-4 border border-border-dark">
+          <div class="text-slate-400 text-sm">{{ role }}</div>
+          <div class="text-2xl font-bold">{{ cnt }}</div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- 快捷操作 -->
+    <div class="card p-6 mt-6">
+      <h2 class="text-lg font-semibold mb-4">快捷操作</h2>
+      <div class="flex gap-4">
+        <a href="/admin/users" class="px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30">
+          用户管理
+        </a>
+        <a href="/admin/packages" class="px-4 py-2 bg-primary/20 text-primary rounded-lg hover:bg-primary/30">
+          积分包配置
+        </a>
+        <a href="/auth/users" class="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600">
+          API用户列表
+        </a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

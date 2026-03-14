@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>积分包管理 - StockAI Pro</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: {
+          primary: '#135bec',
+          'background-dark': '#101622',
+          'card-dark': '#1a2233',
+          'border-dark': '#2d3748',
+        },
+        fontFamily: { display: ['Manrope', 'sans-serif'] },
+      }}
+    }
+  </script>
+  <style>
+    body { font-family: 'Manrope', sans-serif; }
+  </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-display min-h-screen">
+  <!-- 顶部导航 -->
+  <header class="border-b border-border-dark bg-card-dark">
+    <div class="flex items-center justify-between px-6 py-3">
+      <div class="flex items-center gap-3">
+        <a href="/admin" class="flex items-center gap-2">
+          <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+            <span class="material-icons-round text-white text-sm">admin_panel_settings</span>
+          </div>
+          <span class="font-bold">管理后台</span>
+        </a>
+      </div>
+      <nav class="flex items-center gap-4">
+        <a href="/admin" class="text-sm text-slate-400 hover:text-white">概览</a>
+        <a href="/admin/users" class="text-sm text-slate-400 hover:text-white">用户管理</a>
+        <a href="/admin/packages" class="text-sm hover:text-primary">积分包</a>
+        <span class="text-slate-500">|</span>
+        <a href="/overview" class="text-sm text-slate-400 hover:text-white">返回系统</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold">积分包管理</h1>
+      <button onclick="showAddPackage()" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90">
+        新建积分包
+      </button>
+    </div>
+
+    <!-- 积分包列表 -->
+    <div class="grid grid-cols-4 gap-4">
+      {% for p in packages %}
+      <div class="card p-4 {% if not p.is_active %}opacity-50{% endif %}">
+        <div class="flex items-center justify-between mb-2">
+          <span class="font-semibold">{{ p.name }}</span>
+          <span class="badge bg-amber-500/20 text-amber-400">{{ p.price }}元</span>
+        </div>
+        <div class="text-2xl font-bold text-primary mb-1">
+          {{ p.points }}
+          {% if p.bonus_points > 0 %}
+          <span class="text-sm text-emerald-400">+{{ p.bonus_points }}</span>
+          {% endif %}
+        </div>
+        <div class="text-xs text-slate-400 mb-3">积分</div>
+        <div class="text-xs text-slate-500 mb-3">{{ p.description or '' }}</div>
+        <div class="flex gap-2">
+          <button onclick="editPackage({{ p.id }})" class="flex-1 text-xs py-1 bg-slate-700 rounded hover:bg-slate-600">编辑</button>
+          <button onclick="togglePackage({{ p.id }}, {{ not p.is_active|lower }})" class="flex-1 text-xs py-1 {% if p.is_active %}bg-red-500/20 text-red-400{% else %}bg-emerald-500/20 text-emerald-400{% endif %} rounded">
+            {{ '下架' if p.is_active else '上架' }}
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </main>
+
+  <!-- 新建积分包弹窗 -->
+  <dialog id="packageDialog" class="bg-card-dark rounded-xl p-6 border border-border-dark backdrop:bg-black/50">
+    <h3 class="text-lg font-semibold mb-4">新建积分包</h3>
+    <form id="packageForm" class="space-y-4">
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">名称</label>
+        <input type="text" name="name" required class="w-full px-3 py-2 bg-slate-800 border border-border-dark rounded-lg">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">积分数</label>
+          <input type="number" name="points" required class="w-full px-3 py-2 bg-slate-800 border border-border-dark rounded-lg">
+        </div>
+        <div>
+          <label class="block text-sm text-slate-400 mb-1">价格(元)</label>
+          <input type="number" name="price" step="0.01" required class="w-full px-3 py-2 bg-slate-800 border border-border-dark rounded-lg">
+        </div>
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">赠送积分</label>
+        <input type="number" name="bonus_points" value="0" class="w-full px-3 py-2 bg-slate-800 border border-border-dark rounded-lg">
+      </div>
+      <div>
+        <label class="block text-sm text-slate-400 mb-1">描述</label>
+        <input type="text" name="description" class="w-full px-3 py-2 bg-slate-800 border border-border-dark rounded-lg">
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="document.getElementById('packageDialog').close()" class="px-4 py-2 bg-slate-700 rounded-lg">取消</button>
+        <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    function showAddPackage() {
+      document.getElementById('packageDialog').showModal();
+    }
+
+    document.getElementById('packageForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(e.target);
+      const data = {
+        name: formData.get('name'),
+        points: parseInt(formData.get('points')),
+        price: parseFloat(formData.get('price')),
+        bonus_points: parseInt(formData.get('bonus_points')),
+        description: formData.get('description')
+      };
+
+      const res = await fetch('/auth/packages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+
+      if ((await res.json()).success) {
+        location.reload();
+      }
+    });
+
+    async function editPackage(id) {
+      alert('编辑功能开发中');
+    }
+
+    async function togglePackage(id, isActive) {
+      const res = await fetch(`/auth/packages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: isActive })
+      });
+
+      if ((await res.json()).success) {
+        location.reload();
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+2026-03-01 15:29:32,694 [INFO] === Phase 2: push extracted → extracted_texts ===
+2026-03-01 15:29:32,694 [INFO] === Phase 2: push extracted → extracted_texts ===
+2026-03-01 15:30:46,991 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:30:46,991 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:30:46,992 [INFO]   pushed=200 skipped=0
+2026-03-01 15:30:46,992 [INFO]   pushed=200 skipped=0
+2026-03-01 15:32:53,308 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:32:53,308 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:32:53,308 [INFO]   pushed=200 skipped=0
+2026-03-01 15:32:53,308 [INFO]   pushed=200 skipped=0
+2026-03-01 15:34:03,873 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:34:03,873 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:34:03,874 [INFO]   pushed=200 skipped=0
+2026-03-01 15:34:03,874 [INFO]   pushed=200 skipped=0
+2026-03-01 15:34:52,605 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:34:52,605 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:34:52,606 [INFO]   pushed=200 skipped=0
+2026-03-01 15:34:52,606 [INFO]   pushed=200 skipped=0
+2026-03-01 15:35:43,606 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:35:43,606 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:35:43,607 [INFO]   pushed=200 skipped=0
+2026-03-01 15:35:43,607 [INFO]   pushed=200 skipped=0
+2026-03-01 15:36:49,185 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:36:49,185 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:36:49,185 [INFO]   pushed=200 skipped=0
+2026-03-01 15:36:49,185 [INFO]   pushed=200 skipped=0
+2026-03-01 15:37:57,240 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:37:57,240 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:37:57,241 [INFO]   pushed=200 skipped=0
+2026-03-01 15:37:57,241 [INFO]   pushed=200 skipped=0
+2026-03-01 15:40:43,355 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:40:43,355 [INFO] 灌入extracted_texts完成: total=200, pushed=200, skipped=0, failed=0
+2026-03-01 15:40:43,356 [INFO]   pushed=200 skipped=0
+2026-03-01 15:40:43,356 [INFO]   pushed=200 skipped=0
+2026-03-01 15:41:22,997 [INFO] 灌入extracted_texts完成: total=191, pushed=188, skipped=3, failed=0
+2026-03-01 15:41:22,997 [INFO] 灌入extracted_texts完成: total=191, pushed=188, skipped=3, failed=0
+2026-03-01 15:41:22,997 [INFO]   pushed=188 skipped=3
+2026-03-01 15:41:22,997 [INFO]   pushed=188 skipped=3
+2026-03-01 15:41:23,272 [INFO] 灌入extracted_texts完成: total=3, pushed=0, skipped=3, failed=0
+2026-03-01 15:41:23,272 [INFO] 灌入extracted_texts完成: total=3, pushed=0, skipped=3, failed=0
+2026-03-01 15:41:23,272 [INFO]   pushed=0 skipped=3
+2026-03-01 15:41:23,272 [INFO]   pushed=0 skipped=3
+2026-03-01 15:41:23,272 [INFO] Phase 2 完成: 1788 条
+2026-03-01 15:41:23,272 [INFO] Phase 2 完成: 1788 条
+2026-03-01 15:41:23,272 [INFO] === Phase 3: unified_pipeline ===
+2026-03-01 15:41:23,272 [INFO] === Phase 3: unified_pipeline ===
+Traceback (most recent call last):
+  File "<string>", line 23, in <module>
+TypeError: process_pending() got an unexpected keyword argument 'limit'

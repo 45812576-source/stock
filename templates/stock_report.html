@@ -2,19 +2,119 @@
 {% block title %}深度研究 — {{ stock.stock_code }} {{ stock.stock_name or '' }}{% endblock %}
 
 {% block extra_styles %}
-.radar-chart { height: 320px; }
-.score-card { text-align: center; padding: 1rem; border-radius: 12px; background: rgba(100,116,139,0.08); }
-.score-val { font-size: 1.5rem; font-weight: 800; }
-.section-card { border-left: 3px solid; padding-left: 1rem; margin-bottom: 1.5rem; }
 .rec-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 9999px; font-weight: 600; }
+/* notebook tabs */
+.nb-tabs { display: flex; gap: 0; padding: 0 0 0 8px; position: relative; }
+.nb-tabs::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: rgba(100,116,139,0.18); z-index: 0; }
+.nb-tab { position: relative; z-index: 1; padding: 10px 20px 10px 16px; font-size: 0.78rem; font-weight: 600; color: #64748b; cursor: pointer; border: 1px solid transparent; border-bottom: none; border-radius: 10px 10px 0 0; background: transparent; transition: all 0.2s; display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.nb-tab .tab-icon { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.nb-tab:hover { color: #94a3b8; background: rgba(30,41,59,0.3); }
+.nb-tab.active { color: #e2e8f0; background: var(--surface-card, rgba(30,41,59,0.7)); border-color: rgba(100,116,139,0.18); margin-bottom: -1px; padding-bottom: 11px; }
+.nb-body { border: 1px solid rgba(100,116,139,0.18); border-top: none; border-radius: 0 0 16px 16px; background: var(--surface-card, rgba(30,41,59,0.7)); padding: 1.25rem; min-height: 200px; }
+.nb-pane { display: none; }
+.nb-pane.active { display: block; }
+/* BMC Canvas — 自适应9格 */
+.bmc-canvas { display: grid; grid-template-columns: repeat(5, 1fr); grid-template-rows: auto auto auto; gap: 6px; margin-bottom: 1rem; }
+.bmc-kp  { grid-column: 1; grid-row: 1/3; }
+.bmc-ka  { grid-column: 2; grid-row: 1; }
+.bmc-vp  { grid-column: 3; grid-row: 1/3; }
+.bmc-cr  { grid-column: 4; grid-row: 1; }
+.bmc-cs  { grid-column: 5; grid-row: 1/3; }
+.bmc-kr  { grid-column: 2; grid-row: 2; }
+.bmc-ch  { grid-column: 4; grid-row: 2; }
+.bmc-cost { grid-column: 1/3; grid-row: 3; }
+.bmc-rev  { grid-column: 3/6; grid-row: 3; }
+.bmc-canvas > div { padding: 10px; border-radius: 10px; background: rgba(100,116,139,0.06); border: 1px solid rgba(100,116,139,0.12); cursor: grab; transition: border-color 0.15s; min-height: 0; overflow-wrap: break-word; word-break: break-all; }
+.bmc-canvas > div:hover { border-color: rgba(19,91,236,0.4); }
+.bmc-canvas > div[draggable]:active { cursor: grabbing; opacity: 0.8; }
+.bmc-label { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 4px; font-weight: 600; }
+.bmc-val { font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; }
+/* draggable elements */
+[draggable="true"] { cursor: grab; }
+[draggable="true"]:hover { outline: 1px dashed rgba(19,91,236,0.4); outline-offset: 2px; }
+
+/* driver chips */
+.driver { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 8px; font-size: 0.75rem; margin-bottom: 4px; }
+.driver.pos { background: rgba(16,185,129,0.08); color: #6ee7b7; }
+.driver.neg { background: rgba(239,68,68,0.08); color: #fca5a5; }
+/* chain */
+.chain-row { display: flex; align-items: stretch; gap: 0; }
+.chain-node { flex: 1; padding: 14px 10px; border-radius: 12px; background: rgba(100,116,139,0.06); border: 1px solid rgba(100,116,139,0.12); position: relative; }
+.chain-node.active { border: 2px solid #818cf8; background: rgba(129,140,248,0.1); }
+.chain-node.active::after { content: '★ 公司所在'; position: absolute; top: -10px; right: 8px; font-size: 0.6rem; background: #818cf8; color: #fff; padding: 1px 8px; border-radius: 4px; }
+.chain-arrow { display: flex; align-items: center; color: #475569; font-size: 1.2rem; padding: 0 4px; }
+.chain-node .node-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; font-weight: 600; }
+.chain-node .node-players { font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
+.chain-node .node-desc { font-size: 0.7rem; color: #64748b; line-height: 1.4; }
+/* metrics */
+.metric-card { padding: 10px 12px; border-radius: 10px; background: rgba(100,116,139,0.06); }
+.metric-card .m-label { font-size: 0.65rem; color: #64748b; }
+.metric-card .m-val { font-size: 1.1rem; font-weight: 700; }
+.metric-card .m-sub { font-size: 0.65rem; }
+/* valuation steps */
+.calc-step { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+.calc-step:last-child { border-bottom: none; }
+.calc-num { width: 22px; height: 22px; border-radius: 50%; background: rgba(59,130,246,0.15); color: #60a5fa; font-size: 0.7rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+/* segment detail */
+.seg-card { background: rgba(15,23,42,0.5); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem; border: 1px solid rgba(100,116,139,0.1); }
+.seg-header { display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; cursor: pointer; }
+.seg-header .seg-name { font-size: 0.85rem; font-weight: 700; color: #e2e8f0; }
+.seg-header .seg-method { font-size: 0.7rem; color: #60a5fa; background: rgba(59,130,246,0.12); padding: 2px 8px; border-radius: 4px; }
+.seg-header .seg-value { margin-left: auto; font-size: 0.85rem; font-weight: 700; color: #34d399; }
+.seg-detail { display: none; }
+.seg-detail.open { display: block; }
+.deriv-block { background: rgba(30,41,59,0.6); border-radius: 6px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; border-left: 3px solid rgba(59,130,246,0.3); }
+.deriv-label { font-size: 0.65rem; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
+.deriv-text { font-size: 0.72rem; color: #cbd5e1; line-height: 1.5; }
+.deriv-source { font-size: 0.65rem; color: #64748b; margin-top: 3px; font-style: italic; }
+.forecast-row { display: grid; grid-template-columns: 36px auto; gap: 4px; padding: 6px 0; font-size: 0.72rem; border-bottom: 1px solid rgba(100,116,139,0.06); }
+.forecast-row:last-child { border-bottom: none; }
+.forecast-yr { color: #60a5fa; font-weight: 700; }
+.forecast-val { color: #e2e8f0; font-weight: 600; }
+.forecast-growth { color: #34d399; margin-left: 4px; }
+.forecast-drivers { font-size: 0.65rem; color: #64748b; margin-top: 2px; }
+.forecast-basis { font-size: 0.68rem; color: #94a3b8; line-height: 1.5; margin-top: 3px; padding-left: 2px; border-left: 2px solid rgba(100,116,139,0.15); padding-left: 8px; }
+.constraint-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 0.65rem; padding: 3px 8px; border-radius: 4px; margin: 2px; }
+.constraint-tag.high { background: rgba(239,68,68,0.12); color: #f87171; }
+.constraint-tag.medium { background: rgba(251,191,36,0.12); color: #fbbf24; }
+.constraint-tag.low { background: rgba(100,116,139,0.12); color: #94a3b8; }
+.constraint-tag.capped { background: rgba(100,116,139,0.08); color: #64748b; border: 1px dashed rgba(100,116,139,0.3); }
+.constraint-tag.capped::after { content: '⚠'; font-size: 0.6rem; }
+.industry-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 0.62rem; padding: 2px 6px; border-radius: 3px; background: rgba(99,102,241,0.1); color: #a5b4fc; margin-left: 6px; }
+.method-compliance-warn { font-size: 0.65rem; color: #f87171; background: rgba(239,68,68,0.08); padding: 3px 8px; border-radius: 4px; margin: 4px 0; border-left: 2px solid #f87171; }
+.kg-log-toggle { font-size: 0.7rem; color: #60a5fa; cursor: pointer; margin-top: 0.5rem; }
+.kg-log-content { display: none; max-height: 300px; overflow-y: auto; font-size: 0.68rem; color: #94a3b8; background: rgba(15,23,42,0.5); border-radius: 6px; padding: 0.5rem; margin-top: 0.25rem; }
+.kg-log-content.open { display: block; }
+/* comp table */
+.comp-table { width: 100%; border-collapse: collapse; font-size: 0.78rem; }
+.comp-table th, .comp-table td { padding: 8px 10px; text-align: right; border-bottom: 1px solid rgba(100,116,139,0.1); }
+.comp-table th { color: #64748b; font-weight: 600; text-align: right; }
+.comp-table th:first-child, .comp-table td:first-child { text-align: left; }
+/* impact */
+.impact-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; }
+.impact-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+/* rerun button */
+.rerun-btn { padding: 3px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 600; border: 1px solid rgba(100,116,139,0.3); color: #94a3b8; background: transparent; cursor: pointer; transition: all 0.15s; float: right; }
+.rerun-btn:hover { border-color: #818cf8; color: #818cf8; }
+.rerun-btn.running { color: #f59e0b; border-color: #f59e0b; cursor: not-allowed; }
+.rerun-btn.done { color: #10b981; border-color: #10b981; }
 {% endblock %}
 
 {% block content %}
 <!-- 顶部导航 -->
 <div class="flex items-center gap-3 mb-6">
-  <a href="/stock/{{ stock_code }}" class="text-slate-400 hover:text-primary transition">
+  <a id="reportBackBtn" href="/stock/{{ stock_code }}" class="text-slate-400 hover:text-primary transition">
     <span class="material-icons-round">arrow_back</span>
   </a>
+  <script>
+  (function(){
+    const params = new URLSearchParams(location.search);
+    const btn = document.getElementById('reportBackBtn');
+    // 返回个股页，并把来源参数原样带回去
+    const qs = params.toString();
+    btn.href = '/stock/{{ stock_code }}' + (qs ? '?' + qs : '');
+  })();
+  </script>
   <div>
     <h1 class="text-xl font-bold text-white">{{ stock.stock_code }} {{ stock.stock_name or '' }}</h1>
     <span class="text-sm text-slate-500">深度研究报告 · {{ report.date }}</span>
@@ -24,144 +124,2845 @@
        class="px-4 py-2 rounded-lg bg-surface-card border border-slate-700 text-sm text-slate-300 hover:border-primary hover:text-primary transition">
       <span class="material-icons-round text-base align-middle mr-1">update</span>追踪研究
     </a>
-    <form action="/stock/{{ stock_code }}/run-research" method="post">
-      <button type="submit" class="px-4 py-2 rounded-lg bg-primary/10 text-primary text-sm font-medium hover:bg-primary/20 transition">
-        <span class="material-icons-round text-base align-middle mr-1">refresh</span>重新研究
-      </button>
-    </form>
   </div>
 </div>
 
-<div class="flex gap-6">
-  <!-- 主内容 -->
-  <div class="flex-1 min-w-0">
+<!-- 总评 -->
+<div style="border-radius:16px;background:var(--surface-card,rgba(30,41,59,0.7));padding:1.25rem;margin-bottom:1.25rem" class="flex items-center gap-4">
+  <span class="rec-badge {{ 'bg-emerald-500/20 text-emerald-400' if report.recommendation in ['强烈推荐','推荐'] else 'bg-amber-500/20 text-amber-400' if report.recommendation == '中性' else 'bg-red-500/20 text-red-400' }}">
+    <span class="material-icons-round text-base">{{ 'thumb_up' if report.recommendation in ['强烈推荐','推荐'] else 'thumbs_up_down' if report.recommendation == '中性' else 'thumb_down' }}</span>
+    {{ report.recommendation or '—' }}
+  </span>
+  <span class="text-2xl font-bold text-white">{{ report.scores.overall or 0 }}<span class="text-sm text-slate-500 font-normal">/100</span></span>
+  {% if report.report and report.report.executive_summary %}
+  <p class="text-sm text-slate-300 leading-relaxed flex-1 ml-4">{{ report.report.executive_summary }}</p>
+  {% endif %}
+</div>
 
-    <!-- 评分卡片 + 雷达图 -->
-    <div class="card mb-6">
-      <div class="flex items-center justify-between mb-4">
-        <div class="flex items-center gap-3">
-          <span class="rec-badge {{ 'bg-emerald-500/20 text-emerald-400' if report.recommendation in ['强烈推荐','推荐'] else 'bg-amber-500/20 text-amber-400' if report.recommendation == '中性' else 'bg-red-500/20 text-red-400' }}">
-            <span class="material-icons-round text-base">{{ 'thumb_up' if report.recommendation in ['强烈推荐','推荐'] else 'thumbs_up_down' if report.recommendation == '中性' else 'thumb_down' }}</span>
-            {{ report.recommendation or '—' }}
-          </span>
-          <span class="text-2xl font-bold text-white">{{ report.scores.overall or 0 }}<span class="text-sm text-slate-500 font-normal">/100</span></span>
-        </div>
-      </div>
+{% set rpt = report.report if report.report else {} %}
 
-      <div class="grid grid-cols-2 gap-6">
-        <!-- 雷达图 -->
-        <div id="radar-chart" class="radar-chart"></div>
-        <!-- 6维评分 -->
-        <div class="grid grid-cols-3 gap-3 content-center">
-          {% set dim_info = [
-            ('financial', '财务', 'account_balance_wallet'),
-            ('valuation', '估值', 'price_check'),
-            ('technical', '技术', 'candlestick_chart'),
-            ('sentiment', '情绪', 'sentiment_satisfied'),
-            ('catalyst', '催化', 'bolt'),
-            ('risk', '风险', 'shield')
-          ] %}
-          {% for key, label, icon in dim_info %}
-          {% set val = report.scores.get(key, 0) or 0 %}
-          <div class="score-card">
-            <span class="material-icons-round text-base mb-1 {{ 'text-emerald-400' if val >= 70 else 'text-amber-400' if val >= 50 else 'text-red-400' }}">{{ icon }}</span>
-            <div class="score-val {{ 'text-emerald-400' if val >= 70 else 'text-amber-400' if val >= 50 else 'text-red-400' }}">{{ val }}</div>
-            <div class="text-xs text-slate-500 mt-1">{{ label }}</div>
-          </div>
-          {% endfor %}
-        </div>
-      </div>
+{# ── Tab 定义 ── #}
+{% set tabs = [
+  ('bm', '商业模式', 'storefront', 'rgba(16,185,129,0.12)', 'text-emerald-400', 'business_model'),
+  ('vc', '产业链', 'hub', 'rgba(129,140,248,0.12)', 'text-indigo-400', 'value_chain'),
+  ('fin', '财务分析', 'analytics', 'rgba(245,158,11,0.12)', 'text-amber-400', 'financial'),
+  ('val', '估值分析', 'price_check', 'rgba(59,130,246,0.12)', 'text-blue-400', 'valuation'),
+  ('sh', '资金态度', 'account_balance', 'rgba(236,72,153,0.12)', 'text-pink-400', 'sector_heat'),
+  ('rd', '研究数据', 'science', 'rgba(239,68,68,0.12)', 'text-red-400', 'research_data'),
+] %}
+
+<!-- Notebook Tabs -->
+<div class="nb-tabs" id="reportTabs">
+  {% for key, label, icon, bg, cls, step in tabs %}
+  <div class="nb-tab {{ 'active' if loop.first }}" data-tab="{{ key }}" onclick="switchTab('{{ key }}')">
+    <div class="tab-icon" style="background:{{ bg }}"><span class="material-icons-round {{ cls }}" style="font-size:14px">{{ icon }}</span></div>
+    {{ label }}
+  </div>
+  {% endfor %}
+</div>
+
+{# ── 左右分栏布局包裹 ── #}
+<div class="flex gap-4 items-start">
+
+{# 左侧主报告区 (75%) #}
+<div class="flex-1 min-w-0">
+<div class="nb-body">
+
+{# ── ① 商业模式 ── #}
+{% set bm = rpt.business_model if rpt.business_model else {} %}
+<div class="nb-pane active" id="pane-bm">
+  <button class="rerun-btn" data-step="business_model" data-report-id="{{ report.id }}">重新分析</button>
+  {% if bm %}
+
+  {# BMC Canvas — 标准9格布局 #}
+  <div class="bmc-canvas mb-4">
+    <div class="bmc-kp" draggable="true" data-chat-context="关键合作伙伴: {{ bm.key_partners or bm.value_proposition or '' }}">
+      <div class="bmc-label">关键合作伙伴</div>
+      <div class="bmc-val">{{ bm.key_partners or bm.value_proposition or '—' }}</div>
     </div>
-
-    <!-- 执行摘要 -->
-    {% if report.report and report.report.executive_summary %}
-    <div class="card mb-6">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="material-icons-round text-primary">summarize</span>
-        <span class="font-semibold text-white">执行摘要</span>
-      </div>
-      <p class="text-sm text-slate-300 leading-relaxed">{{ report.report.executive_summary }}</p>
+    <div class="bmc-ka" draggable="true" data-chat-context="关键活动: {{ bm.key_activities or '' }}">
+      <div class="bmc-label">关键活动</div>
+      <div class="bmc-val">{{ bm.key_activities or '—' }}</div>
     </div>
-    {% endif %}
-
-    <!-- 分析详情 -->
-    {% set sections = [
-      ('financial_analysis', '财务分析', '#10b981', 'account_balance_wallet'),
-      ('valuation_analysis', '估值分析', '#3b82f6', 'price_check'),
-      ('technical_analysis', '技术分析', '#8b5cf6', 'candlestick_chart'),
-      ('sentiment_analysis', '市场情绪', '#f59e0b', 'sentiment_satisfied'),
-      ('catalyst_analysis', '催化剂分析', '#ec4899', 'bolt'),
-      ('risk_analysis', '风险评估', '#ef4444', 'shield'),
-      ('conclusion', '投资结论', '#135bec', 'gavel'),
-    ] %}
-    {% for key, title, color, icon in sections %}
-    {% set content = report.report[key] if report.report and key in report.report else '' %}
-    {% if content %}
-    <div class="section-card" style="border-color: {{ color }}">
-      <div class="flex items-center gap-2 mb-2">
-        <span class="material-icons-round text-base" style="color: {{ color }}">{{ icon }}</span>
-        <span class="font-semibold text-slate-200">{{ title }}</span>
-      </div>
-      <div class="text-sm text-slate-400 leading-relaxed whitespace-pre-line">{{ content }}</div>
+    <div class="bmc-vp" draggable="true" data-chat-context="价值主张: {{ bm.value_proposition or '' }}">
+      <div class="bmc-label">价值主张</div>
+      <div class="bmc-val">{{ bm.value_proposition or '—' }}</div>
     </div>
-    {% endif %}
-    {% endfor %}
-
+    <div class="bmc-cr" draggable="true" data-chat-context="客户关系: {{ bm.customer_relationships or '' }}">
+      <div class="bmc-label">客户关系</div>
+      <div class="bmc-val">{{ bm.customer_relationships or bm.channels or '—' }}</div>
+    </div>
+    <div class="bmc-cs" draggable="true" data-chat-context="目标客户: {{ bm.customers or '' }}">
+      <div class="bmc-label">目标客户</div>
+      <div class="bmc-val">{{ bm.customers or '—' }}</div>
+    </div>
+    <div class="bmc-kr" draggable="true" data-chat-context="关键资源: {{ bm.key_resources or '' }}">
+      <div class="bmc-label">关键资源</div>
+      <div class="bmc-val">{{ bm.key_resources or '—' }}</div>
+    </div>
+    <div class="bmc-ch" draggable="true" data-chat-context="渠道: {{ bm.channels or '' }}">
+      <div class="bmc-label">渠道</div>
+      <div class="bmc-val">{{ bm.channels or '—' }}</div>
+    </div>
+    <div class="bmc-cost" draggable="true" data-chat-context="成本结构: {{ bm.cost_structure or '' }}">
+      <div class="bmc-label">成本结构</div>
+      <div class="bmc-val">{{ bm.cost_structure or '—' }}</div>
+    </div>
+    <div class="bmc-rev" draggable="true" data-chat-context="收入来源: {{ bm.revenue_sources or '' }}">
+      <div class="bmc-label">收入来源</div>
+      <div class="bmc-val">{{ bm.revenue_sources or '—' }}</div>
+    </div>
   </div>
 
-  <!-- 右侧栏 -->
-  <aside class="w-72 flex-shrink-0 space-y-4">
-    <!-- 关联新闻 -->
-    {% if news %}
-    <div class="card">
-      <div class="flex items-center gap-2 mb-3">
-        <span class="material-icons-round text-primary text-base">newspaper</span>
-        <span class="text-sm font-semibold text-slate-200">关联新闻</span>
+  {# ② 收入构成区 — 双期环形图 + Topline驱动 #}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div>
+      <div class="text-xs text-slate-500 font-semibold mb-2">收入构成</div>
+      <div class="flex gap-2">
+        {% if bm.revenue_segments_current or bm.revenue_segments %}
+        <div class="flex-1">
+          <div id="rev-pie-cur" style="height:150px"></div>
+          <div class="text-center text-xs text-slate-500 mt-1">{{ bm.revenue_period_current or '最近一期' }}</div>
+        </div>
+        {% endif %}
+        {% if bm.revenue_segments_prev %}
+        <div class="flex-1">
+          <div id="rev-pie-prev" style="height:150px"></div>
+          <div class="text-center text-xs text-slate-500 mt-1">{{ bm.revenue_period_prev or '上一期' }}</div>
+        </div>
+        {% endif %}
+        {% if bm.customer_industries and not bm.revenue_segments_current and not bm.revenue_segments %}
+        <div class="flex-1"><div id="cust-pie" style="height:150px"></div></div>
+        {% endif %}
       </div>
-      <div class="space-y-3">
-        {% for n in news[:8] %}
-        <div class="pb-2 {{ 'border-b border-slate-800' if not loop.last else '' }}">
-          <div class="flex items-start gap-2">
-            <span class="mt-0.5 w-2 h-2 rounded-full flex-shrink-0 {{ 'bg-emerald-400' if n.sentiment == 'positive' else 'bg-red-400' if n.sentiment == 'negative' else 'bg-slate-500' }}"></span>
-            <div>
-              <p class="text-xs text-slate-300 leading-relaxed">{{ n.summary[:80] }}</p>
-              <span class="text-xs text-slate-600">{{ n.cleaned_at[:10] if n.cleaned_at else '' }}</span>
-            </div>
+      {% if bm.revenue_composition_insight %}
+      <p class="text-xs text-slate-400 leading-relaxed mt-2 px-1">{{ bm.revenue_composition_insight }}</p>
+      {% endif %}
+    </div>
+    <div>
+      {% if bm.topline_drivers %}
+      <div class="text-xs text-emerald-400 font-semibold mb-2">Topline 驱动因素</div>
+      {% for d in bm.topline_drivers %}
+      {# 只有有evidence时才标色，否则中性灰 #}
+      {% set has_evidence = d.supporting and d.supporting != 'null' %}
+      {% set trend_up = d.current_trend == '上行' %}
+      {% set trend_down = d.current_trend == '下行' %}
+      {% set color_class = ('pos' if trend_up else 'neg' if trend_down else '') if has_evidence else '' %}
+      <div class="driver {{ color_class }}" style="{{ '' if color_class else 'background:rgba(100,116,139,0.06);color:#94a3b8' }}" draggable="true"
+           data-chat-context="Topline驱动 - {{ d.name }}: {{ d.description }} | 当前趋势: {{ d.current_trend or '?' }} | 证据: {{ d.supporting or '无' }}">
+        <div class="flex-1">
+          <div class="flex items-center gap-1">
+            {% if has_evidence %}
+            <span class="material-icons-round" style="font-size:13px">{{ 'trending_up' if trend_up else 'trending_down' if trend_down else 'trending_flat' }}</span>
+            {% else %}
+            <span class="material-icons-round" style="font-size:13px;color:#475569">remove</span>
+            {% endif %}
+            <span class="font-semibold">{{ d.name }}</span>
+            <span style="font-size:0.62rem;padding:1px 5px;border-radius:3px;background:rgba(100,116,139,0.12);color:#64748b;margin-left:2px">{{ d.direction }}</span>
           </div>
+          <div class="text-xs mt-1" style="color:#64748b">{{ d.description }}</div>
+          {% if d.supporting and d.supporting != 'null' %}
+          <div class="text-xs mt-1" style="color:{{ '#34d399' if trend_up else '#f87171' if trend_down else '#94a3b8' }}">▸ {{ d.supporting }}</div>
+          {% else %}
+          <div class="text-xs mt-1" style="color:#475569;font-style:italic">暂无近期数据支撑趋势判断</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  {# ③ 成本构成区 — 双期环形图 + Bottomline驱动 #}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div>
+      <div class="text-xs text-slate-500 font-semibold mb-2">成本构成</div>
+      <div class="flex gap-2">
+        {% if bm.cost_breakdown_current or bm.cost_breakdown %}
+        <div class="flex-1">
+          <div id="cost-pie-cur" style="height:150px"></div>
+          <div class="text-center text-xs text-slate-500 mt-1">{{ bm.revenue_period_current or '最近一期' }}</div>
+        </div>
+        {% endif %}
+        {% if bm.cost_breakdown_prev %}
+        <div class="flex-1">
+          <div id="cost-pie-prev" style="height:150px"></div>
+          <div class="text-center text-xs text-slate-500 mt-1">{{ bm.revenue_period_prev or '上一期' }}</div>
+        </div>
+        {% endif %}
+        {% if not bm.cost_breakdown_current and not bm.cost_breakdown %}
+        <div class="text-xs text-slate-500">{{ bm.cost_structure or '暂无成本拆分数据' }}</div>
+        {% endif %}
+      </div>
+      {% if bm.cost_composition_insight %}
+      <p class="text-xs text-slate-400 leading-relaxed mt-2 px-1">{{ bm.cost_composition_insight }}</p>
+      {% endif %}
+    </div>
+    <div>
+      {% if bm.bottomline_drivers %}
+      <div class="text-xs text-blue-400 font-semibold mb-2">Bottomline 驱动因素</div>
+      {% for d in bm.bottomline_drivers %}
+      {% set has_evidence = d.supporting and d.supporting != 'null' %}
+      {% set trend_up = d.current_trend == '上行' %}
+      {% set trend_down = d.current_trend == '下行' %}
+      {% set color_class = ('pos' if trend_up else 'neg' if trend_down else '') if has_evidence else '' %}
+      <div class="driver {{ color_class }}" style="{{ '' if color_class else 'background:rgba(100,116,139,0.06);color:#94a3b8' }}" draggable="true"
+           data-chat-context="Bottomline驱动 - {{ d.name }}: {{ d.description }} | 当前趋势: {{ d.current_trend or '?' }} | 证据: {{ d.supporting or '无' }}">
+        <div class="flex-1">
+          <div class="flex items-center gap-1">
+            {% if has_evidence %}
+            <span class="material-icons-round" style="font-size:13px">{{ 'trending_up' if trend_up else 'trending_down' if trend_down else 'trending_flat' }}</span>
+            {% else %}
+            <span class="material-icons-round" style="font-size:13px;color:#475569">remove</span>
+            {% endif %}
+            <span class="font-semibold">{{ d.name }}</span>
+            <span style="font-size:0.62rem;padding:1px 5px;border-radius:3px;background:rgba(100,116,139,0.12);color:#64748b;margin-left:2px">{{ d.direction }}</span>
+          </div>
+          <div class="text-xs mt-1" style="color:#64748b">{{ d.description }}</div>
+          {% if d.supporting and d.supporting != 'null' %}
+          <div class="text-xs mt-1" style="color:{{ '#34d399' if trend_up else '#f87171' if trend_down else '#94a3b8' }}">▸ {{ d.supporting }}</div>
+          {% else %}
+          <div class="text-xs mt-1" style="color:#475569;font-style:italic">暂无近期数据支撑趋势判断</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Topline/Bottomline 因素全景（优先从 Step1 取，fallback 到 Step2）── #}
+  {% set _bm_tl = bm.topline_indicators if bm and bm.topline_indicators else [] %}
+  {% set _bm_bl = bm.bottomline_indicators if bm and bm.bottomline_indicators else [] %}
+  {% set _vc = rpt.value_chain if rpt.value_chain else {} %}
+  {% set _tl_inds = _bm_tl if _bm_tl else (_vc.topline_indicators if _vc.topline_indicators else []) %}
+  {% set _bl_inds = _bm_bl if _bm_bl else (_vc.bottomline_indicators if _vc.bottomline_indicators else []) %}
+  {% if _tl_inds or _bl_inds %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-3">Topline / Bottomline 因素全景</div>
+    <div class="grid grid-cols-2 gap-4">
+      {# ── Topline 左列 ── #}
+      {% if _tl_inds %}
+      <div>
+        <div class="text-xs text-emerald-400 font-semibold mb-2 flex items-center gap-1">
+          <span>▲ Topline 因素</span>
+          <span style="font-size:0.6rem;color:#64748b">（{{ _tl_inds | length }}个）</span>
+        </div>
+        {% set tl_cats = _tl_inds | map(attribute='category') | list | unique | list %}
+        {% for cat in tl_cats %}
+        <div class="mb-3">
+          <div style="font-size:0.6rem;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;border-bottom:1px solid rgba(100,116,139,0.1);padding-bottom:2px">{{ cat or '其他' }}</div>
+          {% for ind in _tl_inds %}
+          {% if (ind.category or '') == cat %}
+          <div class="mb-2 rounded-lg p-2 {{ 'border border-emerald-500/20 bg-emerald-500/5' if ind.data_available else 'border border-slate-700/40 bg-slate-800/20' }}"
+               draggable="true"
+               data-chat-context="Topline因素-{{ ind.name }}: 传导={{ ind.transmission_path or '' }} 当前状态={{ ind.current_status or '' }} 影响={{ ind.impact or '' }}">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="font-semibold text-xs {{ 'text-emerald-300' if ind.data_available else 'text-slate-500' }}">{{ ind.name }}</span>
+              <span style="font-size:0.58rem;padding:1px 4px;border-radius:3px;background:rgba(100,116,139,0.12);color:#64748b">{{ ind.source or '' }}</span>
+              {% if not ind.data_available %}<span style="font-size:0.58rem;color:#475569">无数据</span>{% endif %}
+            </div>
+            {% if ind.transmission_path %}
+            <div style="font-size:0.65rem;color:#94a3b8;line-height:1.4;margin-bottom:2px">→ {{ ind.transmission_path }}</div>
+            {% endif %}
+            {% if ind.current_status %}
+            <div style="font-size:0.62rem;color:#64748b">现状: {{ ind.current_status }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% endfor %}
         </div>
         {% endfor %}
       </div>
+      {% endif %}
+      {# ── Bottomline 右列 ── #}
+      {% if _bl_inds %}
+      <div>
+        <div class="text-xs font-semibold mb-2 flex items-center gap-1" style="color:#94a3b8">
+          <span>▼ Bottomline 因素</span>
+          <span style="font-size:0.6rem;color:#64748b">（{{ _bl_inds | length }}个）</span>
+          <span style="font-size:0.58rem;color:#475569;margin-left:4px">绿=利润正向 红=成本压力</span>
+        </div>
+        {% set bl_cats = _bl_inds | map(attribute='category') | list | unique | list %}
+        {% for cat in bl_cats %}
+        <div class="mb-3">
+          {% set cat_items = _bl_inds | selectattr('category', 'equalto', cat) | list %}
+          {% set pos_count = cat_items | selectattr('impact_direction', 'equalto', 'positive') | list | length %}
+          {% set neg_count = cat_items | selectattr('impact_direction', 'equalto', 'negative') | list | length %}
+          {% set cat_color = '#34d399' if pos_count > 0 and neg_count == 0 else '#f87171' if neg_count > 0 and pos_count == 0 else '#64748b' %}
+          <div style="font-size:0.6rem;font-weight:600;color:{{ cat_color }};text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;border-bottom:1px solid rgba(100,116,139,0.1);padding-bottom:2px">{{ cat or '其他' }}</div>
+          {% for ind in _bl_inds %}
+          {% if (ind.category or '') == cat %}
+          {% set is_pos = ind.impact_direction == 'positive' %}
+          {% set is_neg = ind.impact_direction == 'negative' %}
+          {% set border_bg = ('border border-emerald-500/20 bg-emerald-500/5' if is_pos else 'border border-red-500/20 bg-red-500/5' if is_neg else 'border border-slate-700/40 bg-slate-800/20') if ind.data_available else 'border border-slate-700/30 bg-slate-900/20' %}
+          {% set name_color = ('#34d399' if is_pos else '#f87171' if is_neg else '#94a3b8') if ind.data_available else '#475569' %}
+          <div class="mb-2 rounded-lg p-2 {{ border_bg }}"
+               draggable="true"
+               data-chat-context="Bottomline因素-{{ ind.name }}: 传导={{ ind.transmission_path or '' }} 当前状态={{ ind.current_status or '' }} 影响={{ ind.impact or '' }}">
+            <div class="flex items-center gap-2 mb-1">
+              <span style="font-size:0.9rem;line-height:1">{{ '↓成本' if is_pos else '↑成本' if is_neg else '─' }}</span>
+              <span class="font-semibold text-xs" style="color:{{ name_color }}">{{ ind.name }}</span>
+              <span style="font-size:0.58rem;padding:1px 4px;border-radius:3px;background:rgba(100,116,139,0.12);color:#64748b">{{ ind.source or '' }}</span>
+              {% if not ind.data_available %}<span style="font-size:0.58rem;color:#475569">无数据</span>{% endif %}
+            </div>
+            {% if ind.transmission_path %}
+            <div style="font-size:0.65rem;color:#94a3b8;line-height:1.4;margin-bottom:2px">→ {{ ind.transmission_path }}</div>
+            {% endif %}
+            {% if ind.current_status %}
+            <div style="font-size:0.62rem;color:#64748b">现状: {{ ind.current_status }}</div>
+            {% endif %}
+          </div>
+          {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# ④ 知识图谱关联 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">知识图谱关联</div>
+    {# KG图谱全宽，面板绝对定位浮在图谱上方左/右角 #}
+    <div style="position:relative">
+      <div id="kg-graph" style="height:300px;border-radius:10px;background:rgba(15,23,42,0.5);border:1px solid rgba(100,116,139,0.12);position:relative;">
+        <div id="kg-loading" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500">加载中...</div>
+      </div>
+      {# 左侧浮动面板 #}
+      <div id="kg-news-panel-left" style="display:none;position:absolute;top:8px;left:8px;width:200px;max-height:280px;overflow-y:auto;background:rgba(10,18,35,0.92);border:1px solid rgba(100,116,139,0.25);border-radius:8px;padding:10px;font-size:0.7rem;z-index:10;backdrop-filter:blur(4px)">
+        <div id="kg-news-panel-left-title" style="color:#e2e8f0;font-weight:600;margin-bottom:4px;font-size:0.75rem"></div>
+        <div id="kg-news-panel-left-type" style="color:#64748b;margin-bottom:8px;font-size:0.62rem"></div>
+        <div id="kg-news-panel-left-content"></div>
+      </div>
+      {# 右侧浮动面板 #}
+      <div id="kg-news-panel-right" style="display:none;position:absolute;top:8px;right:8px;width:200px;max-height:280px;overflow-y:auto;background:rgba(10,18,35,0.92);border:1px solid rgba(100,116,139,0.25);border-radius:8px;padding:10px;font-size:0.7rem;z-index:10;backdrop-filter:blur(4px)">
+        <div id="kg-news-panel-right-title" style="color:#e2e8f0;font-weight:600;margin-bottom:4px;font-size:0.75rem"></div>
+        <div id="kg-news-panel-right-type" style="color:#64748b;margin-bottom:8px;font-size:0.62rem"></div>
+        <div id="kg-news-panel-right-content"></div>
+      </div>
+    </div>
+    {# 小tooltip仅显示节点名/类型 #}
+    <div id="kg-tooltip" style="position:fixed;display:none;background:rgba(15,23,42,0.9);border:1px solid rgba(100,116,139,0.25);border-radius:6px;padding:4px 8px;font-size:0.68rem;color:#94a3b8;z-index:9999;pointer-events:none;"></div>
+  </div>
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
+</div>
+
+{# ── ② 产业链 ── #}
+{% set vc = rpt.value_chain if rpt.value_chain else {} %}
+<div class="nb-pane" id="pane-vc">
+  <button class="rerun-btn" data-step="value_chain" data-report-id="{{ report.id }}">重新分析</button>
+  {% if vc %}
+  {# segment_positions：多分部定位数据 #}
+  {% set seg_positions = vc.segment_positions if vc.segment_positions is iterable and vc.segment_positions is not mapping else [] %}
+  {# 回退：无 segment_positions 时用旧的 company_position 整列高亮 #}
+  {% set pos = vc.company_position or '' %}
+
+  {# (1) 产业链画布 — 按节点粒度高亮 #}
+  <div class="text-xs text-slate-500 font-semibold mb-2">产业链结构</div>
+  <div style="display:grid;grid-template-columns:1fr 24px 1fr 24px 1fr;gap:6px;align-items:start;margin-bottom:1rem">
+    {# 上游 #}
+    <div>
+      {% set upstream_list = vc.upstream if vc.upstream is iterable and vc.upstream is not mapping else ([vc.upstream] if vc.upstream else []) %}
+      {% for node in upstream_list %}
+      {% set nlbl = node.label or '上游' %}
+      {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
+      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'upstream') %}
+      <div class="chain-node {{ 'active' if node_active }} mb-2"
+           draggable="true" data-chat-context="上游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
+        <div class="node-label">{{ nlbl }}</div>
+        {% if node_segs %}
+        <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
+          {% for sn in node_segs %}★ {{ sn }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="node-players">{{ node.players or '' }}</div>
+        <div class="node-desc">{{ node.description or '' }}</div>
+      </div>
+      {% else %}
+      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'upstream') }}">
+        <div class="node-label">上游</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chain-arrow" style="padding-top:20px">→</div>
+    {# 中游 #}
+    <div>
+      {% set midstream_list = vc.midstream if vc.midstream is iterable and vc.midstream is not mapping else ([vc.midstream] if vc.midstream else []) %}
+      {% for node in midstream_list %}
+      {% set nlbl = node.label or '中游' %}
+      {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
+      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'midstream') %}
+      <div class="chain-node {{ 'active' if node_active }} mb-2"
+           draggable="true" data-chat-context="中游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
+        <div class="node-label">{{ nlbl }}</div>
+        {% if node_segs %}
+        <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
+          {% for sn in node_segs %}★ {{ sn }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="node-players">{{ node.players or '' }}</div>
+        <div class="node-desc">{{ node.description or '' }}</div>
+      </div>
+      {% else %}
+      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'midstream') }}">
+        <div class="node-label">中游</div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="chain-arrow" style="padding-top:20px">→</div>
+    {# 下游 #}
+    <div>
+      {% set downstream_list = vc.downstream if vc.downstream is iterable and vc.downstream is not mapping else ([vc.downstream] if vc.downstream else []) %}
+      {% for node in downstream_list %}
+      {% set nlbl = node.label or '下游' %}
+      {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
+      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'downstream') %}
+      <div class="chain-node {{ 'active' if node_active }} mb-2"
+           draggable="true" data-chat-context="下游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
+        <div class="node-label">{{ nlbl }}</div>
+        {% if node_segs %}
+        <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
+          {% for sn in node_segs %}★ {{ sn }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="node-players">{{ node.players or '' }}</div>
+        <div class="node-desc">{{ node.description or '' }}</div>
+      </div>
+      {% else %}
+      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'downstream') }}">
+        <div class="node-label">下游</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% if vc.position_detail %}<p class="text-xs text-indigo-300 mb-3">{{ vc.position_detail }}</p>{% endif %}
+
+  {# (1b) 竞争优势横向对比矩阵 #}
+  {% set cc = vc.competitive_comparison if vc.competitive_comparison else {} %}
+  {% if cc and cc.companies %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">竞争优势横向对比</div>
+  <div class="overflow-x-auto mb-3">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead>
+        <tr>
+          <th style="text-align:left;color:#64748b;padding:5px 8px;border-bottom:1px solid rgba(100,116,139,0.2)">公司</th>
+          {% for dim in (cc.comparison_dimensions or []) %}
+          <th style="text-align:center;color:#64748b;padding:5px 8px;border-bottom:1px solid rgba(100,116,139,0.2);min-width:80px">{{ dim }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+      {% for company in cc.companies %}
+      <tr style="{{ 'background:rgba(129,140,248,0.08);' if company.is_target }}">
+        <td style="padding:5px 8px;font-weight:{{ '700' if company.is_target else '400' }};color:{{ '#a5b4fc' if company.is_target else '#94a3b8' }};white-space:nowrap">
+          {{ company.name }}{% if company.is_target %} ★{% endif %}
+        </td>
+        {% for dim in (cc.comparison_dimensions or []) %}
+        {% set adv = company.advantages | selectattr('dimension', 'equalto', dim) | first if company.advantages else None %}
+        {% if adv %}
+        <td style="text-align:center;padding:5px 8px">
+          <span title="{{ adv.evidence or '' }}"
+            style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:0.65rem;font-weight:600;cursor:default;
+              {% if adv.assessment == 'strong' %}background:rgba(16,185,129,0.15);color:#34d399;{% elif adv.assessment == 'medium' %}background:rgba(245,158,11,0.12);color:#fbbf24;{% else %}background:rgba(100,116,139,0.1);color:#64748b;{% endif %}">
+            {% if adv.assessment == 'strong' %}强{% elif adv.assessment == 'medium' %}中{% else %}弱{% endif %}
+          </span>
+        </td>
+        {% else %}
+        <td style="text-align:center;padding:5px 8px;color:#334155">—</td>
+        {% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if cc.summary %}
+  <p class="text-xs text-slate-400 mb-3" style="line-height:1.6">{{ cc.summary }}</p>
+  {% endif %}
+  {% endif %}
+
+  {# (2a) 产业传导三卡片 — 新格式 _for_valuation #}
+  {% set _vc_fv = vc._for_valuation if vc._for_valuation else {} %}
+
+  {# 下游需求分析卡片 #}
+  {% if _vc_fv.downstream_demand_analysis %}
+  {% set dda = _vc_fv.downstream_demand_analysis %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">下游需求分析</div>
+  <div class="overflow-x-auto mb-3">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead><tr>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">下游行业</th>
+        <th style="text-align:center;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">权重</th>
+        <th style="text-align:center;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">实际增速</th>
+        <th style="text-align:center;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">预测增速</th>
+        <th style="text-align:center;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">置信度</th>
+      </tr></thead>
+      <tbody>
+      {% for di in dda.downstream_industries or [] %}
+      {% set gr = di.growth_rate if di.growth_rate else {} %}
+      {% set ar = gr.actual_recent if gr.actual_recent else {} %}
+      {% set fc = gr.forecast if gr.forecast else {} %}
+      <tr draggable="true" data-chat-context="下游需求-{{ di.industry_name }}: 权重{{ di.weight_pct }}% 实际{{ ar.value_pct }}% 预测{{ fc.value_pct }}%">
+        <td style="color:#e2e8f0;padding:4px 8px;font-weight:600">
+          {{ di.industry_name }}
+          <span class="text-slate-600" style="font-size:0.6rem">→ {{ di.mapped_segments | join(', ') if di.mapped_segments else '' }}</span>
+        </td>
+        <td style="text-align:center;color:#a5b4fc;padding:4px 8px;font-weight:600">{{ di.weight_pct }}%</td>
+        <td style="text-align:center;padding:4px 8px;font-weight:600;color:{{ '#34d399' if ar.value_pct is defined and ar.value_pct is not none and ar.value_pct > 0 else '#f87171' if ar.value_pct is defined and ar.value_pct is not none and ar.value_pct < 0 else '#94a3b8' }}">
+          {% if ar.value_pct is defined and ar.value_pct is not none %}{{ '%+.1f' | format(ar.value_pct) }}%{% else %}—{% endif %}
+          {% if ar.period %}<span class="text-slate-600" style="font-size:0.6rem">({{ ar.period }})</span>{% endif %}
+        </td>
+        <td style="text-align:center;padding:4px 8px;font-weight:600;color:{{ '#34d399' if fc.value_pct is defined and fc.value_pct is not none and fc.value_pct > 0 else '#f87171' if fc.value_pct is defined and fc.value_pct is not none and fc.value_pct < 0 else '#94a3b8' }}">
+          {% if fc.value_pct is defined and fc.value_pct is not none %}{{ '%+.1f' | format(fc.value_pct) }}%{% else %}—{% endif %}
+          {% if fc.period %}<span class="text-slate-600" style="font-size:0.6rem">({{ fc.period }})</span>{% endif %}
+        </td>
+        <td style="text-align:center;padding:4px 8px">
+          {% if fc.confidence %}
+          <span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;
+            {% if fc.confidence == 'high' %}background:rgba(16,185,129,0.15);color:#34d399;
+            {% elif fc.confidence == 'medium' %}background:rgba(245,158,11,0.12);color:#fbbf24;
+            {% else %}background:rgba(100,116,139,0.1);color:#64748b;{% endif %}">{{ fc.confidence }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% set wgr = dda.weighted_growth_rate if dda.weighted_growth_rate else {} %}
+  {% if wgr.value_pct is defined and wgr.value_pct is not none %}
+  <div class="flex items-center gap-2 mb-3">
+    <span style="font-size:0.7rem;padding:3px 10px;border-radius:6px;background:rgba(129,140,248,0.15);color:#a5b4fc;font-weight:600">
+      加权增长率: {{ '%+.1f' | format(wgr.value_pct) }}%
+    </span>
+    <span class="text-slate-500" style="font-size:0.65rem">{{ wgr.confidence or '' }}</span>
+    {% if wgr.calculation %}
+    <span class="text-slate-600" style="font-size:0.6rem" title="{{ wgr.calculation }}">{{ wgr.calculation[:60] }}{% if wgr.calculation|length > 60 %}...{% endif %}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# Capture Rate 分析卡片 #}
+  {% if _vc_fv.capture_rate_analysis %}
+  {% set cra = _vc_fv.capture_rate_analysis %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">Capture Rate 分析</div>
+  {# 产能信号 #}
+  {% set sc = cra.supply_capacity if cra.supply_capacity else {} %}
+  {% if sc.expansion_projects %}
+  <div class="mb-2">
+    <span class="text-slate-500" style="font-size:0.68rem;font-weight:600">产能信号</span>
+    {% if sc.current_utilization_pct is defined and sc.current_utilization_pct is not none %}
+    <span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(100,116,139,0.1);color:#94a3b8;margin-left:8px">产能利用率: {{ sc.current_utilization_pct }}%</span>
+    {% endif %}
+    <div class="space-y-1 mt-1">
+    {% for ep in sc.expansion_projects %}
+      <div class="flex items-start gap-2" style="font-size:0.7rem" draggable="true"
+           data-chat-context="产能信号-{{ ep.project }}: {{ ep.signal_type }} {{ ep.evidence or '' }}">
+        <span style="flex-shrink:0;padding:1px 5px;border-radius:3px;font-size:0.6rem;font-weight:600;
+          {% if ep.signal_type == 'direct' %}background:rgba(16,185,129,0.15);color:#34d399;{% else %}background:rgba(245,158,11,0.12);color:#fbbf24;{% endif %}">
+          {{ ep.signal_type }}
+        </span>
+        <span class="text-slate-300">{{ ep.project }}</span>
+        {% if ep.new_capacity %}<span class="text-blue-300 ml-1">{{ ep.new_capacity }}</span>{% endif %}
+        {% if ep.expected_completion %}<span class="text-slate-500 ml-1">({{ ep.expected_completion }})</span>{% endif %}
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {# 波特五力 — capture版 #}
+  {% set pca = cra.porter_capture_analysis if cra.porter_capture_analysis else {} %}
+  {% if pca %}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-2">
+    <div id="porter-radar" style="height:200px"></div>
+    <div class="space-y-2">
+      {% set porter_items = [
+        ('rivalry', '同业竞争', pca.rivalry),
+        ('new_entrants', '新进入者', pca.new_entrants),
+        ('substitutes', '替代品', pca.substitutes),
+        ('supplier_power', '供应商', pca.supplier_power),
+        ('buyer_power', '买方', pca.buyer_power)
+      ] %}
+      {% for key, label, f_data in porter_items %}
+      {% if f_data %}
+      <div class="flex items-start gap-2" draggable="true"
+           data-chat-context="波特五力-{{ label }}: {{ f_data.level or '' }} — {{ f_data.get('capture_verdict', '') or f_data.get('pricing_implication', '') or f_data.get('cost_implication', '') }}">
+        <span class="text-xs font-semibold w-16 flex-shrink-0 {{ 'text-red-400' if f_data.level == 'high' else 'text-amber-400' if f_data.level == 'medium' else 'text-emerald-400' }}">{{ label }}</span>
+        <span class="text-xs text-slate-400 leading-relaxed">
+          {% if f_data.capture_verdict %}{{ f_data.capture_verdict }}
+          {% elif f_data.pricing_implication %}{{ f_data.pricing_implication }}
+          {% elif f_data.cost_implication %}{{ f_data.cost_implication }}
+          {% endif %}
+        </span>
+      </div>
+      {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {# Capture 结论 #}
+  {% set crc = cra.capture_rate_conclusion if cra.capture_rate_conclusion else {} %}
+  {% if crc.capture_multiplier %}
+  <div class="flex items-center gap-2 mb-3">
+    <span style="font-size:0.7rem;padding:3px 10px;border-radius:6px;font-weight:600;
+      {% if crc.share_trend == 'gaining' %}background:rgba(16,185,129,0.15);color:#34d399;
+      {% elif crc.share_trend == 'losing' %}background:rgba(248,113,113,0.15);color:#f87171;
+      {% else %}background:rgba(100,116,139,0.15);color:#94a3b8;{% endif %}">
+      Capture: {{ crc.share_trend or '—' }}
+      {% if crc.current_market_share_pct %} (当前{{ crc.current_market_share_pct }}%){% endif %}
+    </span>
+    <span class="text-slate-400" style="font-size:0.65rem">{{ crc.capture_multiplier }}</span>
+    <span class="text-slate-600" style="font-size:0.6rem">{{ crc.confidence or '' }}</span>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# 量价关系分析卡片 #}
+  {% if _vc_fv.price_volume_analysis %}
+  {% set pva = _vc_fv.price_volume_analysis %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">量价关系分析</div>
+  <div class="flex flex-wrap gap-2 mb-2">
+    {% if pva.pricing_mechanism %}
+    <span style="font-size:0.65rem;padding:2px 8px;border-radius:4px;background:rgba(129,140,248,0.15);color:#a5b4fc;font-weight:600">{{ pva.pricing_mechanism }}</span>
+    {% endif %}
+    {% if pva.price_volume_pattern %}
+    <span style="font-size:0.65rem;padding:2px 8px;border-radius:4px;background:rgba(100,116,139,0.1);color:#94a3b8">{{ pva.price_volume_pattern }}</span>
+    {% endif %}
+  </div>
+  {# 供需平衡指示器 #}
+  {% set sdb = pva.supply_demand_balance if pva.supply_demand_balance else {} %}
+  {% if sdb.balance_verdict %}
+  {% set bv_colors = {'shortage': '#34d399', 'tight_balance': '#a5b4fc', 'balance': '#94a3b8', 'mild_surplus': '#fbbf24', 'severe_surplus': '#f87171'} %}
+  {% set bv_labels = {'shortage': '供不应求', 'tight_balance': '紧平衡', 'balance': '平衡', 'mild_surplus': '轻度过剩', 'severe_surplus': '严重过剩'} %}
+  <div class="flex items-center gap-2 mb-2" style="font-size:0.7rem">
+    <span class="text-slate-500">供需格局:</span>
+    <span style="padding:2px 8px;border-radius:4px;font-weight:600;background:rgba(100,116,139,0.1);color:{{ bv_colors.get(sdb.balance_verdict, '#94a3b8') }}">
+      {{ bv_labels.get(sdb.balance_verdict, sdb.balance_verdict) }}
+    </span>
+    {% if sdb.inventory_signal %}
+    <span class="text-slate-500">库存:</span>
+    <span class="text-slate-400">{{ sdb.inventory_signal }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
+  {# 价格趋势因子 #}
+  {% if pva.price_trend_factors %}
+  <div class="space-y-1 mb-2">
+    {% for ptf in pva.price_trend_factors %}
+    <div class="flex items-start gap-2" style="font-size:0.7rem" draggable="true"
+         data-chat-context="价格因子-{{ ptf.factor }}: {{ ptf.direction }}{{ ptf.magnitude_pct }} — {{ ptf.evidence or '' }}">
+      <span style="flex-shrink:0;width:18px;text-align:center;font-weight:700;color:{{ '#34d399' if ptf.direction == '+' else '#f87171' }}">{{ ptf.direction }}</span>
+      <span class="text-slate-300">{{ ptf.factor }}</span>
+      {% if ptf.magnitude_pct %}<span class="text-blue-300 ml-1">{{ ptf.magnitude_pct }}</span>{% endif %}
+      {% if ptf.evidence %}<span class="text-slate-500 ml-1">— {{ ptf.evidence }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {# 价格调整结论 #}
+  {% set pac = pva.price_adjustment_conclusion if pva.price_adjustment_conclusion else {} %}
+  {% if pac.direction %}
+  <div class="flex items-center gap-2 mb-3">
+    <span style="font-size:0.7rem;padding:3px 10px;border-radius:6px;font-weight:600;
+      {% if pac.direction == '上行' %}background:rgba(16,185,129,0.15);color:#34d399;
+      {% elif pac.direction == '下行' %}background:rgba(248,113,113,0.15);color:#f87171;
+      {% else %}background:rgba(100,116,139,0.15);color:#94a3b8;{% endif %}">
+      价格: {{ pac.direction }} {{ pac.magnitude_pct or '' }}
+    </span>
+    {% if pac.breakdown %}
+    <span class="text-slate-500" style="font-size:0.6rem">{{ pac.breakdown }}</span>
+    {% endif %}
+    <span class="text-slate-600" style="font-size:0.6rem">{{ pac.confidence or '' }}</span>
+  </div>
+  {% endif %}
+  {# 成本传导 #}
+  {% set cp = pva.cost_passthrough if pva.cost_passthrough else {} %}
+  {% if cp.ability %}
+  <div class="flex items-center gap-2 mb-3" style="font-size:0.7rem">
+    <span class="text-slate-500">成本传导:</span>
+    <span style="padding:2px 6px;border-radius:4px;font-weight:600;
+      {% if cp.ability == 'full' %}background:rgba(16,185,129,0.15);color:#34d399;
+      {% elif cp.ability == 'partial' %}background:rgba(245,158,11,0.12);color:#fbbf24;
+      {% else %}background:rgba(248,113,113,0.15);color:#f87171;{% endif %}">
+      {% if cp.ability == 'full' %}完全传导{% elif cp.ability == 'partial' %}部分传导{% else %}无法传导{% endif %}
+    </span>
+    {% if cp.lag_months %}<span class="text-slate-400">时滞{{ cp.lag_months }}月</span>{% endif %}
+    {% if cp.mechanism %}<span class="text-slate-500">{{ cp.mechanism }}</span>{% endif %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# (2) 波特五力 — 旧格式兜底 #}
+  {% set pf = vc.porter_five_forces if vc.porter_five_forces else {} %}
+  {% if pf and not _vc_fv.capture_rate_analysis %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">波特五力分析</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+    <div id="porter-radar" style="height:200px"></div>
+    <div class="space-y-2">
+      {% set force_labels = [('supplier_power','供应商议价'),('buyer_power','买方议价'),('new_entrants','新进入者'),('substitutes','替代品威胁'),('rivalry','同业竞争')] %}
+      {% for key, label in force_labels %}
+      {% set f = pf.get(key, {}) %}
+      <div class="flex items-start gap-2" draggable="true"
+           data-chat-context="波特五力-{{ label }}: {{ f.level or '' }} — {{ f.analysis or '' }}">
+        <span class="text-xs font-semibold w-20 flex-shrink-0 {{ 'text-red-400' if f.level == 'high' else 'text-amber-400' if f.level == 'medium' else 'text-emerald-400' }}">{{ label }}</span>
+        <span class="text-xs text-slate-400 leading-relaxed">{{ f.analysis or '' }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# (3) 技术壁垒（条件渲染）#}
+  {% set tb = vc.tech_barrier if vc.tech_barrier else {} %}
+  {% if tb and tb.has_tech_barrier %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">技术壁垒</div>
+  <p class="text-xs text-slate-400 mb-2">{{ tb.barrier_description or '' }}</p>
+  {% if tb.tech_routes %}
+  <div class="overflow-x-auto mb-2">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead><tr>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">技术路线</th>
+        <th style="color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">阶段</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">难点</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">竞争者</th>
+      </tr></thead>
+      <tbody>
+      {% for tr in tb.tech_routes %}
+      <tr draggable="true" data-chat-context="技术路线-{{ tr.route_name }}: 阶段={{ tr.stage }} 难点={{ tr.difficulty }}">
+        <td style="color:#e2e8f0;padding:4px 8px;font-weight:600">{{ tr.route_name }}</td>
+        <td style="text-align:center;padding:4px 8px">
+          <span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(129,140,248,0.15);color:#a5b4fc">{{ tr.stage or '' }}</span>
+        </td>
+        <td style="color:#94a3b8;padding:4px 8px">{{ tr.difficulty or '' }}</td>
+        <td style="color:#64748b;padding:4px 8px">{{ tr.competitors or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if tb.commercialization_cycle %}<p class="text-xs text-slate-500">商业化周期: {{ tb.commercialization_cycle }}</p>{% endif %}
+  {% endif %}
+
+  {# (4) 行业数据 — 按 line_type 分组，旧格式兜底 #}
+  {% if vc.industry_data %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">行业数据</div>
+  {% set has_line_type = vc.industry_data | selectattr('line_type', 'defined') | list | length > 0 %}
+  {% if has_line_type %}
+  {# 新格式：按 topline / bottomline / context 三组渲染 #}
+  {% for group_key, group_label, group_color in [('topline', '▲ Topline 相关', '#34d399'), ('bottomline', '▼ Bottomline 相关', '#60a5fa'), ('context', '背景数据', '#64748b')] %}
+  {# both 归入 topline 组显示 #}
+  {% if group_key == 'topline' %}
+  {% set group_items = vc.industry_data | selectattr('line_type', 'in', ['topline', 'both']) | list %}
+  {% else %}
+  {% set group_items = vc.industry_data | selectattr('line_type', 'equalto', group_key) | list %}
+  {% endif %}
+  {% if group_items %}
+  <div class="mb-3">
+    <div style="font-size:0.65rem;font-weight:600;color:{{ group_color }};margin-bottom:4px;border-bottom:1px solid rgba(100,116,139,0.1);padding-bottom:3px">{{ group_label }}</div>
+    <div class="overflow-x-auto">
+      <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+        <thead><tr>
+          <th style="text-align:left;color:#64748b;padding:3px 8px">指标</th>
+          <th style="color:#64748b;padding:3px 8px">值</th>
+          <th style="color:#64748b;padding:3px 8px">年份</th>
+          <th style="text-align:left;color:#64748b;padding:3px 8px">关联Driver</th>
+          <th style="text-align:left;color:#64748b;padding:3px 8px">来源</th>
+          <th style="text-align:left;color:#64748b;padding:3px 8px">趋势</th>
+        </tr></thead>
+        <tbody>
+        {% for d in group_items %}
+        <tr draggable="true" data-chat-context="行业数据-{{ d.metric }}: {{ d.value }} ({{ d.year }}) 来源={{ d.source or '未知' }}">
+          <td style="color:#e2e8f0;padding:3px 8px;font-weight:600">{{ d.metric }}</td>
+          <td style="text-align:center;color:{{ group_color }};padding:3px 8px;font-weight:600">{{ d.value }}</td>
+          <td style="text-align:center;color:#94a3b8;padding:3px 8px">{{ d.year or '' }}</td>
+          <td style="color:#a5b4fc;padding:3px 8px;font-size:0.65rem">{{ d.related_driver or '' }}</td>
+          <td style="color:#64748b;padding:3px 8px">
+            {% if not d.source %}<span title="AI生成，未经数据源验证" style="color:#f59e0b">⚠️</span>{% else %}{{ d.source }}{% endif %}
+          </td>
+          <td style="color:#94a3b8;padding:3px 8px">{{ d.trend or '' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% else %}
+  {# 旧格式兜底：普通表格 #}
+  <div class="overflow-x-auto mb-3">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead><tr>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">指标</th>
+        <th style="color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">值</th>
+        <th style="color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">年份</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">来源</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">趋势</th>
+      </tr></thead>
+      <tbody>
+      {% for d in vc.industry_data %}
+      <tr draggable="true" data-chat-context="行业数据-{{ d.metric }}: {{ d.value }} ({{ d.year }}) 来源={{ d.source or '未知' }}">
+        <td style="color:#e2e8f0;padding:4px 8px;font-weight:600">{{ d.metric }}</td>
+        <td style="text-align:center;color:#60a5fa;padding:4px 8px;font-weight:600">{{ d.value }}</td>
+        <td style="text-align:center;color:#94a3b8;padding:4px 8px">{{ d.year or '' }}</td>
+        <td style="color:#64748b;padding:4px 8px">
+          {% if not d.source %}<span title="AI生成，未经数据源验证" style="color:#f59e0b">⚠️</span>{% else %}{{ d.source }}{% endif %}
+        </td>
+        <td style="color:#94a3b8;padding:4px 8px">{{ d.trend or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# (5) 行业动态 — 新格式：Topline/Bottomline 分栏+可展开；旧格式兜底 #}
+  {% if vc.industry_news %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 mt-3">行业动态</div>
+  {% set has_news_line_type = vc.industry_news | selectattr('line_type', 'defined') | list | length > 0 %}
+  {% if has_news_line_type %}
+  {# 新格式：Topline/Bottomline/背景信息 分栏 #}
+  {% set news_tl = vc.industry_news | selectattr('line_type', 'in', ['topline', 'both']) | list %}
+  {% set news_bl = vc.industry_news | selectattr('line_type', 'in', ['bottomline', 'both']) | list %}
+  {% set news_ctx = vc.industry_news | selectattr('line_type', 'equalto', 'context') | list %}
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3" id="news-columns-{{ report.id }}">
+    {# 左列：Topline #}
+    <div>
+      <div style="font-size:0.65rem;color:#34d399;font-weight:600;margin-bottom:6px;border-bottom:1px solid rgba(52,211,153,0.2);padding-bottom:3px">▲ Topline 相关</div>
+      {% if news_tl %}
+      <div class="space-y-2">
+      {% for n in news_tl %}
+      {% set nidx = loop.index %}
+      <div class="news-expandable" style="border:1px solid rgba(100,116,139,0.12);border-radius:6px;overflow:hidden">
+        <div class="news-header" onclick="toggleNewsExpand(this)"
+             style="padding:6px 8px;cursor:pointer;display:flex;align-items:flex-start;gap-6px"
+             data-stock="{{ stock_code }}"
+             data-title="{{ n.title | replace('\"', '&quot;') }}"
+             draggable="true"
+             data-chat-context="行业新闻(topline): {{ n.title }} ({{ n.date }}) 来源={{ n.source or '' }}">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;margin-right:6px;
+            {% if n.sentiment == 'positive' %}background:#34d399;{% elif n.sentiment == 'negative' %}background:#f87171;{% else %}background:#64748b;{% endif %}"></span>
+          <div class="flex-1">
+            <div class="text-xs" style="color:#e2e8f0;line-height:1.4">
+              {{ n.title }}
+              {% if n.is_recent %}<span style="font-size:0.58rem;background:rgba(16,185,129,0.15);color:#34d399;padding:1px 5px;border-radius:3px;margin-left:4px">最新</span>{% endif %}
+            </div>
+            <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+              {% for drv in (n.tagged_drivers or []) %}
+              <span style="font-size:0.58rem;padding:1px 5px;border-radius:3px;background:rgba(129,140,248,0.12);color:#a5b4fc">{{ drv }}</span>
+              {% endfor %}
+              <span class="text-xs text-slate-600" style="font-size:0.62rem">{{ n.date or '' }}{% if n.source %} · {{ n.source }}{% endif %}</span>
+            </div>
+          </div>
+          <span class="news-toggle-icon" style="font-size:0.65rem;color:#475569;flex-shrink:0;margin-left:4px">▼</span>
+        </div>
+        <div class="news-body" style="display:none;padding:8px 10px;border-top:1px solid rgba(100,116,139,0.1);background:rgba(15,23,42,0.4)">
+          {% if n.summary %}
+          <p class="text-xs text-slate-400" style="line-height:1.5;margin-bottom:6px">{{ n.summary }}</p>
+          {% endif %}
+          <button class="news-evidence-btn" onclick="fetchNewsEvidence(this)"
+                  data-stock="{{ stock_code }}"
+                  data-title="{{ n.title | replace('\"', '&quot;') }}"
+                  style="font-size:0.62rem;padding:2px 8px;border-radius:4px;background:rgba(129,140,248,0.1);color:#a5b4fc;border:1px solid rgba(129,140,248,0.2);cursor:pointer">
+            查看佐证
+          </button>
+          <div class="news-evidence-result" style="display:none;margin-top:6px"></div>
+        </div>
+      </div>
+      {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-slate-600">无Topline相关动态</p>
+      {% endif %}
+    </div>
+    {# 右列：Bottomline #}
+    <div>
+      <div style="font-size:0.65rem;color:#60a5fa;font-weight:600;margin-bottom:6px;border-bottom:1px solid rgba(96,165,250,0.2);padding-bottom:3px">▼ Bottomline 相关</div>
+      {% if news_bl %}
+      <div class="space-y-2">
+      {% for n in news_bl %}
+      <div class="news-expandable" style="border:1px solid rgba(100,116,139,0.12);border-radius:6px;overflow:hidden">
+        <div class="news-header" onclick="toggleNewsExpand(this)"
+             style="padding:6px 8px;cursor:pointer;display:flex;align-items:flex-start;gap-6px"
+             data-stock="{{ stock_code }}"
+             data-title="{{ n.title | replace('\"', '&quot;') }}"
+             draggable="true"
+             data-chat-context="行业新闻(bottomline): {{ n.title }} ({{ n.date }}) 来源={{ n.source or '' }}">
+          <span style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;margin-right:6px;
+            {% if n.sentiment == 'positive' %}background:#34d399;{% elif n.sentiment == 'negative' %}background:#f87171;{% else %}background:#64748b;{% endif %}"></span>
+          <div class="flex-1">
+            <div class="text-xs" style="color:#e2e8f0;line-height:1.4">
+              {{ n.title }}
+              {% if n.is_recent %}<span style="font-size:0.58rem;background:rgba(16,185,129,0.15);color:#34d399;padding:1px 5px;border-radius:3px;margin-left:4px">最新</span>{% endif %}
+            </div>
+            <div style="margin-top:3px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+              {% for drv in (n.tagged_drivers or []) %}
+              <span style="font-size:0.58rem;padding:1px 5px;border-radius:3px;background:rgba(129,140,248,0.12);color:#a5b4fc">{{ drv }}</span>
+              {% endfor %}
+              <span class="text-xs text-slate-600" style="font-size:0.62rem">{{ n.date or '' }}{% if n.source %} · {{ n.source }}{% endif %}</span>
+            </div>
+          </div>
+          <span class="news-toggle-icon" style="font-size:0.65rem;color:#475569;flex-shrink:0;margin-left:4px">▼</span>
+        </div>
+        <div class="news-body" style="display:none;padding:8px 10px;border-top:1px solid rgba(100,116,139,0.1);background:rgba(15,23,42,0.4)">
+          {% if n.summary %}
+          <p class="text-xs text-slate-400" style="line-height:1.5;margin-bottom:6px">{{ n.summary }}</p>
+          {% endif %}
+          <button class="news-evidence-btn" onclick="fetchNewsEvidence(this)"
+                  data-stock="{{ stock_code }}"
+                  data-title="{{ n.title | replace('\"', '&quot;') }}"
+                  style="font-size:0.62rem;padding:2px 8px;border-radius:4px;background:rgba(129,140,248,0.1);color:#a5b4fc;border:1px solid rgba(129,140,248,0.2);cursor:pointer">
+            查看佐证
+          </button>
+          <div class="news-evidence-result" style="display:none;margin-top:6px"></div>
+        </div>
+      </div>
+      {% endfor %}
+      </div>
+      {% else %}
+      <p class="text-xs text-slate-600">无Bottomline相关动态</p>
+      {% endif %}
+    </div>
+  </div>
+  {# 背景信息栏：跨全宽显示 #}
+  {% if news_ctx %}
+  <div class="mb-3">
+    <div style="font-size:0.65rem;color:#64748b;font-weight:600;margin-bottom:6px;border-bottom:1px solid rgba(100,116,139,0.2);padding-bottom:3px">背景信息</div>
+    <div class="space-y-2">
+    {% for n in news_ctx %}
+    <div class="news-expandable" style="border:1px solid rgba(100,116,139,0.12);border-radius:6px;overflow:hidden">
+      <div class="news-header" onclick="toggleNewsExpand(this)"
+           style="padding:6px 8px;cursor:pointer;display:flex;align-items:flex-start;gap-6px"
+           data-stock="{{ stock_code }}"
+           data-title="{{ n.title | replace('\"', '&quot;') }}"
+           draggable="true"
+           data-chat-context="行业背景: {{ n.title }} ({{ n.date }}) 来源={{ n.source or '' }}">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px;margin-right:6px;background:#64748b"></span>
+        <div class="flex-1">
+          <div class="text-xs" style="color:#94a3b8;line-height:1.4">
+            {{ n.title }}
+            {% if n.is_recent %}<span style="font-size:0.58rem;background:rgba(16,185,129,0.15);color:#34d399;padding:1px 5px;border-radius:3px;margin-left:4px">最新</span>{% endif %}
+          </div>
+          <div style="margin-top:3px">
+            <span class="text-xs text-slate-600" style="font-size:0.62rem">{{ n.date or '' }}{% if n.source %} · {{ n.source }}{% endif %}</span>
+          </div>
+        </div>
+        <span class="news-toggle-icon" style="font-size:0.65rem;color:#475569;flex-shrink:0;margin-left:4px">▼</span>
+      </div>
+      <div class="news-body" style="display:none;padding:8px 10px;border-top:1px solid rgba(100,116,139,0.1);background:rgba(15,23,42,0.4)">
+        {% if n.summary %}
+        <p class="text-xs text-slate-400" style="line-height:1.5;margin-bottom:6px">{{ n.summary }}</p>
+        {% endif %}
+        <button class="news-evidence-btn" onclick="fetchNewsEvidence(this)"
+                data-stock="{{ stock_code }}"
+                data-title="{{ n.title | replace('\"', '&quot;') }}"
+                style="font-size:0.62rem;padding:2px 8px;border-radius:4px;background:rgba(129,140,248,0.1);color:#a5b4fc;border:1px solid rgba(129,140,248,0.2);cursor:pointer">
+          查看佐证
+        </button>
+        <div class="news-evidence-result" style="display:none;margin-top:6px"></div>
+      </div>
+    </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+  {% else %}
+  {# 旧格式兜底 #}
+  <div class="space-y-2">
+    {% for n in vc.industry_news %}
+    <div class="impact-row" draggable="true"
+         data-chat-context="行业新闻: {{ n.title }} ({{ n.date }}) 来源={{ n.source or '' }}">
+      <div class="impact-dot {{ 'bg-indigo-400' if n.is_driver else 'bg-slate-600' }}"></div>
+      <div class="flex-1">
+        <div class="text-xs text-slate-300">
+          {{ n.title }}
+          {% if n.is_recent %}<span style="font-size:0.6rem;background:rgba(16,185,129,0.15);color:#34d399;padding:1px 5px;border-radius:3px;margin-left:4px">🆕 最新</span>{% endif %}
+          {% if n.is_driver and n.driver_indicator %}<span style="font-size:0.6rem;background:rgba(129,140,248,0.15);color:#a5b4fc;padding:1px 5px;border-radius:3px;margin-left:4px">驱动: {{ n.driver_indicator }}</span>{% endif %}
+        </div>
+        <div class="text-xs text-slate-600">{{ n.date or '' }}{% if n.source %} · {{ n.source }}{% endif %}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+
+  {# 分部定位详情 (segment_positions) #}
+  {% if vc.segment_positions %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">各分部产业链定位</div>
+    {% for sp in vc.segment_positions %}
+    <details class="mb-3" style="border:1px solid rgba(100,116,139,0.15);border-radius:8px;overflow:hidden">
+      <summary style="padding:8px 12px;cursor:pointer;background:rgba(15,23,42,0.5);font-size:0.75rem;font-weight:600;color:#e2e8f0;list-style:none;display:flex;align-items:center;gap:8px">
+        <span class="text-indigo-300">{{ sp.segment_name }}</span>
+        <span style="font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(129,140,248,0.12);color:#a5b4fc">{{ sp.chain_node_label or sp.chain_position }}</span>
+        {% if sp.sub_industry %}<span class="text-slate-500 text-xs">{{ sp.sub_industry }}</span>{% endif %}
+        {% if sp.company_share_pct %}<span class="text-emerald-400 text-xs ml-auto">市占率 {{ sp.company_share_pct }}%</span>{% endif %}
+      </summary>
+      <div style="padding:10px 12px;font-size:0.72rem;display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        {# 左栏：产业链分析 #}
+        <div>
+        {# 市场规模 #}
+        {% if sp.market_size and sp.market_size.value %}
+        <div class="flex gap-4 mb-2">
+          <span class="text-slate-500">市场规模</span>
+          <span class="text-blue-300 font-semibold">{{ sp.market_size.value }}{{ sp.market_size.unit or '' }}
+            {% if sp.market_size.year %}({{ sp.market_size.year }}){% endif %}
+            {% if sp.market_size.forecast %} · 3年CAGR {{ sp.market_size.forecast }}{% endif %}
+          </span>
+          {% if sp.market_size.source %}<span class="text-slate-600">来源: {{ sp.market_size.source }}</span>{% endif %}
+        </div>
+        {% endif %}
+
+        {# 增长驱动 #}
+        {% if sp.growth_drivers %}
+        <div class="mb-2">
+          <span class="text-emerald-400 font-semibold">增长驱动</span>
+          {% for gd in sp.growth_drivers %}
+          <div class="flex items-start gap-2 mt-1">
+            <span class="text-emerald-400 flex-shrink-0">▲</span>
+            <span class="text-slate-300">{{ gd.name }}: {{ gd.description }}</span>
+            {% if gd.data_point %}<span class="text-slate-500 ml-1">[{{ gd.data_point }}]</span>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {# 风险因素 #}
+        {% if sp.risk_factors %}
+        <div class="mb-2">
+          <span class="text-red-400 font-semibold">风险因素</span>
+          {% for rf in sp.risk_factors %}
+          <div class="flex items-start gap-2 mt-1">
+            <span class="text-red-400 flex-shrink-0">▼</span>
+            <span class="text-slate-400">{{ rf.name }}: {{ rf.description }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {# 行业数据 #}
+        {% if sp.key_industry_data %}
+        <div class="mb-2">
+          <span class="text-slate-500 font-semibold">关键行业数据</span>
+          <div class="flex flex-wrap gap-2 mt-1">
+            {% for kd in sp.key_industry_data | sort(attribute='importance', reverse=True) %}
+            <div style="padding:3px 8px;border-radius:4px;background:rgba(100,116,139,0.1);font-size:0.68rem">
+              <span class="text-slate-400">{{ kd.metric }}</span>
+              <span class="text-blue-300 font-semibold ml-1">{{ kd.value }}</span>
+              {% if kd.importance == 'high' %}<span class="text-amber-400 ml-1">●</span>{% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# 分部波特五力 #}
+        {% if sp.porter_five_forces %}
+        <div class="mb-2">
+          <span class="text-slate-500 font-semibold">竞争格局（五力）</span>
+          {% set spf = sp.porter_five_forces %}
+          {% set force_labels = [('supplier_power','供应商'),('buyer_power','买方'),('new_entrants','新进入'),('substitutes','替代品'),('rivalry','同业')] %}
+          <div class="flex flex-wrap gap-1 mt-1">
+            {% for key, label in force_labels %}
+            {% set f = spf.get(key, {}) %}
+            <div style="font-size:0.65rem;padding:2px 6px;border-radius:4px;background:rgba(15,23,42,0.8)">
+              <span class="text-slate-500">{{ label }}</span>
+              <span class="font-semibold ml-1 {{ 'text-red-400' if f.level == 'high' else 'text-amber-400' if f.level == 'medium' else 'text-emerald-400' }}">{{ f.level or '?' }}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+
+        {# 分部新闻 #}
+        {% if sp.segment_news %}
+        <div>
+          <span class="text-slate-500 font-semibold">相关动态</span>
+          {% for sn in sp.segment_news | sort(attribute='importance') %}
+          <div class="flex items-start gap-2 mt-1">
+            <span class="flex-shrink-0 {{ 'text-red-400' if sn.importance == 'high' else 'text-amber-400' if sn.importance == 'medium' else 'text-slate-500' }}" style="font-size:0.65rem">●</span>
+            <div>
+              <span class="text-slate-300">{{ sn.title }}</span>
+              <span class="text-slate-600 ml-1">{{ sn.date or '' }}</span>
+              {% if sn.relation %}<span class="text-slate-500 ml-1">— {{ sn.relation }}</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        </div>
+
+        {# 右栏：对标公司 #}
+        <div style="border-left:1px solid rgba(100,116,139,0.15);padding-left:14px">
+          <div style="font-size:0.65rem;color:#64748b;font-weight:600;margin-bottom:8px">对标公司</div>
+          {% if sp.competitors %}
+          {% for comp in sp.competitors %}
+          <div style="margin-bottom:12px">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+              <span style="font-size:0.72rem;font-weight:600;color:#e2e8f0">{{ comp.name }}</span>
+              {% if comp.ticker and comp.ticker != '非上市' %}
+              <span style="font-size:0.6rem;color:#64748b;font-family:monospace">{{ comp.ticker }}</span>
+              <button class="comp-add-btn" onclick="compAddToList(this, '{{ comp.ticker }}', '{{ comp.name }}')"
+                      style="font-size:0.58rem;padding:1px 5px;border-radius:3px;background:rgba(129,140,248,0.1);color:#818cf8;border:1px solid rgba(129,140,248,0.2);cursor:pointer;line-height:1.4;white-space:nowrap"
+                      title="加入自选">+自选</button>
+              {% elif comp.ticker == '非上市' %}
+              <span style="font-size:0.58rem;padding:1px 5px;border-radius:3px;background:rgba(100,116,139,0.1);color:#64748b">非上市</span>
+              {% endif %}
+            </div>
+            <div style="font-size:0.68rem;color:#94a3b8;line-height:1.5">{{ comp.diff }}</div>
+          </div>
+          {% endfor %}
+          {% else %}
+          <p class="text-xs text-slate-600">暂无对标公司数据</p>
+          {% endif %}
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# 协同效应 (synergies) #}
+  {% if vc.synergies %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">分部协同效应</div>
+    {% for syn in vc.synergies %}
+    <div class="flex items-start gap-2 mb-2" style="font-size:0.72rem">
+      <span style="padding:2px 6px;border-radius:4px;background:rgba(129,140,248,0.12);color:#a5b4fc;font-size:0.65rem;flex-shrink:0">{{ syn.type or '协同' }}</span>
+      <div>
+        <span class="text-slate-300 font-semibold">{{ syn.segment_a }} × {{ syn.segment_b }}</span>
+        <span class="text-slate-400 ml-1">{{ syn.description }}</span>
+        {% if syn.value_impact == 'positive' %}<span class="text-emerald-400 ml-1" style="font-size:0.65rem">↑ 估值提升</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
+</div>
+
+{# ── ③ 财务分析 ── #}
+{% set fin = rpt.financial if rpt.financial else {} %}
+<div class="nb-pane" id="pane-fin">
+  <button class="rerun-btn" data-step="financial" data-report-id="{{ report.id }}">重新分析</button>
+  {% if fin %}
+
+  {# 检测新格式 vs 旧格式 #}
+  {% set _fin_new = fin.revenue_model or fin.historical_financials %}
+  {% set _fin_old = fin.income_comparison or fin.revenue_trend %}
+
+  {% if _fin_new %}
+  {# ========== 新格式：三层递进财务模型 ========== #}
+
+  {# ════════════════════════════════════════════════════
+     第一层：结论区
+     ════════════════════════════════════════════════════ #}
+
+  {# 估值方法 badge #}
+  {% if fin._method_selection %}
+  <div class="flex flex-wrap gap-2 mb-3">
+    <span class="text-xs text-slate-500">估值方法：</span>
+    {% for seg_name, seg_info in fin._method_selection.items() %}
+    <span style="font-size:0.65rem;padding:2px 7px;border-radius:4px;background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.2)">{{ seg_name }}: {{ seg_info.method }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# 营收/利润/EPS 预测卡片（横排）— 只在有实际数值时显示 #}
+  {% set rm = fin.revenue_model if fin.revenue_model else {} %}
+  {% set pm = fin.profit_model if fin.profit_model else {} %}
+  {% set _trf = rm.total_revenue_forecast or [] %}
+  {% set _npf = pm.net_profit_forecast or [] %}
+  {% set _epsf = pm.eps_forecast or [] %}
+  {# 过滤掉全 null 的条目 #}
+  {% set _trf_valid = [] %}{% for r in _trf %}{% if r.revenue is not none %}{% if _trf_valid.append(r) %}{% endif %}{% endif %}{% endfor %}
+  {% set _npf_valid = [] %}{% for r in _npf %}{% if r.net_profit is not none %}{% if _npf_valid.append(r) %}{% endif %}{% endif %}{% endfor %}
+  {% set _epsf_valid = [] %}{% for ef in _epsf %}{% if ef.eps is not none %}{% if _epsf_valid.append(ef) %}{% endif %}{% endif %}{% endfor %}
+  {% if _trf_valid or _npf_valid or _epsf_valid %}
+  <div class="grid grid-cols-3 gap-2 mb-4">
+    {# 营收预测 #}
+    <div class="rounded-lg p-3 border border-slate-700/40 bg-slate-800/20">
+      <div class="text-xs text-slate-500 font-semibold mb-2">营收预测</div>
+      {% for r in _trf_valid %}
+      <div class="flex justify-between items-baseline mb-1">
+        <span class="text-xs text-slate-400">{{ r.period }}</span>
+        <span class="text-sm font-semibold text-amber-300">{{ r.revenue }}亿</span>
+        {% if r.yoy_pct is not none %}<span style="font-size:0.62rem;color:{{ '#34d399' if (r.yoy_pct or 0)>=0 else '#ef4444' }}">{{ '%+.1f'|format(r.yoy_pct or 0) }}%</span>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not _trf_valid %}<span class="text-xs text-slate-600">待预测</span>{% endif %}
+    </div>
+    {# 利润预测 #}
+    <div class="rounded-lg p-3 border border-slate-700/40 bg-slate-800/20">
+      <div class="text-xs text-slate-500 font-semibold mb-2">净利润预测</div>
+      {% for r in _npf_valid %}
+      <div class="flex justify-between items-baseline mb-1">
+        <span class="text-xs text-slate-400">{{ r.period }}</span>
+        <span class="text-sm font-semibold text-emerald-300">{{ r.net_profit }}亿</span>
+        {% if r.yoy_pct is not none %}<span style="font-size:0.62rem;color:{{ '#34d399' if (r.yoy_pct or 0)>=0 else '#ef4444' }}">{{ '%+.1f'|format(r.yoy_pct or 0) }}%</span>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not _npf_valid %}<span class="text-xs text-slate-600">待预测</span>{% endif %}
+    </div>
+    {# EPS 预测 #}
+    <div class="rounded-lg p-3 border border-slate-700/40 bg-slate-800/20">
+      <div class="text-xs text-slate-500 font-semibold mb-2">EPS预测</div>
+      {% for ef in _epsf_valid %}
+      <div class="flex justify-between items-baseline mb-1">
+        <span class="text-xs text-slate-400">{{ ef.period }}</span>
+        <span class="text-sm font-semibold text-purple-300">{{ ef.eps }}元</span>
+        {% if ef.yoy_pct is not none %}<span style="font-size:0.62rem;color:{{ '#34d399' if (ef.yoy_pct or 0)>=0 else '#ef4444' }}">{{ '%+.1f'|format(ef.yoy_pct or 0) }}%</span>{% endif %}
+      </div>
+      {% endfor %}
+      {% if not _epsf_valid %}<span class="text-xs text-slate-600">待预测</span>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {# 前瞻判断（默认折叠 reasoning_chain）+ MD&A 合并 #}
+  {% if fin.forward_outlook %}
+  <div class="mb-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">前瞻判断</div>
+    {% for fo in fin.forward_outlook %}
+    {% set fo_id = 'fo-' ~ loop.index %}
+    {% set dir_color = '#34d399' if fo.direction=='expected_growth' else '#ef4444' if fo.direction=='expected_decline' else '#94a3b8' %}
+    {% set dir_icon = '↑' if fo.direction=='expected_growth' else '↓' if fo.direction=='expected_decline' else '→' %}
+    <div class="rounded-lg border border-slate-700/40 mb-2" style="overflow:hidden">
+      <div onclick="document.getElementById('{{fo_id}}').classList.toggle('hidden')"
+           style="cursor:pointer;padding:8px 12px;display:flex;align-items:center;gap:8px;background:rgba(15,23,42,0.4)">
+        <span style="color:{{ dir_color }};font-size:1rem;font-weight:700">{{ dir_icon }}</span>
+        <span class="text-xs font-semibold text-slate-200">{{ fo.metric }}</span>
+        {% if fo.magnitude %}<span style="font-size:0.65rem;color:{{ dir_color }}">{{ fo.magnitude }}</span>{% endif %}
+        {% if fo.confidence %}
+        <span style="font-size:0.58rem;padding:1px 5px;border-radius:3px;background:rgba(100,116,139,0.12);color:{{ '#34d399' if fo.confidence=='high' else '#fbbf24' if fo.confidence=='medium' else '#ef4444' }}">
+          {{ '高确信' if fo.confidence=='high' else '中确信' if fo.confidence=='medium' else '低确信' }}
+        </span>
+        {% endif %}
+      </div>
+      <div id="{{ fo_id }}" class="hidden" style="padding:8px 12px;background:rgba(15,23,42,0.2)">
+        {% if fo.reasoning_chain %}
+        <div class="mb-2">
+          {% for step in fo.reasoning_chain %}
+          <div style="font-size:0.65rem;color:#94a3b8;padding:2px 0;display:flex;gap:6px">
+            <span style="color:#475569;flex-shrink:0">{{ step.step }}.</span>
+            <span>{{ step.logic }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if fo.evidence %}
+        <div class="mb-1">
+          {% for ev in fo.evidence %}
+          <div style="font-size:0.62rem;color:#34d399;padding:1px 0">▸ {{ ev }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+        {% if fo.risk_factors %}
+        <div>
+          {% for rf in fo.risk_factors %}
+          <div style="font-size:0.62rem;color:#f87171;padding:1px 0">⚠ {{ rf }}</div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+    {# MD&A 合并到前瞻判断区末尾 #}
+    {% if fin.mda_summary %}
+    <div class="rounded-lg border border-slate-700/20 p-2 mt-2" style="background:rgba(15,23,42,0.2)">
+      <div style="font-size:0.62rem;color:#64748b;margin-bottom:2px">管理层讨论摘要</div>
+      <p class="text-xs text-slate-400 leading-relaxed">{{ fin.mda_summary }}</p>
     </div>
     {% endif %}
-  </aside>
+  </div>
+  {% endif %}
+
+  {# 财务健康度一句话 #}
+  {% if fin.financial_health %}<p class="text-xs text-slate-400 mb-4" style="border-left:2px solid rgba(99,102,241,0.3);padding-left:8px">{{ fin.financial_health }}</p>{% endif %}
+
+  {# ════════════════════════════════════════════════════
+     第二层：推导区
+     ════════════════════════════════════════════════════ #}
+  <div class="mb-4" style="border-top:1px solid rgba(100,116,139,0.15);padding-top:12px">
+    <div class="text-xs text-slate-500 font-semibold mb-3" style="letter-spacing:0.5px">推导过程</div>
+
+    {# 营收趋势图 #}
+    <div class="mb-4"><div id="revenue-chart" style="height:220px"></div></div>
+
+    {# 营收模型 #}
+    {% if fin.revenue_model %}
+    {% set rm = fin.revenue_model %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">营收模型</div>
+      {% if rm.methodology %}<p class="text-xs text-slate-400 mb-3">{{ rm.methodology }}</p>{% endif %}
+      {% for seg in (rm.segments or []) %}
+      {% set seg_id = 'rm-seg-' ~ loop.index %}
+      <div class="seg-card mb-2">
+        <div class="seg-header" onclick="document.getElementById('{{seg_id}}').classList.toggle('open')" style="cursor:pointer">
+          <span class="seg-name">{{ seg.segment_name or '分部' }}</span>
+          {% if seg.segment_pct is not none %}<span style="font-size:0.65rem;color:#94a3b8">{{ seg.segment_pct }}%</span>{% endif %}
+          {% if seg.segment_gross_margin_pct %}<span style="font-size:0.65rem;color:#34d399;margin-left:6px">毛利{{ seg.segment_gross_margin_pct }}%</span>{% endif %}
+          {% if seg.model_formula %}<span style="font-size:0.62rem;color:#64748b;margin-left:6px;font-style:italic">{{ seg.model_formula }}</span>{% endif %}
+        </div>
+        <div class="seg-detail" id="{{ seg_id }}">
+          {% for drv in (seg.key_drivers or []) %}
+          <div class="mt-2 p-2 rounded" style="background:rgba(15,23,42,0.4)">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold text-blue-300">{{ drv.driver_name }}</span>
+              <span style="font-size:0.58rem;padding:1px 4px;border-radius:3px;background:rgba(99,102,241,0.12);color:#a5b4fc">{{ drv.driver_type }}</span>
+              {% if drv.industry_constraint %}<span style="font-size:0.58rem;padding:1px 4px;border-radius:3px;background:rgba(245,158,11,0.12);color:#fbbf24">约束</span>{% endif %}
+            </div>
+            <div class="flex gap-3 text-xs" style="color:#64748b">
+              {% if drv.current_value %}
+              <span>当前: <span style="color:{{ '#34d399' if drv.current_value.is_actual else '#94a3b8' }}">{{ drv.current_value.value or '—' }}{{ drv.unit or '' }}</span>
+                <span style="font-size:0.58rem">{{ '实际' if drv.current_value.is_actual else '假设' }}</span>
+              </span>
+              {% endif %}
+              {% if drv.forecast and drv.forecast[0] and drv.forecast[0].value is not none %}
+              <span>预测{{ drv.forecast[0].period }}: <span style="color:#60a5fa">{{ drv.forecast[0].value }}{{ drv.unit or '' }}</span>
+                <span style="font-size:0.58rem;color:{{ '#34d399' if drv.forecast[0].confidence=='high' else '#fbbf24' if drv.forecast[0].confidence=='medium' else '#ef4444' }}">{{ drv.forecast[0].confidence }}</span>
+              </span>
+              {% endif %}
+            </div>
+            {% if drv.industry_constraint %}<div style="font-size:0.62rem;color:#fbbf24;margin-top:2px">⚠ {{ drv.industry_constraint }}</div>{% endif %}
+          </div>
+          {% endfor %}
+          {% if seg.revenue_history or seg.revenue_forecast %}
+          <div class="mt-2">
+            <div class="overflow-x-auto">
+              <table style="width:100%;border-collapse:collapse;font-size:0.68rem">
+                <thead><tr>
+                  {% for r in (seg.revenue_history or []) %}<th style="color:#64748b;padding:2px 6px;text-align:right">{{ r.period }}</th>{% endfor %}
+                  {% for r in (seg.revenue_forecast or []) %}<th style="color:#60a5fa;padding:2px 6px;text-align:right">{{ r.period }}</th>{% endfor %}
+                </tr></thead>
+                <tbody><tr>
+                  {% for r in (seg.revenue_history or []) %}<td style="color:#e2e8f0;padding:2px 6px;text-align:right">{{ (r.revenue ~ '亿') if r.revenue is not none else '—' }}</td>{% endfor %}
+                  {% for r in (seg.revenue_forecast or []) %}<td style="color:#60a5fa;padding:2px 6px;text-align:right;font-style:italic">{{ (r.revenue ~ '亿') if r.revenue is not none else '—' }}</td>{% endfor %}
+                </tr></tbody>
+              </table>
+            </div>
+          </div>
+          {% endif %}
+          {% if seg.model_vs_actual %}
+          <p style="font-size:0.65rem;color:#94a3b8;margin-top:4px">{{ seg.model_vs_actual }}</p>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# 利润模型 #}
+    {% if fin.profit_model %}
+    {% set pm = fin.profit_model %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">利润模型</div>
+      {% if pm.methodology %}<p class="text-xs text-slate-400 mb-2">{{ pm.methodology }}</p>{% endif %}
+      {% if pm.cogs_drivers %}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-2 mb-3">
+        {% for cd in pm.cogs_drivers %}
+        {% set pt_color = '#34d399' if cd.cost_pass_through=='full' else '#fbbf24' if cd.cost_pass_through=='partial' else '#ef4444' %}
+        <div class="rounded-lg p-2 border border-slate-700/40 bg-slate-800/20">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="text-xs font-semibold text-slate-300">{{ cd.driver_name }}</span>
+            <span style="font-size:0.58rem;color:#64748b">{{ cd.cost_category }}</span>
+            {% if cd.cost_pass_through %}
+            <span style="font-size:0.58rem;padding:1px 4px;border-radius:3px;background:rgba(0,0,0,0.2);color:{{ pt_color }}">
+              {{ '完全转嫁' if cd.cost_pass_through=='full' else '部分转嫁' if cd.cost_pass_through=='partial' else '无法转嫁' }}
+            </span>
+            {% endif %}
+          </div>
+          {% if cd.mechanism %}<div style="font-size:0.62rem;color:#94a3b8">{{ cd.mechanism }}</div>{% endif %}
+          {% if cd.forecast_impact %}<div style="font-size:0.62rem;color:#64748b;margin-top:2px">预期: {{ cd.forecast_impact }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if pm.margin_forecast %}
+      <div class="overflow-x-auto mb-2">
+        <table style="width:100%;border-collapse:collapse;font-size:0.7rem">
+          <thead><tr>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">期间</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:right">毛利率</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:right">营业利润率</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:right">净利率</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">逻辑</th>
+          </tr></thead>
+          <tbody>
+          {% for mf in pm.margin_forecast %}
+          <tr>
+            <td style="color:#94a3b8;padding:3px 8px">{{ mf.period }}</td>
+            <td style="text-align:right;color:#34d399;padding:3px 8px">{{ (mf.gross_margin_pct ~ '%') if mf.gross_margin_pct is not none else '—' }}</td>
+            <td style="text-align:right;color:#60a5fa;padding:3px 8px">{{ (mf.operating_margin_pct ~ '%') if mf.operating_margin_pct is not none else '—' }}</td>
+            <td style="text-align:right;color:#a78bfa;padding:3px 8px">{{ (mf.net_margin_pct ~ '%') if mf.net_margin_pct is not none else '—' }}</td>
+            <td style="color:#64748b;padding:3px 8px;font-size:0.62rem">{{ mf.basis or '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if pm.ebitda_forecast %}
+      <div class="flex gap-2 flex-wrap mt-2">
+        {% for ef in pm.ebitda_forecast %}
+        <div class="metric-card" style="flex:none">
+          <div class="m-label">{{ ef.period }} EBITDA</div>
+          <div class="m-val text-indigo-300">{{ ef.ebitda }}亿</div>
+          {% if ef.basis %}<div class="m-sub text-slate-500">{{ ef.basis }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 现金流模型（DCF 专用）#}
+    {% if fin.cash_flow_model %}
+    {% set cfm = fin.cash_flow_model %}
+    <div class="mb-4 p-3 rounded-xl" style="background:rgba(30,58,138,0.1);border:1px solid rgba(99,102,241,0.15)">
+      <div class="text-xs text-indigo-400 font-semibold mb-2">现金流模型（DCF）</div>
+      {% if cfm.cash_conversion_assessment %}<p class="text-xs text-slate-400 mb-2">{{ cfm.cash_conversion_assessment }}</p>{% endif %}
+      {% if cfm.working_capital %}
+      {% set wc = cfm.working_capital %}
+      <div class="grid grid-cols-4 gap-2 mb-3">
+        {% for label, field in [('DSO天', 'dso'), ('DIO天', 'dio'), ('DPO天', 'dpo'), ('CCC天', 'ccc')] %}
+        {% set wf = wc[field] if wc[field] else {} %}
+        <div class="metric-card">
+          <div class="m-label">{{ label }}</div>
+          <div class="m-val text-blue-300">{{ wf.latest or '—' }}</div>
+          <div class="m-sub {{ 'text-emerald-400' if wf.trend=='改善' else 'text-red-400' if wf.trend=='恶化' else 'text-slate-500' }}">{{ wf.trend or '' }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if cfm.fcf_forecast %}
+      <div class="flex gap-2 flex-wrap mb-2">
+        {% for ff in cfm.fcf_forecast %}
+        <div class="metric-card" style="flex:none">
+          <div class="m-label">{{ ff.period }} FCF</div>
+          <div class="m-val text-emerald-300">{{ ff.fcf }}亿</div>
+          {% if ff.basis %}<div class="m-sub text-slate-500" style="font-size:0.6rem">{{ ff.basis }}</div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if cfm.wacc_assumptions %}
+      {% set wa = cfm.wacc_assumptions %}
+      <div class="flex gap-3 flex-wrap text-xs" style="color:#64748b">
+        {% if wa.wacc %}<span>WACC: <span class="text-slate-300">{{ wa.wacc }}%</span></span>{% endif %}
+        {% if wa.risk_free_rate %}<span>Rf: <span class="text-slate-300">{{ wa.risk_free_rate }}%</span></span>{% endif %}
+        {% if wa.beta %}<span>Beta: <span class="text-slate-300">{{ wa.beta }}</span></span>{% endif %}
+        {% if wa.terminal_growth_rate %}<span>g: <span class="text-slate-300">{{ wa.terminal_growth_rate }}%</span></span>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 账面价值分析（PB 专用）#}
+    {% if fin.book_value_analysis %}
+    {% set bva = fin.book_value_analysis %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">账面价值分析（PB）</div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+        {% if bva.net_assets %}<div class="metric-card"><div class="m-label">净资产</div><div class="m-val text-blue-300">{{ bva.net_assets }}亿</div></div>{% endif %}
+        {% if bva.bvps %}<div class="metric-card"><div class="m-label">BVPS</div><div class="m-val text-emerald-300">{{ bva.bvps }}元</div></div>{% endif %}
+      </div>
+      {% if bva.asset_quality %}<p class="text-xs text-slate-400 mb-2">{{ bva.asset_quality }}</p>{% endif %}
+      {% if bva.pb_peers %}
+      <div class="overflow-x-auto">
+        <table class="comp-table">
+          <thead><tr><th>可比公司</th><th>PB倍数</th></tr></thead>
+          <tbody>{% for p in bva.pb_peers %}<tr><td>{{ p.company }}</td><td class="text-amber-300">{{ p.pb }}x</td></tr>{% endfor %}</tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 敏感性分析 #}
+    {% if fin.sensitivity_analysis %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">敏感性分析</div>
+      <div class="overflow-x-auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.68rem">
+          <thead><tr>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">关键假设</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">基准值</th>
+            <th style="color:#34d399;padding:3px 8px;text-align:left">乐观</th>
+            <th style="color:#ef4444;padding:3px 8px;text-align:left">悲观</th>
+          </tr></thead>
+          <tbody>
+          {% for sa in fin.sensitivity_analysis %}
+          <tr>
+            <td style="color:#e2e8f0;padding:3px 8px;font-weight:600">{{ sa.driver_name }}</td>
+            <td style="color:#94a3b8;padding:3px 8px">{{ sa.base_case }}</td>
+            <td style="padding:3px 8px;background:rgba(52,211,153,0.05)">
+              {% set bull = sa.bull_case if sa.bull_case is mapping else {} %}
+              <span style="color:#34d399">{{ bull.value or sa.bull_case or '—' }}</span>
+              {% if bull.revenue_impact_pct %}<span style="font-size:0.6rem;color:#6ee7b7;margin-left:4px">营收{{ bull.revenue_impact_pct }}%</span>{% endif %}
+            </td>
+            <td style="padding:3px 8px;background:rgba(239,68,68,0.05)">
+              {% set bear = sa.bear_case if sa.bear_case is mapping else {} %}
+              <span style="color:#ef4444">{{ bear.value or sa.bear_case or '—' }}</span>
+              {% if bear.revenue_impact_pct %}<span style="font-size:0.6rem;color:#fca5a5;margin-left:4px">营收{{ bear.revenue_impact_pct }}%</span>{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>{# end 推导区 #}
+
+  {# ════════════════════════════════════════════════════
+     第三层：历史对照区
+     ════════════════════════════════════════════════════ #}
+  <div style="border-top:1px solid rgba(100,116,139,0.15);padding-top:12px">
+    <div class="text-xs text-slate-500 font-semibold mb-3" style="letter-spacing:0.5px">历史对照</div>
+
+    {# 营收趋势图（旧格式用）+ 历史利润表（含 key_ratios 合并）#}
+    {% if fin.historical_financials %}
+    {% set hf = fin.historical_financials %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">历史利润表</div>
+      {% if hf.income_statement %}
+      <div class="overflow-x-auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.7rem">
+          <thead><tr>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">项目</th>
+            {% for p in (hf.periods or []) %}<th style="color:#64748b;padding:3px 8px;text-align:right">{{ p }}</th>{% endfor %}
+            <th style="color:#64748b;padding:3px 8px;text-align:right">YoY</th>
+          </tr></thead>
+          <tbody>
+          {% for row in hf.income_statement %}
+          <tr>
+            <td style="color:#e2e8f0;padding:3px 8px;font-weight:600">{{ row.item }}</td>
+            {% for v in (row['values'] or []) %}
+            <td style="text-align:right;color:#60a5fa;padding:3px 8px">{{ v if v is not none else '—' }}</td>
+            {% endfor %}
+            <td style="text-align:right;padding:3px 8px;color:{{ '#ef4444' if (row.latest_yoy_pct or 0) < 0 else '#10b981' if row.latest_yoy_pct is not none else '#64748b' }}">
+              {% if row.latest_yoy_pct is not none %}{{ '%+.1f'|format(row.latest_yoy_pct) }}%{% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+          {# key_ratios 合并到表格底部 #}
+          {% if hf.key_ratios %}
+          <tr><td colspan="{{ (hf.periods or [])|length + 2 }}" style="padding:4px 0;border-top:1px solid rgba(100,116,139,0.12)"></td></tr>
+          {% for row in hf.key_ratios %}
+          <tr>
+            <td style="color:#94a3b8;padding:2px 8px;font-size:0.68rem">{{ row.ratio }}</td>
+            {% for v in (row['values'] or []) %}
+            <td style="text-align:right;color:#94a3b8;padding:2px 8px;font-size:0.68rem">{{ v if v is not none else '—' }}{{ row.unit or '' }}</td>
+            {% endfor %}
+            <td style="padding:2px 8px;color:{{ '#34d399' if row.trend=='改善' else '#ef4444' if row.trend=='恶化' else '#64748b' }};font-size:0.62rem">{{ row.trend or '—' }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 杜邦分解 + 资产负债表摘要（并排）#}
+    {% set dp = fin.dupont if fin.dupont else {} %}
+    {% set bs = fin.balance_sheet_summary if fin.balance_sheet_summary else {} %}
+    {% if (dp and dp.periods) or bs %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      {% if dp and dp.periods %}
+      <div>
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-xs text-slate-500 font-semibold">ROE 杜邦分解</span>
+          {% if dp.summary %}<span class="text-xs text-slate-400">— {{ dp.summary }}</span>{% endif %}
+        </div>
+        <div class="overflow-x-auto">
+          <table class="comp-table">
+            <thead><tr><th>年度</th><th>ROE</th><th>净利率</th><th>周转率</th><th>杠杆</th></tr></thead>
+            <tbody>
+            {% for p in dp.periods %}
+            <tr>
+              <td class="text-slate-300">{{ p.period }}</td>
+              <td class="text-amber-400 font-semibold">{{ (p.roe ~ '%') if p.roe is not none else '—' }}</td>
+              <td class="text-slate-300">{{ (p.profit_margin ~ '%') if p.profit_margin is not none else '—' }}</td>
+              <td class="text-slate-300">{{ p.asset_turnover if p.asset_turnover is not none else '—' }}</td>
+              <td class="text-slate-300">{{ p.equity_multiplier if p.equity_multiplier is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+      {% if bs %}
+      <div>
+        <div class="text-xs text-slate-500 font-semibold mb-2">资产负债表要点</div>
+        <div class="grid grid-cols-2 gap-2 mb-2">
+          {% if bs.total_assets is not none %}<div class="metric-card"><div class="m-label">总资产</div><div class="m-val text-blue-300">{{ bs.total_assets }}</div></div>{% endif %}
+          {% if bs.total_liabilities is not none %}<div class="metric-card"><div class="m-label">总负债</div><div class="m-val text-amber-300">{{ bs.total_liabilities }}</div></div>{% endif %}
+          {% if bs.equity is not none %}<div class="metric-card"><div class="m-label">股东权益</div><div class="m-val text-emerald-300">{{ bs.equity }}</div></div>{% endif %}
+          {% if bs.cash_and_equivalents is not none %}<div class="metric-card"><div class="m-label">货币资金</div><div class="m-val text-indigo-300">{{ bs.cash_and_equivalents }}</div></div>{% endif %}
+        </div>
+        {% if bs.comment %}<p class="text-xs text-slate-400 leading-relaxed">{{ bs.comment }}</p>{% endif %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {# 假设追踪 #}
+    {% if fin.assumption_tracker %}
+    <div class="mb-4">
+      <div class="text-xs text-slate-500 font-semibold mb-2">假设追踪</div>
+      <div class="overflow-x-auto">
+        <table style="width:100%;border-collapse:collapse;font-size:0.68rem">
+          <thead><tr>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">假设</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">类型</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">假设值</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">实际值</th>
+            <th style="color:#64748b;padding:3px 8px;text-align:left">状态</th>
+          </tr></thead>
+          <tbody>
+          {% for at in fin.assumption_tracker %}
+          {% set st_color = '#34d399' if at.status=='actual_replaced' else '#fbbf24' if at.status=='partially_confirmed' else '#94a3b8' %}
+          <tr>
+            <td style="color:#e2e8f0;padding:3px 8px">{{ at.item }}</td>
+            <td style="padding:3px 8px"><span style="font-size:0.6rem;padding:1px 4px;border-radius:3px;background:rgba(100,116,139,0.12);color:{{ '#10b981' if at.category=='topline' else '#3b82f6' }}">{{ at.category }}</span></td>
+            <td style="color:#94a3b8;padding:3px 8px">{{ at.assumed_value or '—' }}</td>
+            <td style="color:#34d399;padding:3px 8px">{{ at.actual_value or '—' }}</td>
+            <td style="padding:3px 8px;color:{{ st_color }};font-size:0.62rem">{{ at.status or '' }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+  </div>{# end 历史对照区 #}
+
+  {% else %}
+  {# ========== 旧格式 fallback ========== #}
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+    <div class="lg:col-span-2"><div id="revenue-chart" style="height:220px"></div></div>
+    <div class="space-y-2">
+      {% if fin.key_metrics %}
+      {% for m in fin.key_metrics %}
+      <div class="metric-card">
+        <div class="m-label">{{ m.name }}</div>
+        <div class="m-val text-white">{{ m.value }}</div>
+        <div class="m-sub {{ 'text-emerald-400' if m.trend == '改善' else 'text-red-400' if m.trend == '恶化' else 'text-slate-500' }}">{{ m.trend }} · {{ m.comment or '' }}</div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </div>
+  </div>
+  <div class="grid grid-cols-2 gap-4 mb-3">
+    {% if fin.topline_decomposition %}
+    <div class="bmc-cell" draggable="true" data-chat-context="Topline驱动分析: {{ fin.topline_decomposition }}">
+      <div class="label" style="color:#10b981">Topline 驱动拆解</div>
+      <div class="val">{{ fin.topline_decomposition }}</div>
+      {% if fin.topline_key_drivers %}
+      <div class="flex flex-wrap gap-1 mt-2">
+        {% for d in fin.topline_key_drivers %}
+        <span style="font-size:0.62rem;padding:2px 6px;border-radius:4px;background:rgba(16,185,129,0.12);color:#34d399;border:1px solid rgba(16,185,129,0.2)">★ {{ d }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if fin.bottomline_decomposition %}
+    <div class="bmc-cell" draggable="true" data-chat-context="Bottomline驱动分析: {{ fin.bottomline_decomposition }}">
+      <div class="label" style="color:#3b82f6">Bottomline 驱动拆解</div>
+      <div class="val">{{ fin.bottomline_decomposition }}</div>
+      {% if fin.bottomline_key_drivers %}
+      <div class="flex flex-wrap gap-1 mt-2">
+        {% for d in fin.bottomline_key_drivers %}
+        <span style="font-size:0.62rem;padding:2px 6px;border-radius:4px;background:rgba(59,130,246,0.12);color:#60a5fa;border:1px solid rgba(59,130,246,0.2)">★ {{ d }}</span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+  {% set dp = fin.dupont if fin.dupont else {} %}
+  {% if dp and dp.periods %}
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-xs text-slate-500 font-semibold">ROE 杜邦分解</span>
+    {% if dp.summary %}<span class="text-xs text-slate-400">— {{ dp.summary }}</span>{% endif %}
+  </div>
+  <div class="overflow-x-auto">
+    <table class="comp-table">
+      <thead><tr><th>年度</th><th>ROE</th><th>净利率</th><th>资产周转率</th><th>权益乘数</th></tr></thead>
+      <tbody>
+      {% for p in dp.periods %}
+      <tr>
+        <td class="text-slate-300">{{ p.period }}</td>
+        <td class="text-amber-400 font-semibold">{{ (p.roe ~ '%') if p.roe is not none else '—' }}</td>
+        <td class="text-slate-300">{{ (p.profit_margin ~ '%') if p.profit_margin is not none else '—' }}</td>
+        <td class="text-slate-300">{{ p.asset_turnover if p.asset_turnover is not none else '—' }}</td>
+        <td class="text-slate-300">{{ p.equity_multiplier if p.equity_multiplier is not none else '—' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  {% if fin.financial_health %}<p class="text-xs text-slate-400 mt-3">{{ fin.financial_health }}</p>{% endif %}
+  {% if fin.balance_sheet_summary %}
+  {% set bs = fin.balance_sheet_summary %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">资产负债表要点</div>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2">
+      {% if bs.total_assets is not none %}<div class="metric-card"><div class="m-label">总资产</div><div class="m-val text-blue-300">{{'%.1f'|format((bs.total_assets or 0)/1e8)}}亿</div></div>{% endif %}
+      {% if bs.total_liabilities is not none %}<div class="metric-card"><div class="m-label">总负债</div><div class="m-val text-amber-300">{{'%.1f'|format((bs.total_liabilities or 0)/1e8)}}亿</div></div>{% endif %}
+      {% if bs.equity is not none %}<div class="metric-card"><div class="m-label">股东权益</div><div class="m-val text-emerald-300">{{'%.1f'|format((bs.equity or 0)/1e8)}}亿</div></div>{% endif %}
+      {% if bs.cash_and_equivalents is not none %}<div class="metric-card"><div class="m-label">货币资金</div><div class="m-val text-indigo-300">{{'%.1f'|format((bs.cash_and_equivalents or 0)/1e8)}}亿</div></div>{% endif %}
+    </div>
+    {% if bs.comment %}<p class="text-xs text-slate-400 leading-relaxed">{{ bs.comment }}</p>{% endif %}
+  </div>
+  {% endif %}
+  {% if fin.mda_summary %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-1">管理层讨论与分析（MD&A）</div>
+    <p class="text-xs text-slate-300 leading-relaxed">{{ fin.mda_summary }}</p>
+  </div>
+  {% endif %}
+  {% if fin.income_comparison %}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">多期财务指标对比</div>
+    <div class="overflow-x-auto">
+      <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+        <thead>
+          <tr>
+            <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">指标</th>
+            {% if fin.income_comparison[0].periods %}
+            {% for p in fin.income_comparison[0].periods %}
+            <th style="text-align:right;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">{{ p.period }}</th>
+            {% endfor %}
+            {% endif %}
+            <th style="text-align:right;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">同比</th>
+            <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">简评</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for row in fin.income_comparison %}
+        <tr>
+          <td style="color:#e2e8f0;padding:4px 8px;font-weight:600">{{ row.item }}</td>
+          {% for p in row.periods %}
+          <td style="text-align:right;color:#60a5fa;padding:4px 8px">{{ p.value }}</td>
+          {% endfor %}
+          <td style="text-align:right;padding:4px 8px;color:{{ '#ef4444' if (row.change_pct or 0) < 0 else '#10b981' }}">
+            {% if row.change_pct is not none %}{{ '%+.1f'|format(row.change_pct) }}%{% else %}—{% endif %}
+          </td>
+          <td style="color:#94a3b8;padding:4px 8px">{{ row.comment or '' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+  {% endif %}{# end new/old format if #}
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
 </div>
+
+{# ── ④ 估值分析 ── #}
+{% set val = rpt.valuation if rpt.valuation else {} %}
+<div class="nb-pane" id="pane-val">
+  <button class="rerun-btn" data-step="valuation" data-report-id="{{ report.id }}">重新分析</button>
+  {% if val %}
+
+  <!-- 总览：方法 + 结论 -->
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-xs text-blue-400 font-semibold">{{ val.method or '' }}</span>
+    {% if val.upside %}<span class="text-xs text-emerald-400 font-semibold ml-2">潜在空间 {{ val.upside }}</span>{% endif %}
+  </div>
+
+  <!-- 汇总计算步骤（折叠） -->
+  {% if val.calculation_steps %}
+  <div class="mb-3">
+    {% for s in val.calculation_steps %}
+    <div class="calc-step">
+      <div class="calc-num">{{ loop.index }}</div>
+      <div>
+        <div class="text-xs text-slate-300">{{ s.step }}</div>
+        {% if s.formula %}<div class="text-xs text-slate-500 font-mono">{{ s.formula }}</div>{% endif %}
+        {% if s.result %}<div class="text-xs text-blue-300 font-semibold">= {{ s.result }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 价值对比图 -->
+  {% if val.intrinsic_value and val.current_price %}
+  <div id="val-bar" style="height:100px"></div>
+  {% endif %}
+
+  <!-- 分部估值详情 -->
+  {% set seg_vals = val.get('_segment_valuations', []) %}
+  {% if seg_vals %}
+  <div class="text-xs text-slate-500 font-semibold mt-4 mb-2">分部估值详情（点击展开推导过程）</div>
+  {% for sv in seg_vals %}
+  {% set seg_id = 'seg-' ~ loop.index %}
+  <div class="seg-card">
+    <div class="seg-header" onclick="document.getElementById('{{seg_id}}').classList.toggle('open')">
+      <span class="seg-name">{{ sv.segment_name or '分部' ~ loop.index }}</span>
+      <span class="seg-method">{{ sv.method or '' }}</span>
+      {% if sv.segment_value %}
+      <span class="seg-value">{{ sv.segment_value.base_case or 0 }}{{ sv.value_unit or '亿元' }}</span>
+      {% endif %}
+    </div>
+    <div class="seg-detail" id="{{ seg_id }}">
+
+      {# 行业分类 + 方法理由 #}
+      {% if sv.industry_classification or sv.method_reason %}
+      <div class="text-xs text-slate-400 mb-2 mt-1">
+        {% if sv.industry_classification %}
+        <span class="industry-badge">{{ sv.industry_classification }}{% if sv.industry_l2 %}/{{ sv.industry_l2 }}{% endif %}</span>
+        {% endif %}
+        {% if sv.method_reason %}<span class="ml-1 text-slate-500">{{ sv.method_reason }}</span>{% endif %}
+      </div>
+      {% endif %}
+      {# 方法合规警告 #}
+      {% if sv._method_compliance_warning %}
+      <div class="method-compliance-warn">方法合规警告: {{ sv._method_compliance_warning }}</div>
+      {% endif %}
+
+      {# 关键假设与推导 #}
+      {% if sv.assumptions %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">关键假设</div>
+      {% for a in sv.assumptions %}
+      <div class="deriv-block">
+        <div class="deriv-label">{{ a.item or '' }}{% if a.value %}: {{ a.value }}{{ a.unit or '' }}{% endif %}
+          {% if a.confidence %}<span class="ml-2" style="color:{{ '#34d399' if a.confidence == 'high' else '#fbbf24' if a.confidence == 'medium' else '#f87171' }}">{{ a.confidence }}</span>{% endif %}
+        </div>
+        {% if a.derivation %}<div class="deriv-text">{{ a.derivation }}</div>{% endif %}
+        {% if a.upstream_reference %}<div class="deriv-source">上游引用: {{ a.upstream_reference[:200] }}</div>{% endif %}
+        {% if a.source_refs %}<div class="deriv-source">来源: {{ a.source_refs | join('；') }}</div>{% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+
+      {# 收入预测 #}
+      {% if sv.revenue_forecast %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">收入预测</div>
+      {% for yr_key in ['year_1', 'year_2', 'year_3'] %}
+      {% set yr = sv.revenue_forecast.get(yr_key, {}) %}
+      {% if yr and yr.get('value') %}
+      <div class="forecast-row">
+        <span class="forecast-yr">{{ yr_key | replace('year_', 'Y') }}</span>
+        <div>
+          <span class="forecast-val">{{ yr.value }}{{ sv.value_unit or '亿元' }}</span>
+          <span class="forecast-growth">+{{ yr.growth_pct or 0 }}%</span>
+          {% if yr.upstream_drivers_used %}
+          <div class="forecast-drivers">驱动: {{ (yr.upstream_drivers_used or []) | join(' / ') }}</div>
+          {% endif %}
+          {% if yr.basis %}<div class="forecast-basis">{{ yr.basis[:250] }}</div>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% endif %}
+
+      {# 产能校验 #}
+      {% if sv.capacity_check %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">产能校验</div>
+      <div class="text-xs text-slate-400" style="line-height:1.4">
+        {% if sv.capacity_check.can_support is not none %}
+        <span class="{{ 'text-emerald-400' if sv.capacity_check.can_support else 'text-amber-400' }}">{{ '可支撑' if sv.capacity_check.can_support else '存疑' }}</span> —
+        {% endif %}
+        {{ sv.capacity_check.detail or '' }}
+        {% if sv.capacity_check.constraint_if_any %}<br><span class="text-amber-400">约束: </span>{{ sv.capacity_check.constraint_if_any }}{% endif %}
+      </div>
+      {% endif %}
+
+      {# 可比公司 #}
+      {% if sv.peer_benchmark and sv.peer_benchmark.peer_median %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">可比估值</div>
+      <div class="text-xs text-slate-400">
+        {{ sv.peer_benchmark.metric_name or '' }} 中位数 {{ sv.peer_benchmark.peer_median }} / 75分位 {{ sv.peer_benchmark.peer_75th or '—' }}
+        → 选用 {{ sv.peer_benchmark.selected_multiple or '—' }}x ({{ sv.peer_benchmark.premium_or_discount or '' }})
+        {% if sv.peer_benchmark.premium_reason %}<br><span class="text-slate-500">{{ sv.peer_benchmark.premium_reason }}</span>{% endif %}
+      </div>
+      {% endif %}
+
+      {# 风险因素 #}
+      {% if sv.constraint_factors %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">风险因素</div>
+      <div>
+        {% for cf in sv.constraint_factors %}
+        {% if cf._capped %}
+        <span class="constraint-tag capped" title="{{ cf._cap_reason or '' }}">{{ cf.factor or '' }} ({{ cf.impact_pct or 0 }}%)</span>
+        {% else %}
+        <span class="constraint-tag {{ cf.probability or 'medium' }}">{{ cf.factor or '' }} ({{ cf.impact_pct or 0 }}%){% if cf.source %} ✓{% endif %}</span>
+        {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# 三情景 #}
+      {% if sv.segment_value %}
+      <div class="text-xs text-slate-500 font-semibold mb-1 mt-2">估值区间</div>
+      <div class="text-xs text-slate-400">
+        悲观 {{ sv.segment_value.bear_case or '—' }} / 基准 <span class="text-blue-300 font-semibold">{{ sv.segment_value.base_case or '—' }}</span> / 乐观 {{ sv.segment_value.bull_case or '—' }} {{ sv.value_unit or '亿元' }}
+      </div>
+      {% endif %}
+
+      {% if sv.data_gap_note %}<div class="text-xs text-amber-400 mt-1">{{ sv.data_gap_note }}</div>{% endif %}
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- KG检索日志 -->
+  {% set kg_log = val.get('_kg_retrieval_log', []) %}
+  {% if kg_log %}
+  <div class="kg-log-toggle" onclick="document.getElementById('kg-log-box').classList.toggle('open')">
+    查看知识库检索记录 ({{ kg_log | length }}次调用)
+  </div>
+  <div class="kg-log-content" id="kg-log-box">
+    {% for log in kg_log %}
+    <div style="margin-bottom:6px;border-bottom:1px solid rgba(100,116,139,0.08);padding-bottom:4px">
+      <span class="text-blue-400">{{ log.tool or '' }}</span>
+      <span class="text-slate-500">{{ log.args | tojson if log.args else '' }}</span>
+      {% if log.result_summary %}<div class="text-slate-400">{{ log.result_summary[:150] }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- 对照公司 + 结论 -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-3">
+    <div>
+      {% if val.comparables %}
+      <div class="text-xs text-slate-500 font-semibold mb-2">对照公司</div>
+      <table class="comp-table">
+        <thead><tr><th>公司</th><th>PE</th><th>PB</th><th>PS</th></tr></thead>
+        <tbody>
+        {% for c in val.comparables %}
+        <tr>
+          <td class="text-slate-300">{{ c.company }}</td>
+          <td class="text-slate-400">{{ c.pe or '—' }}</td>
+          <td class="text-slate-400">{{ c.pb or '—' }}</td>
+          <td class="text-slate-400">{{ c.ps or '—' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    <div>
+      {% if val.conclusion %}
+      <p class="text-xs text-slate-400 leading-relaxed">{{ val.conclusion }}</p>
+      {% endif %}
+      {% if val.method_reason %}
+      <p class="text-xs text-slate-500 mt-2 leading-relaxed">{{ val.method_reason }}</p>
+      {% endif %}
+    </div>
+  </div>
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
+</div>
+
+{# ── ⑤ 资金态度 ── #}
+{% set sh = rpt.sector_heat if rpt.sector_heat else {} %}
+{% set shd = sector_heat_detail if sector_heat_detail else {} %}
+<div class="nb-pane" id="pane-sh">
+  <button class="rerun-btn" data-step="sector_heat" data-report-id="{{ report.id }}">重新分析</button>
+  {% if sh %}
+
+  {# (1) 行业7日逐日净流入直方图 #}
+  {% if shd.industry_daily_flow %}
+  <div class="text-xs text-slate-500 font-semibold mb-1 mt-1" draggable="true"
+       data-chat-context="行业7日资金流: 近7日逐日净流入趋势">行业净流入（近7日，元）</div>
+  <div id="sh-industry-daily-flow" style="height:160px;margin-bottom:1.25rem"></div>
+  {% elif sh.summary %}
+  <p class="text-xs text-slate-400 mb-4">{{ sh.summary }}</p>
+  {% endif %}
+
+  {# (2) 二级行业净流入降序明细 #}
+  {% if shd.industry_sub_breakdown %}
+  <div class="text-xs text-slate-500 font-semibold mb-2" draggable="true"
+       data-chat-context="二级行业净流入明细: 当日各子行业净流入排行">二级行业净流入明细（当日，降序）</div>
+  <div class="overflow-x-auto mb-4">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead><tr>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">行业</th>
+        <th style="text-align:right;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">净流入（亿）</th>
+        <th style="text-align:right;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">涨跌幅%</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">领涨股</th>
+      </tr></thead>
+      <tbody>
+      {% for sub in shd.industry_sub_breakdown %}
+      {% set is_inflow = (sub.net_inflow or 0) >= 0 %}
+      <tr draggable="true" data-chat-context="二级行业-{{ sub.name }}: 净流入{{ '%.2f'|format((sub.net_inflow or 0)/1e8) }}亿 涨跌{{ sub.change_pct or 0 }}%">
+        <td style="color:#e2e8f0;padding:4px 8px">{{ sub.name }}</td>
+        <td style="text-align:right;padding:4px 8px;font-weight:600;color:{{ '#f87171' if is_inflow else '#34d399' }}">
+          {{ '%.2f'|format((sub.net_inflow or 0)/1e8) }}
+        </td>
+        <td style="text-align:right;padding:4px 8px;color:{{ '#f87171' if (sub.change_pct or 0) >= 0 else '#34d399' }}">
+          {{ '%.2f'|format(sub.change_pct or 0) }}%
+        </td>
+        <td style="color:#94a3b8;padding:4px 8px">{{ sub.leading_stock or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# (3) 相关行业15日资金流 #}
+  {% if shd.sub_industries %}
+  <div class="text-xs text-slate-500 font-semibold mb-2">相关行业15日资金流</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-3">
+    {% for ind in shd.sub_industries %}
+    <div>
+      <div class="text-xs text-indigo-300 mb-1" draggable="true"
+           data-chat-context="细分行业资金流-{{ ind.industry_name }}: 市值{{ '%.0f'|format((ind.market_cap or 0)/1e8) }}亿">
+        {{ ind.industry_name }}
+        <span class="text-slate-600 ml-1">市值{{ '%.0f'|format((ind.market_cap or 0)/1e8) }}亿</span>
+      </div>
+      <div id="sh-ind-{{ loop.index }}" style="height:100px"></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# (3) 投资主题资金流 #}
+  {% if shd.investment_themes %}
+  <div class="text-xs text-slate-500 font-semibold mb-2">投资主题15日资金流</div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+    {% for theme in shd.investment_themes %}
+    <div>
+      <div class="text-xs text-pink-300 mb-1" draggable="true"
+           data-chat-context="投资主题资金流-{{ theme.theme_name }}: 主题市值{{ '%.0f'|format((theme.theme_market_cap or 0)/1e8) }}亿">
+        {{ theme.theme_name }}
+        <span class="text-slate-600 ml-1">主题市值{{ '%.0f'|format((theme.theme_market_cap or 0)/1e8) }}亿</span>
+      </div>
+      <div id="sh-theme-{{ loop.index }}" style="height:100px"></div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# (4) 融资融券 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">融资融券</div>
+    {% if sh.margin_trading %}
+    <p class="text-xs text-slate-300">{{ sh.margin_trading }}</p>
+    {% else %}
+    <p class="text-xs text-slate-600 italic">暂无数据，后续对接</p>
+    {% endif %}
+  </div>
+
+  {# (5) 机构持仓 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">机构持仓</div>
+    {% if sh.institutional_holdings %}
+    <p class="text-xs text-slate-300">{{ sh.institutional_holdings }}</p>
+    {% else %}
+    <p class="text-xs text-slate-600 italic">暂无数据，后续对接</p>
+    {% endif %}
+  </div>
+
+  {# (6) 大宗交易 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">大宗交易</div>
+    {% if sh.block_trades %}
+    <p class="text-xs text-slate-300">{{ sh.block_trades }}</p>
+    {% else %}
+    <p class="text-xs text-slate-600 italic">暂无数据，后续对接</p>
+    {% endif %}
+  </div>
+
+  {# (7) 董监高增减持 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">董监高增减持</div>
+    {% if sh.insider_changes %}
+    <p class="text-xs text-slate-300">{{ sh.insider_changes }}</p>
+    {% else %}
+    <p class="text-xs text-slate-600 italic">暂无数据，后续对接</p>
+    {% endif %}
+  </div>
+
+  {# (8) ETF成分 #}
+  <div class="mt-4">
+    <div class="text-xs text-slate-500 font-semibold mb-2">ETF成分</div>
+    {% if sh.etf_membership %}
+    <p class="text-xs text-slate-300">{{ sh.etf_membership }}</p>
+    {% else %}
+    <p class="text-xs text-slate-600 italic">暂无数据，后续对接</p>
+    {% endif %}
+  </div>
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
+</div>
+
+{# ── ⑥ 研究数据 ── #}
+{% set rd = rpt.research_data if rpt.research_data else {} %}
+<div class="nb-pane" id="pane-rd">
+  <button class="rerun-btn" data-step="research_data" data-report-id="{{ report.id }}">重新分析</button>
+  {% if rd %}
+
+  {# (1) 宏观数据表格 #}
+  {% if rd.macro_data %}
+  <div class="text-xs text-red-400 font-semibold mb-2">宏观数据</div>
+  <div class="overflow-x-auto mb-4">
+    <table style="width:100%;border-collapse:collapse;font-size:0.72rem">
+      <thead><tr>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">指标</th>
+        <th style="color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">值</th>
+        <th style="color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">日期</th>
+        <th style="text-align:left;color:#64748b;padding:4px 8px;border-bottom:1px solid rgba(100,116,139,0.15)">与公司关系</th>
+      </tr></thead>
+      <tbody>
+      {% for m in rd.macro_data %}
+      <tr draggable="true" data-chat-context="宏观数据-{{ m.indicator }}: {{ m.value }} ({{ m.date }}) — {{ m.company_relation or '' }}">
+        <td style="color:#e2e8f0;padding:4px 8px;font-weight:600">
+          {{ m.indicator }}
+          {% if not m.source %}<span title="AI生成，未经数据源验证" style="color:#f59e0b;margin-left:4px">⚠️</span>{% endif %}
+        </td>
+        <td style="text-align:center;color:#60a5fa;padding:4px 8px;font-weight:600">{{ m.value }}</td>
+        <td style="text-align:center;color:#94a3b8;padding:4px 8px">{{ m.date or '' }}</td>
+        <td style="color:#94a3b8;padding:4px 8px;line-height:1.4">{{ m.company_relation or '' }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {# (2) 政策新闻卡片 #}
+  {% if rd.policy_news %}
+  <div class="text-xs text-red-400 font-semibold mb-2">政策与行业新闻</div>
+  <div class="space-y-2 mb-4">
+    {% for n in rd.policy_news %}
+    <div class="impact-row" draggable="true"
+         data-chat-context="政策新闻: {{ n.title }} ({{ n.date }}) {{ n.direction }} — {{ n.company_relation or '' }}">
+      <div class="impact-dot {{ 'bg-red-400' if n.direction == 'positive' else 'bg-emerald-400' if n.direction == 'negative' else 'bg-slate-500' }}"></div>
+      <div class="flex-1">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="text-xs text-slate-300 font-semibold">{{ n.title }}</span>
+          <span style="font-size:0.62rem;padding:1px 6px;border-radius:3px;{{ 'background:rgba(239,68,68,0.15);color:#f87171' if n.direction == 'positive' else 'background:rgba(16,185,129,0.15);color:#34d399' if n.direction == 'negative' else 'background:rgba(100,116,139,0.15);color:#94a3b8' }}">
+            {{ '利好' if n.direction == 'positive' else '利空' if n.direction == 'negative' else '中性' }}
+          </span>
+        </div>
+        <div class="text-xs text-slate-600">{{ n.date or '' }}{% if n.source %} · {{ n.source }}{% endif %}</div>
+        {% if n.company_relation %}<div class="text-xs text-slate-500 mt-1">{{ n.company_relation }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {# (3) 综合评估 #}
+  {% if rd.net_assessment %}
+  <div class="text-xs text-red-400 font-semibold mb-2">综合评估</div>
+  <p class="text-xs text-slate-400 leading-relaxed" draggable="true"
+     data-chat-context="研究数据综合评估: {{ rd.net_assessment }}">{{ rd.net_assessment }}</p>
+  {% endif %}
+
+  {% else %}<p class="text-sm text-slate-500">暂无数据</p>{% endif %}
+</div>
+
+</div>{# end nb-body #}
+</div>{# end 左侧主报告区 #}
+
+{# 右侧 Chatbot (25%) #}
+<div class="w-72 flex-shrink-0 sticky top-4">
+  <div style="border-radius:16px;background:var(--surface-card,rgba(30,41,59,0.7));border:1px solid rgba(100,116,139,0.18);padding:1rem">
+    {% include "partials/_report_chatbot.html" %}
+  </div>
+</div>
+
+</div>{# end 左右分栏 #}
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-const scores = {{ report.scores | tojson }};
-const dims = ['财务', '估值', '技术', '情绪', '催化', '风险'];
-const keys = ['financial', 'valuation', 'technical', 'sentiment', 'catalyst', 'risk'];
-const vals = keys.map(k => scores[k] || 0);
+{% set rpt = report.report if report.report else {} %}
+{% set bm = rpt.business_model if rpt.business_model else {} %}
+{% set fin = rpt.financial if rpt.financial else {} %}
+{% set val = rpt.valuation if rpt.valuation else {} %}
+{% set vc = rpt.value_chain if rpt.value_chain else {} %}
+{% set _vc_fv = vc._for_valuation if vc._for_valuation else {} %}
+{% set shd = sector_heat_detail if sector_heat_detail else {} %}
+const plotCfg = { responsive: true, displayModeBar: false };
+const darkLayout = { paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', font: { family: 'Manrope', color: '#94a3b8', size: 11 }, margin: { l: 40, r: 20, t: 20, b: 30 } };
 
-Plotly.newPlot('radar-chart', [{
-  type: 'scatterpolar',
-  r: [...vals, vals[0]],
-  theta: [...dims, dims[0]],
-  fill: 'toself',
-  fillcolor: 'rgba(19,91,236,0.15)',
-  line: { color: '#135bec', width: 2 },
-  marker: { size: 6, color: '#135bec' },
-}], {
-  polar: {
-    bgcolor: 'transparent',
-    radialaxis: { visible: true, range: [0, 100], gridcolor: 'rgba(100,116,139,0.15)', color: '#64748b', tickfont: { size: 10 } },
-    angularaxis: { gridcolor: 'rgba(100,116,139,0.15)', color: '#94a3b8', tickfont: { size: 11 } },
-  },
-  paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-  showlegend: false,
-  margin: { l: 60, r: 60, t: 30, b: 30 },
-  font: { family: 'Manrope' },
-}, { responsive: true, displayModeBar: false });
+/* 收入结构双期饼图 */
+(function(){
+  const REV_COLORS = ['#10b981','#3b82f6','#f59e0b','#ec4899','#8b5cf6','#06b6d4'];
+  const pieLayout = (label) => ({...darkLayout, margin:{l:10,r:10,t:25,b:10}, showlegend:false,
+    annotations:[{text:label,showarrow:false,font:{size:10,color:'#64748b'}}]});
+  {% if bm and (bm.revenue_segments_current or bm.revenue_segments) %}
+  (function(){
+    const segs = {{ (bm.revenue_segments_current or bm.revenue_segments) | tojson }};
+    const el = document.getElementById('rev-pie-cur');
+    if (segs && segs.length && el)
+      Plotly.newPlot(el, [{type:'pie',labels:segs.map(s=>s.name),values:segs.map(s=>s.pct||0),
+        hole:0.5,textinfo:'label+percent',textposition:'outside',
+        marker:{colors:REV_COLORS},textfont:{size:9}}], pieLayout('最近一期'), plotCfg);
+  })();
+  {% endif %}
+  {% if bm and bm.revenue_segments_prev %}
+  (function(){
+    const segs = {{ bm.revenue_segments_prev | tojson }};
+    const el = document.getElementById('rev-pie-prev');
+    if (segs && segs.length && el)
+      Plotly.newPlot(el, [{type:'pie',labels:segs.map(s=>s.name),values:segs.map(s=>s.pct||0),
+        hole:0.5,textinfo:'label+percent',textposition:'outside',
+        marker:{colors:REV_COLORS},textfont:{size:9}}], pieLayout('上一期'), plotCfg);
+  })();
+  {% endif %}
+  {% if bm and bm.customer_industries %}
+  (function(){
+    const ci = {{ bm.customer_industries | tojson }};
+    const el = document.getElementById('cust-pie');
+    if (ci && ci.length && el)
+      Plotly.newPlot(el, [{type:'pie',labels:ci.map(s=>s.name),values:ci.map(s=>s.pct||0),
+        hole:0.5,textinfo:'label+percent',textposition:'outside',
+        marker:{colors:['#6366f1','#14b8a6','#f97316','#e879f9','#22d3ee']},textfont:{size:9}}],
+        pieLayout('客户分布'), plotCfg);
+  })();
+  {% endif %}
+})();
+
+/* 成本构成双期饼图 */
+(function(){
+  const COST_COLORS = ['#ef4444','#f97316','#eab308','#84cc16','#06b6d4','#8b5cf6'];
+  const pieLayout = (label) => ({...darkLayout, margin:{l:10,r:10,t:25,b:10}, showlegend:false,
+    annotations:[{text:label,showarrow:false,font:{size:10,color:'#64748b'}}]});
+  {% if bm and (bm.cost_breakdown_current or bm.cost_breakdown) %}
+  (function(){
+    const cb = {{ (bm.cost_breakdown_current or bm.cost_breakdown) | tojson }};
+    const el = document.getElementById('cost-pie-cur');
+    if (cb && cb.length && el)
+      Plotly.newPlot(el, [{type:'pie',labels:cb.map(s=>s.name),values:cb.map(s=>s.pct||0),
+        hole:0.5,textinfo:'label+percent',textposition:'outside',
+        marker:{colors:COST_COLORS},textfont:{size:9}}], pieLayout('最近一期'), plotCfg);
+  })();
+  {% endif %}
+  {% if bm and bm.cost_breakdown_prev %}
+  (function(){
+    const cb = {{ bm.cost_breakdown_prev | tojson }};
+    const el = document.getElementById('cost-pie-prev');
+    if (cb && cb.length && el)
+      Plotly.newPlot(el, [{type:'pie',labels:cb.map(s=>s.name),values:cb.map(s=>s.pct||0),
+        hole:0.5,textinfo:'label+percent',textposition:'outside',
+        marker:{colors:COST_COLORS},textfont:{size:9}}], pieLayout('上一期'), plotCfg);
+  })();
+  {% endif %}
+})();
+
+/* 营收趋势图 */
+(function(){
+  const el = document.getElementById('revenue-chart');
+  if (!el) return;
+
+  // 优先从新格式取数据
+  {% if fin and fin.revenue_model %}
+  (function(){
+    const rm = {{ fin.revenue_model | tojson }};
+    // 汇总历史数据：从各分部 revenue_history 取，或从 total_revenue_forecast 取
+    let histPeriods = [], histRevs = [], forecastPeriods = [], forecastRevs = [];
+    if (rm.segments && rm.segments.length > 0) {
+      const firstSeg = rm.segments.find(s => s.revenue_history && s.revenue_history.length > 0);
+      if (firstSeg) {
+        firstSeg.revenue_history.forEach(h => { histPeriods.push(h.period); });
+        histPeriods.forEach(p => {
+          let total = 0;
+          let hasAny = false;
+          rm.segments.forEach(s => {
+            const r = (s.revenue_history || []).find(h => h.period === p);
+            if (r && r.revenue != null) { total += r.revenue; hasAny = true; }
+          });
+          histRevs.push(hasAny ? total : null);
+        });
+      }
+    }
+    if (rm.total_revenue_forecast) {
+      rm.total_revenue_forecast.forEach(f => {
+        if (f.revenue != null) { forecastPeriods.push(f.period); forecastRevs.push(f.revenue); }
+      });
+    }
+    // 过滤掉全 null 的历史数据
+    const validHist = histRevs.filter(v => v != null);
+    if (!validHist.length && !forecastPeriods.length) {
+      // 没有有效数据，尝试从 historical_financials 取营收行
+      {% if fin.historical_financials and fin.historical_financials.income_statement %}
+      const hf = {{ fin.historical_financials | tojson }};
+      const revRow = (hf.income_statement || []).find(r => r.item && (r.item.includes('营业收入') || r.item.includes('营收')));
+      if (revRow && hf.periods) {
+        const hPeriods = hf.periods;
+        const hValues = (revRow.values || []).map(v => v != null ? v : null);
+        const validValues = hValues.filter(v => v != null);
+        if (validValues.length) {
+          Plotly.newPlot('revenue-chart', [{
+            x: hPeriods, y: hValues, type: 'bar', name: '历史营收',
+            marker: { color: '#f59e0b', opacity: 0.8 }
+          }], {...darkLayout,
+            barmode: 'overlay',
+            legend: { orientation: 'h', y: 1.1, font: { size: 10 } },
+            yaxis: { title: '营收（亿元）', gridcolor: 'rgba(100,116,139,0.08)' },
+            xaxis: { gridcolor: 'rgba(100,116,139,0.08)' },
+          }, plotCfg);
+        }
+      }
+      {% endif %}
+      return;
+    }
+    const histTrace = {
+      x: histPeriods, y: histRevs, type: 'bar', name: '历史营收',
+      marker: { color: '#f59e0b', opacity: 0.8 }, yaxis: 'y'
+    };
+    const fcstTrace = {
+      x: forecastPeriods, y: forecastRevs, type: 'bar', name: '预测营收',
+      marker: { color: '#f59e0b', opacity: 0.35, line: { color: '#f59e0b', width: 2, dash: 'dot' } }, yaxis: 'y'
+    };
+    const traces = validHist.length ? [histTrace] : [];
+    if (fcstTrace.x.length) traces.push(fcstTrace);
+    Plotly.newPlot('revenue-chart', traces, {...darkLayout,
+      barmode: 'overlay',
+      legend: { orientation: 'h', y: 1.1, font: { size: 10 } },
+      yaxis: { title: '营收（亿元）', gridcolor: 'rgba(100,116,139,0.08)' },
+      xaxis: { gridcolor: 'rgba(100,116,139,0.08)' },
+    }, plotCfg);
+  })();
+  {% elif fin and fin.revenue_trend %}
+  (function(){
+    const rt = {{ fin.revenue_trend | tojson }};
+    if (rt && rt.length) {
+      const periods = rt.map(d=>d.period);
+      Plotly.newPlot('revenue-chart', [
+        { x: periods, y: rt.map(d=>d.revenue), type: 'bar', name: '营收', marker: { color: '#f59e0b', opacity: 0.7 }, yaxis: 'y' },
+        { x: periods, y: rt.map(d=>d.yoy), type: 'scatter', mode: 'lines+markers', name: 'YoY%', line: { color: '#10b981', width: 2 }, marker: { size: 6 }, yaxis: 'y2' },
+      ], {...darkLayout,
+        barmode: 'group',
+        legend: { orientation: 'h', y: 1.1, font: { size: 10 } },
+        yaxis: { title: '营收', gridcolor: 'rgba(100,116,139,0.08)' },
+        yaxis2: { title: 'YoY%', overlaying: 'y', side: 'right', gridcolor: 'rgba(100,116,139,0.08)' },
+        xaxis: { gridcolor: 'rgba(100,116,139,0.08)' },
+      }, plotCfg);
+    }
+  })();
+  {% endif %}
+})();
+
+/* 板块重新分析 */
+(function(){
+  const STEP_LABELS = {
+    business_model: '商业模式', value_chain: '产业链地图',
+    financial: '财务分析', valuation: '估值分析',
+    sector_heat: '资金态度', research_data: '研究数据',
+  };
+  document.querySelectorAll('.rerun-btn').forEach(btn => {
+    btn.addEventListener('click', async function() {
+      const step = this.dataset.step;
+      const reportId = this.dataset.reportId;
+      if (this.classList.contains('running')) return;
+      this.classList.add('running');
+      this.textContent = '分析中...';
+      try {
+        const resp = await fetch('/stock/{{ stock_code }}/api/run-research-step', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({step, report_id: reportId ? parseInt(reportId) : null}),
+        });
+        const data = await resp.json();
+        if (!data.ok) throw new Error(data.error || '启动失败');
+        const taskId = data.task_id;
+        let pollCount = 0;
+        const MAX_POLLS = 120; // 最多轮询6分钟
+        // 轮询任务状态
+        const poll = setInterval(async () => {
+          pollCount++;
+          try {
+            const tr = await fetch(`/stock/api/research-task/${taskId}`);
+            if (tr.status === 404) {
+              // task 被清理（说明已完成或进程重启），视为完成
+              clearInterval(poll);
+              this.classList.remove('running');
+              this.classList.add('done');
+              this.textContent = '完成，刷新查看';
+              this.onclick = () => location.reload();
+              return;
+            }
+            const td = await tr.json();
+            // 进度提示
+            if (td.message) this.textContent = td.message.slice(0, 20) + '...';
+            if (td.status === 'done') {
+              clearInterval(poll);
+              this.classList.remove('running');
+              this.classList.add('done');
+              this.textContent = '完成，刷新查看';
+              this.onclick = () => location.reload();
+            } else if (td.status === 'error') {
+              clearInterval(poll);
+              this.classList.remove('running');
+              this.textContent = '失败';
+              alert(`${STEP_LABELS[step]} 重跑失败: ${td.message}`);
+            } else if (pollCount >= MAX_POLLS) {
+              clearInterval(poll);
+              this.classList.remove('running');
+              this.textContent = '超时，刷新查看';
+              this.onclick = () => location.reload();
+            }
+          } catch(e) {
+            clearInterval(poll);
+            this.classList.remove('running');
+            this.classList.add('done');
+            this.textContent = '完成，刷新查看';
+            this.onclick = () => location.reload();
+          }
+        }, 3000);
+      } catch(e) {
+        this.classList.remove('running');
+        this.textContent = '重新分析';
+        alert(`启动失败: ${e.message}`);
+      }
+    });
+  });
+})();
+
+{% if val and val.intrinsic_value and val.current_price %}
+(function(){
+  const iv = {{ val.intrinsic_value }};
+  const cp = {{ val.current_price }};
+  const vr = {{ val.value_range | tojson if val.value_range else '{}' }};
+  const el = document.getElementById('val-bar');
+  if (!el) return;
+  const traces = [
+    { x: [cp], y: ['当前价'], type: 'bar', orientation: 'h', marker: { color: '#64748b' }, name: '当前价', text: [cp.toFixed(2)], textposition: 'outside', textfont: { color: '#e2e8f0', size: 12 } },
+    { x: [iv], y: ['内在价值'], type: 'bar', orientation: 'h', marker: { color: '#3b82f6' }, name: '内在价值', text: [iv.toFixed(2)], textposition: 'outside', textfont: { color: '#60a5fa', size: 12 } },
+  ];
+  if (vr.low && vr.high) {
+    traces.push({ x: [vr.high - vr.low], y: ['估值区间'], type: 'bar', orientation: 'h', base: vr.low, marker: { color: 'rgba(59,130,246,0.2)' }, name: '区间', text: [vr.low.toFixed(1)+' ~ '+vr.high.toFixed(1)], textposition: 'outside', textfont: { color: '#94a3b8', size: 10 } });
+  }
+  Plotly.newPlot(el, traces, {...darkLayout, showlegend: false, margin:{l:70,r:50,t:5,b:5}, yaxis:{automargin:true}, xaxis:{showgrid:false,zeroline:false}}, plotCfg);
+})();
+{% endif %}
+
+/* Tab switching */
+let currentReportTab = 'bm';
+function switchTab(key) {
+  currentReportTab = key;
+  window.currentReportTab = key;
+  document.querySelectorAll('.nb-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === key));
+  document.querySelectorAll('.nb-pane').forEach(p => p.classList.toggle('active', p.id === 'pane-' + key));
+  // Plotly charts inside hidden panes need a resize trigger
+  if (key === 'fin') { setTimeout(() => { const el = document.getElementById('revenue-chart'); if (el) Plotly.Plots.resize(el); }, 50); }
+  if (key === 'bm') { setTimeout(() => { ['rev-pie-cur','rev-pie-prev','cust-pie','cost-pie-cur','cost-pie-prev'].forEach(id => { const el = document.getElementById(id); if (el) Plotly.Plots.resize(el); }); initKgGraph(); }, 50); }
+  if (key === 'val') { setTimeout(() => { const el = document.getElementById('val-bar'); if (el) Plotly.Plots.resize(el); }, 50); }
+  if (key === 'vc') { setTimeout(renderPorterRadar, 50); }
+  if (key === 'sh') { setTimeout(renderSectorHeatCharts, 50); }
+}
+
+/* 波特五力雷达图 — 支持新旧两种数据格式 */
+function renderPorterRadar() {
+  const el = document.getElementById('porter-radar');
+  if (!el || el._plotted) return;
+
+  // 新格式: capture_rate_analysis.porter_capture_analysis
+  {% set pca_new = (_vc_fv.capture_rate_analysis.porter_capture_analysis if _vc_fv and _vc_fv.capture_rate_analysis and _vc_fv.capture_rate_analysis.porter_capture_analysis else {}) %}
+  // 旧格式: vc.porter_five_forces
+  {% set pf_old = vc.porter_five_forces if vc.porter_five_forces else {} %}
+  {% set pf_data = pca_new if pca_new else pf_old %}
+  {% if pf_data %}
+  const levelMap = {'high': 1, 'medium': 2, 'low': 3};
+  const forces = [
+    { key: 'supplier_power', label: '供应商议价' },
+    { key: 'buyer_power', label: '买方议价' },
+    { key: 'new_entrants', label: '新进入者' },
+    { key: 'substitutes', label: '替代品' },
+    { key: 'rivalry', label: '同业竞争' },
+  ];
+  const pf = {{ pf_data | tojson }};
+  const vals = forces.map(f => levelMap[(pf[f.key] || {}).level] || 1);
+  const labels = forces.map(f => f.label);
+  vals.push(vals[0]); labels.push(labels[0]);
+  Plotly.newPlot(el, [{
+    type: 'scatterpolar', r: vals, theta: labels, fill: 'toself',
+    fillcolor: 'rgba(129,140,248,0.15)', line: { color: '#818cf8', width: 2 },
+    marker: { color: '#818cf8', size: 6 },
+  }], {
+    ...darkLayout,
+    polar: {
+      radialaxis: { visible: true, range: [0, 3], tickvals: [1,2,3], ticktext: ['高(不利)','中','低(有利)'],
+        gridcolor: 'rgba(100,116,139,0.15)', color: '#64748b' },
+      angularaxis: { gridcolor: 'rgba(100,116,139,0.15)', color: '#94a3b8' },
+      bgcolor: 'transparent',
+    },
+    showlegend: false, margin: { l: 40, r: 40, t: 20, b: 20 },
+  }, plotCfg);
+  el._plotted = true;
+  {% endif %}
+}
+
+/* 板块热度资金流图表 */
+function renderSectorHeatCharts() {
+  const flowLayoutRatio = {
+    ...darkLayout,
+    margin: { l: 40, r: 10, t: 10, b: 30 },
+    xaxis: { gridcolor: 'rgba(100,116,139,0.08)', tickfont: { size: 9 } },
+    yaxis: { gridcolor: 'rgba(100,116,139,0.08)', tickformat: '.2%', tickfont: { size: 9 } },
+    showlegend: false,
+  };
+  const flowLayoutAbs = {
+    ...darkLayout,
+    margin: { l: 55, r: 10, t: 10, b: 30 },
+    xaxis: { gridcolor: 'rgba(100,116,139,0.08)', tickfont: { size: 9 } },
+    yaxis: { gridcolor: 'rgba(100,116,139,0.08)', tickfont: { size: 9 } },
+    showlegend: false,
+  };
+
+  function renderFlowBar(elId, flowData) {
+    const el = document.getElementById(elId);
+    if (!el || !flowData || !flowData.length || el._plotted) return;
+    const sorted = [...flowData].reverse();
+    const dates = sorted.map(d => d.date);
+    const ratios = sorted.map(d => d.ratio || 0);
+    const colors = ratios.map(v => v >= 0 ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)');
+    Plotly.newPlot(el, [{
+      type: 'bar', x: dates, y: ratios,
+      marker: { color: colors },
+      hovertemplate: '%{x}<br>净流入/市值: %{y:.3%}<extra></extra>',
+    }], flowLayoutRatio, plotCfg);
+    el._plotted = true;
+  }
+
+  // 行业7日逐日净流入直方图（绝对值，元）
+  {% if shd.industry_daily_flow %}
+  (function() {
+    const el = document.getElementById('sh-industry-daily-flow');
+    if (!el || el._plotted) return;
+    const rawData = {{ shd.industry_daily_flow | tojson }};
+    const sorted = [...rawData].reverse();
+    const dates = sorted.map(d => d.date);
+    const vals = sorted.map(d => d.net_inflow || 0);
+    const colors = vals.map(v => v >= 0 ? 'rgba(239,68,68,0.75)' : 'rgba(16,185,129,0.75)');
+    Plotly.newPlot(el, [{
+      type: 'bar', x: dates, y: vals,
+      marker: { color: colors },
+      hovertemplate: '%{x}<br>净流入: %{y:,.0f} 元<extra></extra>',
+    }], flowLayoutAbs, plotCfg);
+    el._plotted = true;
+  })();
+  {% endif %}
+
+  {% if shd.sub_industries %}
+  {% for ind in shd.sub_industries %}
+  renderFlowBar('sh-ind-{{ loop.index }}', {{ ind.flow_15d | tojson }});
+  {% endfor %}
+  {% endif %}
+  {% if shd.investment_themes %}
+  {% for theme in shd.investment_themes %}
+  renderFlowBar('sh-theme-{{ loop.index }}', {{ theme.flow_15d | tojson }});
+  {% endfor %}
+  {% endif %}
+}
+
+/* 拖拽到Chatbot — 事件委托，覆盖动态渲染的元素 */
+document.addEventListener('dragstart', function(e) {
+  const el = e.target.closest('[draggable="true"][data-chat-context]');
+  if (!el) return;
+  const ctx = el.dataset.chatContext || el.textContent.trim().slice(0, 200);
+  e.dataTransfer.setData('text/chat-context', ctx);
+  e.dataTransfer.setData('text/plain', ctx);
+});
+
+/* ── KG 力导向图 ── */
+const stockCode = '{{ stock_code }}';
+const KG_STOCK_CODE = '{{ stock_code }}';
+const KG_COLORS = {
+  stock: '#818cf8', company: '#34d399', industry: '#f59e0b',
+  theme: '#ec4899', policy: '#60a5fa', person: '#a78bfa', default: '#94a3b8'
+};
+let _kgInited = false;
+async function initKgGraph() {
+  const container = document.getElementById('kg-graph');
+  if (!container || _kgInited) return;
+  _kgInited = true;
+  const loading = document.getElementById('kg-loading');
+
+  // 动态加载 D3
+  if (!window.d3) {
+    await new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+
+  // 拉取 KG 数据
+  let nodes = [], links = [];
+  try {
+    const resp = await fetch('/stock/' + KG_STOCK_CODE + '/api/kg-graph');
+    const data = await resp.json();
+    nodes = data.nodes || []; links = data.links || [];
+  } catch(e) { if (loading) loading.textContent = 'KG数据加载失败'; return; }
+
+  if (!nodes.length) { if (loading) loading.textContent = '暂无KG关联数据'; return; }
+  if (loading) loading.style.display = 'none';
+
+  const W = container.clientWidth || 600, H = 260;
+  const svg = d3.select(container).append('svg').attr('width', W).attr('height', H);
+  const tooltip = document.getElementById('kg-tooltip');
+
+  // 箭头
+  svg.append('defs').append('marker')
+    .attr('id','kg-arrow').attr('viewBox','0 -5 10 10').attr('refX',18).attr('refY',0)
+    .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+    .append('path').attr('d','M0,-5L10,0L0,5').attr('fill','rgba(100,116,139,0.4)');
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d=>d.id).distance(80))
+    .force('charge', d3.forceManyBody().strength(-120))
+    .force('center', d3.forceCenter(W/2, H/2))
+    .force('collision', d3.forceCollide(22));
+
+  const link = svg.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(100,116,139,0.3)').attr('stroke-width',1.2)
+    .attr('marker-end','url(#kg-arrow)');
+
+  const linkLabel = svg.append('g').selectAll('text').data(links).join('text')
+    .attr('font-size',9).attr('fill','#475569').attr('text-anchor','middle')
+    .text(d => (d.relation||'').slice(0,8));
+
+  const node = svg.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r', d => d.type === 'stock' ? 12 : 8)
+    .attr('fill', d => KG_COLORS[d.type] || KG_COLORS.default)
+    .attr('fill-opacity', 0.85)
+    .attr('stroke', '#0f172a').attr('stroke-width', 1.5)
+    .attr('cursor','grab')
+    .call(d3.drag()
+      .on('start', (e,d) => { if (!e.active) sim.alphaTarget(0.3).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag',  (e,d) => { d.fx=e.x; d.fy=e.y; })
+      .on('end',   (e,d) => { if (!e.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  const nodeLabel = svg.append('g').selectAll('text').data(nodes).join('text')
+    .attr('font-size',10).attr('fill','#cbd5e1').attr('text-anchor','middle')
+    .attr('dy','0.35em').attr('pointer-events','none')
+    .text(d => (d.name||'').slice(0,6));
+
+  // tooltip (name/type only) + side panel news
+  const newsCache = {};
+
+  function _showNewsPanel(d, news) {
+    // 根据节点X坐标决定用左/右面板
+    const nodeX = d.x || 0;
+    const useLeft = nodeX < W / 2;
+    const panelId = useLeft ? 'kg-news-panel-left' : 'kg-news-panel-right';
+    const otherPanelId = useLeft ? 'kg-news-panel-right' : 'kg-news-panel-left';
+    document.getElementById(otherPanelId).style.display = 'none';
+    const panel = document.getElementById(panelId);
+    panel.style.display = 'block';
+    document.getElementById(panelId + '-title').textContent = d.name;
+    document.getElementById(panelId + '-type').textContent = d.type;
+    const contentEl = document.getElementById(panelId + '-content');
+    if (!news.length) {
+      contentEl.innerHTML = '<div style="color:#475569">暂无关联新闻</div>';
+    } else {
+      contentEl.innerHTML = news.slice(0, 5).map(n => `
+        <div style="margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(100,116,139,0.15)">
+          <div style="color:#94a3b8;line-height:1.4;cursor:pointer"
+               onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+            ${n.title}
+          </div>
+          <div style="display:none;color:#64748b;margin-top:4px;font-size:0.65rem">${n.summary||''}</div>
+          <div style="color:#475569;font-size:0.62rem;margin-top:2px">${n.date||''}</div>
+        </div>`).join('');
+    }
+  }
+
+  node.on('mouseenter', async (e, d) => {
+    tooltip.style.display = 'block';
+    tooltip.textContent = `${d.name} · ${d.type}`;
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+    if (!newsCache[d.name]) {
+      // 面板先显示加载中
+      const useLeft = (d.x || 0) < W / 2;
+      const panelId = useLeft ? 'kg-news-panel-left' : 'kg-news-panel-right';
+      const otherPanelId = useLeft ? 'kg-news-panel-right' : 'kg-news-panel-left';
+      document.getElementById(otherPanelId).style.display = 'none';
+      const panel = document.getElementById(panelId);
+      panel.style.display = 'block';
+      document.getElementById(panelId + '-title').textContent = d.name;
+      document.getElementById(panelId + '-type').textContent = d.type;
+      document.getElementById(panelId + '-content').innerHTML = '<div style="color:#475569">加载新闻...</div>';
+      try {
+        const r = await fetch('/stock/' + KG_STOCK_CODE + '/api/kg-related-news?entity_name=' + encodeURIComponent(d.name));
+        newsCache[d.name] = (await r.json()).news || [];
+      } catch(_) { newsCache[d.name] = []; }
+    }
+    _showNewsPanel(d, newsCache[d.name]);
+  }).on('mousemove', e => {
+    tooltip.style.left = (e.clientX + 12) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+  }).on('mouseleave', () => { tooltip.style.display = 'none'; });
+
+  // 节点/边可拖给 chatbot
+  node.attr('draggable', true).on('dragstart.chat', (e, d) => {
+    e.sourceEvent.dataTransfer.setData('text/chat-context', `KG实体: ${d.name} (${d.type})`);
+  });
+
+  sim.on('tick', () => {
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+        .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    linkLabel.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
+    node.attr('cx',d=>Math.max(12,Math.min(W-12,d.x))).attr('cy',d=>Math.max(12,Math.min(H-12,d.y)));
+    nodeLabel.attr('x',d=>Math.max(12,Math.min(W-12,d.x))).attr('y',d=>Math.max(12,Math.min(H-12,d.y))+18);
+  });
+}
+// 首次加载时如果已在 bm tab 则初始化
+if (document.getElementById('pane-bm') && document.getElementById('pane-bm').classList.contains('active')) {
+  setTimeout(initKgGraph, 300);
+}
+
+/* ── 产业链新闻展开交互 ── */
+function toggleNewsExpand(headerEl) {
+  const container = headerEl.closest('.news-expandable');
+  if (!container) return;
+  const body = container.querySelector('.news-body');
+  const icon = headerEl.querySelector('.news-toggle-icon');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  if (icon) icon.textContent = isOpen ? '▼' : '▲';
+}
+
+function fetchNewsEvidence(btnEl) {
+  const stockCode = btnEl.dataset.stock || btnEl.closest('[data-stock]')?.dataset.stock || '';
+  const title = btnEl.dataset.title || '';
+  const resultEl = btnEl.nextElementSibling;
+  if (!resultEl) return;
+  if (resultEl.dataset.loaded) {
+    resultEl.style.display = resultEl.style.display === 'none' ? 'block' : 'none';
+    return;
+  }
+  btnEl.textContent = '检索中…';
+  btnEl.disabled = true;
+  const q = encodeURIComponent(title.substring(0, 40));
+  fetch(`/stock/${stockCode}/api/news-detail?q=${q}`)
+    .then(r => r.json())
+    .then(data => {
+      btnEl.textContent = '查看佐证';
+      btnEl.disabled = false;
+      if (data.ok && data.detail) {
+        const d = data.detail;
+        let html = '<div style="font-size:0.65rem;border-left:2px solid rgba(129,140,248,0.4);padding:6px 10px;background:rgba(129,140,248,0.05);border-radius:0 4px 4px 0">';
+        if (d.summary) html += `<p style="color:#94a3b8;margin-bottom:4px;line-height:1.5">${d.summary}</p>`;
+        if (d.fact_summary) html += `<p style="color:#60a5fa;margin-bottom:2px"><span style="color:#475569">事实:</span> ${d.fact_summary}</p>`;
+        if (d.opinion_summary) html += `<p style="color:#a5b4fc;margin-bottom:2px"><span style="color:#475569">观点:</span> ${d.opinion_summary}</p>`;
+        if (d.full_text_snippet) html += `<p style="color:#475569;font-size:0.6rem;margin-top:4px;white-space:pre-wrap">${d.full_text_snippet}</p>`;
+        const meta = [d.source, d.date].filter(Boolean).join(' · ');
+        if (meta) html += `<p style="color:#334155;margin-top:4px">${meta}</p>`;
+        html += '</div>';
+        resultEl.innerHTML = html;
+      } else {
+        resultEl.innerHTML = '<p style="font-size:0.65rem;color:#475569">未找到相关佐证内容</p>';
+      }
+      resultEl.dataset.loaded = '1';
+      resultEl.style.display = 'block';
+    })
+    .catch(() => {
+      btnEl.textContent = '查看佐证';
+      btnEl.disabled = false;
+      resultEl.innerHTML = '<p style="font-size:0.65rem;color:#ef4444">检索失败</p>';
+      resultEl.style.display = 'block';
+    });
+}
+
+/* ====== 对标公司 → 加入自选 ====== */
+let _compWatchlists = null;
+let _activeCompDropdown = null;
+
+function compAddToList(btn, ticker, name) {
+  // 关闭已有 dropdown
+  if (_activeCompDropdown) { _activeCompDropdown.remove(); _activeCompDropdown = null; }
+  // 加载 watchlist
+  if (!_compWatchlists) {
+    fetch('/portfolio/api/strategies').then(r => r.json()).then(data => {
+      _compWatchlists = data || [];
+      _showCompDropdown(btn, ticker, name);
+    }).catch(() => { _compWatchlists = []; _showCompDropdown(btn, ticker, name); });
+  } else {
+    _showCompDropdown(btn, ticker, name);
+  }
+}
+
+function _showCompDropdown(btn, ticker, name) {
+  const dd = document.createElement('div');
+  dd.className = 'comp-watchlist-dropdown';
+  dd.style.cssText = 'position:absolute;z-index:100;min-width:140px;background:#1e293b;border:1px solid rgba(100,116,139,0.3);border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,0.4);overflow:hidden';
+  if (!_compWatchlists || _compWatchlists.length === 0) {
+    dd.innerHTML = '<div style="padding:8px 10px;font-size:0.68rem;color:#64748b">暂无自选组</div>';
+  } else {
+    dd.innerHTML = _compWatchlists.map(w =>
+      `<div style="padding:6px 10px;font-size:0.68rem;color:#cbd5e1;cursor:pointer;display:flex;justify-content:space-between;align-items:center"
+            onmouseenter="this.style.background='rgba(100,116,139,0.15)'" onmouseleave="this.style.background=''"
+            onclick="compDoAdd(this, ${w.id}, '${ticker}', '${name.replace(/'/g, "\\'")}')">
+        <span>${w.name}</span><span style="font-size:0.6rem;color:#64748b">${w.stock_count || 0}只</span>
+      </div>`
+    ).join('');
+  }
+  // 定位到按钮下方
+  btn.style.position = 'relative';
+  btn.parentElement.style.position = 'relative';
+  dd.style.position = 'absolute';
+  dd.style.left = '0';
+  dd.style.top = btn.offsetHeight + 2 + 'px';
+  btn.parentElement.appendChild(dd);
+  _activeCompDropdown = dd;
+  // 点击外部关闭
+  setTimeout(() => {
+    document.addEventListener('click', function _close(e) {
+      if (!dd.contains(e.target) && e.target !== btn) {
+        dd.remove(); _activeCompDropdown = null;
+        document.removeEventListener('click', _close);
+      }
+    });
+  }, 0);
+}
+
+function compDoAdd(el, listId, ticker, name) {
+  // 提取纯代码（去掉 .SH/.SZ 后缀）
+  const code = ticker.replace(/\.\w+$/, '');
+  fetch(`/portfolio/api/strategy/${listId}/add-stock`, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ stock_code: code, stock_name: name })
+  }).then(r => r.json()).then(res => {
+    if (res.ok) {
+      // 成功反馈：整个 dropdown 变成 ✓ 已加入
+      const dd = el.closest('.comp-watchlist-dropdown');
+      if (dd) {
+        dd.innerHTML = '<div style="padding:6px 10px;font-size:0.68rem;color:#34d399">✓ 已加入</div>';
+        setTimeout(() => { dd.remove(); _activeCompDropdown = null; }, 1200);
+      }
+    } else {
+      alert(res.error || '添加失败');
+      if (_activeCompDropdown) { _activeCompDropdown.remove(); _activeCompDropdown = null; }
+    }
+  }).catch(() => {
+    alert('添加失败');
+    if (_activeCompDropdown) { _activeCompDropdown.remove(); _activeCompDropdown = null; }
+  });
+}
+
 </script>
 {% endblock %}

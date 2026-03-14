@@ -78,12 +78,13 @@ def kg_enhanced_search(
 
 
 def _get_evidence_chunks(entity_name: str, limit: int = 3) -> list[ChunkResult]:
-    """通过 chunk_entities 找到提及某实体的 chunk"""
+    """通过 chunk_entities 找到提及某实体的 chunk，score 使用实体审核质量系数"""
     from utils.db_utils import execute_query
 
     rows = execute_query(
         """SELECT tc.id, tc.chunk_text, tc.extracted_text_id, tc.doc_type,
-                  tc.file_type, tc.publish_time, tc.source_doc_title
+                  tc.file_type, tc.publish_time, tc.source_doc_title,
+                  ke.review_status
            FROM text_chunks tc
            JOIN chunk_entities ce ON tc.id = ce.chunk_id
            JOIN kg_entities ke ON ce.entity_id = ke.id
@@ -93,12 +94,15 @@ def _get_evidence_chunks(entity_name: str, limit: int = 3) -> list[ChunkResult]:
         [entity_name, limit],
     )
 
+    from retrieval.quality import BOOST_MAP
     chunks = []
     for r in rows:
+        status = r.get("review_status") or "unreviewed"
+        quality_score = BOOST_MAP.get(status, 1.0)
         chunks.append(ChunkResult(
             chunk_id=r["id"],
             text=r["chunk_text"],
-            score=1.0,
+            score=quality_score,
             extracted_text_id=r["extracted_text_id"],
             doc_type=r.get("doc_type") or "",
             file_type=r.get("file_type") or "",
@@ -109,8 +113,10 @@ def _get_evidence_chunks(entity_name: str, limit: int = 3) -> list[ChunkResult]:
 
 
 def get_evidence_for_relationship(relationship_id: int, limit: int = 3) -> list[ChunkResult]:
-    """获取支撑某条 KG 关系的原文 chunks（通过 kg_triple_chunks）"""
+    """获取支撑某条 KG 关系的原文 chunks（通过 kg_triple_chunks），
+    score = ktc.confidence × relationship quality_boost"""
     from utils.db_utils import execute_query
+    from retrieval.quality import get_relationship_quality_boost
 
     rows = execute_query(
         """SELECT tc.id, tc.chunk_text, tc.extracted_text_id, tc.doc_type,
@@ -124,12 +130,14 @@ def get_evidence_for_relationship(relationship_id: int, limit: int = 3) -> list[
         [relationship_id, limit],
     )
 
+    rel_boost = get_relationship_quality_boost(relationship_id)
     chunks = []
     for r in rows:
+        confidence = r.get("confidence") or 0.5
         chunks.append(ChunkResult(
             chunk_id=r["id"],
             text=r["chunk_text"],
-            score=r.get("confidence") or 0.5,
+            score=confidence * rel_boost,
             extracted_text_id=r["extracted_text_id"],
             doc_type=r.get("doc_type") or "",
             file_type=r.get("file_type") or "",

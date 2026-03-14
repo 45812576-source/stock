@@ -48,7 +48,7 @@
       "desc": "券商/行业研报元数据",
       "fetcher_type": "djyanbao",
       "limit": 100,
-      "enabled": false
+      "enabled": true
     },
     "fxbaogao": {
       "label": "发现报告",
@@ -57,7 +57,7 @@
       "desc": "行业报告元数据",
       "fetcher_type": "fxbaogao",
       "limit": 100,
-      "enabled": false
+      "enabled": true
     },
     "em_report": {
       "label": "东财研报(PDF)",
@@ -75,6 +75,32 @@
       "desc": "知识星球社群帖子",
       "fetcher_type": "zsxq",
       "max_pages": 5,
+      "enabled": true
+    },
+    "cninfo_notice": {
+      "label": "巨潮公告",
+      "group": "news",
+      "icon": "campaign",
+      "desc": "巨潮资讯公司公告(业绩预告/风险提示等)",
+      "fetcher_type": "cninfo_notice",
+      "limit": 200,
+      "enabled": true
+    },
+    "earnings": {
+      "label": "业绩预告/快报",
+      "group": "news",
+      "icon": "trending_up",
+      "desc": "东方财富业绩预告+业绩快报",
+      "fetcher_type": "earnings",
+      "limit": 500,
+      "enabled": true
+    },
+    "stock_db": {
+      "label": "stock_db文档库",
+      "group": "report",
+      "icon": "storage",
+      "desc": "stock_db.stock_analysis → source_documents 同步",
+      "fetcher_type": "stock_db",
       "enabled": true
     }
   }

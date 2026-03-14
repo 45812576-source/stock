@@ -1,11 +1,26 @@
 """数据源基类 — 限流、去重、错误处理"""
 import time
 import logging
+import re
 from abc import ABC, abstractmethod
 from datetime import datetime
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_cloud_query, execute_cloud_insert
 
 logger = logging.getLogger(__name__)
+
+
+def _check_text_quality(text: str) -> str:
+    """简单质量检查，返回 'pass' 或 'fail'"""
+    if not text or len(text.strip()) < 20:
+        return 'fail'
+    # 乱码检测：非中文/英文/数字/标点的字符比例超过 30% 则判 fail
+    total = len(text)
+    garbage = len(re.findall(r'[^\u4e00-\u9fff\u3000-\u303f\uff00-\uffef'
+                              r'a-zA-Z0-9\s\.,!?;:，。！？；：、""''（）【】《》\-_/\\@#%&*+=]',
+                              text))
+    if garbage / total > 0.3:
+        return 'fail'
+    return 'pass'
 
 
 class BaseSource(ABC):
@@ -18,7 +33,7 @@ class BaseSource(ABC):
     @property
     def source_info(self):
         if self._source_info is None:
-            rows = execute_query(
+            rows = execute_cloud_query(
                 "SELECT * FROM data_sources WHERE name = ?", [self.source_name]
             )
             self._source_info = rows[0] if rows else None
@@ -35,7 +50,7 @@ class BaseSource(ABC):
             return True
         today = datetime.now().strftime("%Y-%m-%d")
         if info["last_reset_date"] != today:
-            execute_insert(
+            execute_cloud_insert(
                 "UPDATE data_sources SET today_used=0, last_reset_date=? WHERE id=?",
                 [today, info["id"]],
             )
@@ -51,26 +66,34 @@ class BaseSource(ABC):
 
     def increment_usage(self, count=1):
         """增加使用计数"""
-        execute_insert(
+        execute_cloud_insert(
             "UPDATE data_sources SET today_used=today_used+?, month_used=month_used+? WHERE id=?",
             [count, count, self.source_id],
         )
         self._source_info = None
 
     def is_duplicate(self, external_id):
-        """检查是否已采集"""
-        rows = execute_query(
+        """检查 raw_items 是否已采集（旧管线）"""
+        rows = execute_cloud_query(
             "SELECT id FROM raw_items WHERE source_id=? AND external_id=?",
             [self.source_id, external_id],
         )
         return len(rows) > 0
 
+    def is_duplicate_extracted(self, source_ref: str) -> bool:
+        """检查 extracted_texts 是否已存在（新管线）"""
+        rows = execute_cloud_query(
+            "SELECT id FROM extracted_texts WHERE source=%s AND source_ref=%s",
+            [self.source_name, source_ref],
+        )
+        return len(rows) > 0
+
     def save_raw_item(self, external_id, title, content, url=None,
                       published_at=None, item_type="news", meta_json=None):
-        """保存原始条目（自动去重）"""
+        """保存原始条目到 raw_items（旧管线，保留兼容）"""
         if self.is_duplicate(external_id):
             return None
-        row_id = execute_insert(
+        row_id = execute_cloud_insert(
             """INSERT INTO raw_items (source_id, external_id, title, content, url,
                published_at, item_type, meta_json)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
@@ -80,7 +103,37 @@ class BaseSource(ABC):
         self.increment_usage()
         return row_id
 
+    def save_extracted_text(self, source_ref: str, full_text: str,
+                             publish_time=None, source_format: str = "text",
+                             source_doc_id: int = None) -> int:
+        """保存提取文本到 extracted_texts（新管线）
+
+        Args:
+            source_ref: 唯一标识（如 external_id 或 sd_{doc_id}）
+            full_text: 提取的全文
+            publish_time: 发布时间（datetime 或 str）
+            source_format: 格式（text/markdown/pdf/audio/image）
+            source_doc_id: 关联的 source_documents.id
+
+        Returns:
+            新记录 id，重复则返回 None
+        """
+        if self.is_duplicate_extracted(source_ref):
+            return None
+        quality = _check_text_quality(full_text)
+        row_id = execute_cloud_insert(
+            """INSERT INTO extracted_texts
+               (source, source_format, publish_time, full_text,
+                source_doc_id, source_ref, extract_quality)
+               VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+            [self.source_name, source_format, publish_time, full_text,
+             source_doc_id, source_ref, quality],
+        )
+        self.increment_usage()
+        return row_id
+
     @abstractmethod
     def fetch(self, **kwargs):
         """子类实现具体采集逻辑"""
         pass
+

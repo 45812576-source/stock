@@ -1,0 +1,68 @@
+{% macro foe_card(item, show_stock_recs=false, card_id=none) %}
+{# item 字段: summary, fact_summary, opinion_summary, evidence_assessment, info_gaps, doc_type, created_at, stock_recs #}
+{% set _id = card_id if card_id else loop.index0 if loop is defined else range(9999)|random %}
+<div class="foe-card card mb-3 overflow-hidden">
+  {# 折叠头：一行摘要 + 展开箭头 #}
+  <div class="foe-summary flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-slate-800/40 transition-colors"
+       onclick="toggleFoeCard(this)">
+    <span class="material-icons-round text-primary text-sm mt-0.5 flex-shrink-0">article</span>
+    <p class="flex-1 text-sm text-slate-200 leading-snug line-clamp-2">{{ item.summary or item.fact_summary or "（无摘要）" }}</p>
+    <div class="flex items-center gap-2 flex-shrink-0">
+      {% if item.doc_type %}
+      <span class="badge bg-slate-700/60 text-slate-400 text-[10px]">{{ item.doc_type }}</span>
+      {% endif %}
+      {% set _ts = item.publish_time or item.created_at %}
+      {% if _ts %}
+      <span class="text-[10px] text-slate-600">{{ _ts|string|truncate(10, true, '') }}</span>
+      {% endif %}
+      <span class="material-icons-round foe-chevron text-slate-500 text-sm transition-transform duration-200">expand_more</span>
+    </div>
+  </div>
+
+  {# 展开详情 #}
+  <div class="foe-detail hidden border-t border-slate-800 px-4 py-3 space-y-3">
+    {% if item.fact_summary %}
+    <div>
+      <span class="text-[10px] font-bold text-amber-400 uppercase tracking-wider">事实</span>
+      <p class="text-xs text-slate-300 mt-1 leading-relaxed">{{ item.fact_summary }}</p>
+    </div>
+    {% endif %}
+
+    {% if item.opinion_summary %}
+    <div>
+      <span class="text-[10px] font-bold text-blue-400 uppercase tracking-wider">观点</span>
+      <p class="text-xs text-slate-300 mt-1 leading-relaxed">{{ item.opinion_summary }}</p>
+    </div>
+    {% endif %}
+
+    {% if item.evidence_assessment %}
+    <div>
+      <span class="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">证据</span>
+      <p class="text-xs text-slate-400 mt-1 leading-relaxed">{{ item.evidence_assessment }}</p>
+    </div>
+    {% endif %}
+
+    {% if item.info_gaps %}
+    <div>
+      <span class="text-[10px] font-bold text-violet-400 uppercase tracking-wider">信息缺口</span>
+      <p class="text-xs text-slate-500 mt-1 leading-relaxed italic">{{ item.info_gaps }}</p>
+    </div>
+    {% endif %}
+
+    {% if show_stock_recs and item.stock_recs %}
+    <div class="pt-2 border-t border-slate-800">
+      <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">相关个股</span>
+      <div class="flex flex-wrap gap-2 mt-1.5">
+        {% for s in item.stock_recs %}
+        <a href="/stock/{{ s.stock_code }}"
+           class="flex items-center gap-1 px-2 py-1 bg-primary/10 hover:bg-primary/20 rounded-lg text-xs text-primary transition-colors">
+          <span class="font-bold">{{ s.stock_name or s.stock_code }}</span>
+          <span class="text-slate-500 text-[10px]">{{ s.stock_code }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}

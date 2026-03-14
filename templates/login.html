@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - StockAI Pro</title>
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: {
+          primary: '#135bec',
+          'background-dark': '#101622',
+          'card-dark': '#1a2233',
+          'border-dark': '#2d3748',
+        },
+        fontFamily: { display: ['Manrope', 'sans-serif'] },
+      }}
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Manrope', sans-serif;
+      overflow: hidden;
+    }
+
+    .gradient-bg {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(-45deg, #0f172a, #1e3a8a, #312e81, #1e1b4b, #0f172a);
+      background-size: 400% 400%;
+      animation: gradientShift 15s ease infinite;
+    }
+
+    @keyframes gradientShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #kline-container {
+      position: fixed;
+      left: 0;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .kline-block {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 1px;
+      animation: blockFade 0.8s ease-out forwards;
+      opacity: 0;
+      transform: scale(0.5) translateX(-20px);
+    }
+
+    @keyframes blockFade {
+      to {
+        opacity: 1;
+        transform: scale(1) translateX(0);
+      }
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+
+    .glass-input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      transition: all 0.3s ease;
+    }
+    .glass-input:focus {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(19, 91, 236, 0.5);
+      box-shadow: 0 0 0 3px rgba(19, 91, 236, 0.15);
+    }
+    .glass-input::placeholder {
+      color: rgba(255, 255, 255, 0.3);
+    }
+
+    .glow-btn {
+      background: linear-gradient(135deg, #135bec, #3b82f6);
+      box-shadow: 0 4px 15px rgba(19, 91, 236, 0.4), 0 0 30px rgba(19, 91, 236, 0.2);
+      transition: all 0.3s ease;
+    }
+    .glow-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(19, 91, 236, 0.5), 0 0 50px rgba(19, 91, 236, 0.3);
+    }
+
+    .logo-glow {
+      box-shadow: 0 0 40px rgba(19, 91, 236, 0.5), 0 0 80px rgba(19, 91, 236, 0.3);
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+    .float-animation {
+      animation: float 3s ease-in-out infinite;
+    }
+
+    .link-glow:hover {
+      text-shadow: 0 0 10px rgba(19, 91, 236, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-background-dark text-slate-100 font-display min-h-screen flex items-center justify-center relative">
+  <div class="gradient-bg"></div>
+
+  <!-- 左侧K线图形 -->
+  <div id="kline-container"></div>
+
+  <!-- 登录框 -->
+  <div class="relative z-10 w-full max-w-md p-8">
+    <div class="text-center mb-8 float-animation">
+      <div class="w-16 h-16 bg-gradient-to-br from-primary to-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-4 logo-glow">
+        <span class="material-icons-round text-white text-3xl">insights</span>
+      </div>
+      <h1 class="text-3xl font-bold text-white">StockAI <span class="text-primary">Pro</span></h1>
+      <p class="text-slate-400 text-sm mt-2">智能股票分析系统</p>
+    </div>
+
+    <div class="glass-card rounded-2xl p-8">
+      <h2 class="text-xl font-semibold mb-6 text-center text-white">欢迎回来</h2>
+
+      <form id="loginForm" class="space-y-5">
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">用户名</label>
+          <input type="text" id="username" name="username" required
+            class="w-full px-4 py-3 glass-input rounded-xl text-slate-100 focus:outline-none"
+            placeholder="请输入用户名">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-slate-300 mb-2">密码</label>
+          <input type="password" id="password" name="password" required
+            class="w-full px-4 py-3 glass-input rounded-xl text-slate-100 focus:outline-none"
+            placeholder="请输入密码">
+        </div>
+
+        <div id="errorMsg" class="hidden text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2"></div>
+
+        <button type="submit"
+          class="w-full py-3 glow-btn text-white font-semibold rounded-xl flex items-center justify-center gap-2">
+          <span>登 录</span>
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-slate-400 text-sm mt-6">
+      还没有账号？
+      <a href="/auth/register" class="text-primary link-glow hover:text-blue-400 transition-colors">立即注册</a>
+      <span class="text-slate-600 mx-2">|</span>
+      <a href="/auth/subscription" class="text-amber-400 link-glow hover:text-amber-300 transition-colors">升级订阅</a>
+    </p>
+  </div>
+
+  <script>
+    // 像素风K线图 - 小方块组成
+    (function() {
+      const container = document.getElementById('kline-container');
+      const COLS = 70;  // K线柱数量
+      const BLOCK_SIZE = 14;  // 小方块大小
+      const GAP = 4;  // 方块间隙
+      const COL_GAP = 14;  // 柱间距
+
+      // 背景渐变色（白色到靛蓝）
+      const bgColors = [
+        { r: 255, g: 255, b: 255 },  // 白色
+        { r: 199, g: 210, b: 254 },  // 淡蓝
+        { r: 129, g: 140, b: 248 },  // 蓝
+        { r: 99, g: 102, b: 241 },   // 靛蓝
+      ];
+
+      // 插值计算颜色
+      function lerpColor(color1, color2, t) {
+        return `rgb(${Math.round(color1.r + (color2.r - color1.r) * t)}, ${Math.round(color1.g + (color2.g - color1.g) * t)}, ${Math.round(color1.b + (color2.b - color1.b) * t)})`;
+      }
+
+      // 获取某位置背景色
+      function getBgColor(colIndex, totalCols) {
+        const t = colIndex / totalCols;
+        const idx = Math.min(Math.floor(t * (bgColors.length - 1)), bgColors.length - 2);
+        const localT = (t * (bgColors.length - 1)) - idx;
+        return lerpColor(bgColors[idx], bgColors[idx + 1], localT);
+      }
+
+      // 随机生成每列高度（方块数量）- 更大波动
+      // 随机生成每列高度 - 中位上移斜率50%
+      function generateHeights() {
+        const heights = [];
+        const startMid = 10;  // 初始中位
+        const endMid = 20;    // 最终中位（+10，即50%）
+        const midStep = (endMid - startMid) / COLS;
+
+        let mid = startMid;
+        for (let i = 0; i < COLS; i++) {
+          mid += midStep;
+          const noise = (Math.random() - 0.5) * 8;
+          mid = Math.max(6, Math.min(24, mid + noise));
+          // 中位 +/- 随机范围
+          const spread = 6 + Math.random() * 6;
+          heights.push({
+            mid: Math.floor(mid),
+            spread: Math.floor(spread)
+          });
+        }
+        return heights;
+      }
+
+      // 随机生成每列的底部偏移（让底部不对齐）
+      function generateOffsets() {
+        const offsets = [];
+        for (let i = 0; i < COLS; i++) {
+          offsets.push(Math.floor((Math.random() - 0.5) * 10));
+        }
+        return offsets;
+      }
+
+      function createKLine() {
+        container.innerHTML = '';
+        const heights = generateHeights();
+        const offsets = generateOffsets();
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        const maxBlocks = 28;
+        const totalHeight = maxBlocks * (BLOCK_SIZE + GAP);
+
+        // 从左侧开始，溢出屏幕
+        const startX = -100;
+        const startY = (screenHeight - totalHeight) / 2;
+
+        heights.forEach((colData, colIndex) => {
+          const offset = offsets[colIndex] * (BLOCK_SIZE + GAP);
+          const mid = colData.mid;
+          const spread = colData.spread;
+          const startBlock = mid - spread;
+          const endBlock = mid + spread;
+
+          for (let i = startBlock; i < endBlock; i++) {
+            const block = document.createElement('div');
+            block.className = 'kline-block';
+
+            const x = startX + colIndex * (BLOCK_SIZE + COL_GAP);
+            const y = startY + totalHeight - (i + 1) * (BLOCK_SIZE + GAP) + offset;
+
+            block.style.left = x + 'px';
+            block.style.top = y + 'px';
+            block.style.width = BLOCK_SIZE + 'px';
+            block.style.height = BLOCK_SIZE + 'px';
+
+            // 颜色：从白色渐变到靛蓝，增加透明度
+            const white = { r: 255, g: 255, b: 255 };
+            const indigo = { r: 99, g: 102, b: 241 };
+            const t = (i - startBlock) / (endBlock - startBlock);
+            const color = lerpColor(indigo, white, 1 - t);
+
+            block.style.backgroundColor = color;
+            block.style.opacity = '0.5';
+            block.style.boxShadow = `0 0 4px ${color}`;
+
+            // 逐列出现动画
+            // 每列整体出现，间隔0.5秒
+            block.style.animationDelay = (colIndex * 0.5) + 's';
+
+            container.appendChild(block);
+          }
+        });
+      }
+
+      createKLine();
+      setInterval(createKLine, 6000);
+      window.addEventListener('resize', createKLine);
+    })();
+
+    // 登录表单
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('errorMsg');
+
+      errorMsg.classList.add('hidden');
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          errorMsg.textContent = data.detail || '登录失败';
+          errorMsg.classList.remove('hidden');
+          return;
+        }
+
+        window.location.href = '/overview';
+      } catch (err) {
+        errorMsg.textContent = '网络错误，请稍后重试';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

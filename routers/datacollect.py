@@ -2684,3 +2684,218 @@ def api_backfill_summary_chunks(batch_size: int = Form(100), dry_run: bool = For
 
     threading.Thread(target=_run, daemon=True).start()
     return {"task_id": task_id}
+
+
+# ==================== 问财行业指标采集 ====================
+
+@router.post("/api/wencai-indicators/fetch", response_class=JSONResponse)
+def wencai_indicators_fetch(limit: int = 0, dry_run: bool = False):
+    """后台运行问财行业指标采集。
+    limit=0 表示不限制（受每日限额控制）；dry_run=True 只查不写。
+    """
+    task_id = f"wencai_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 1,
+        "current": "问财指标采集中", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from ingestion.wencai_indicator_fetcher import run_wencai_indicator_fetch
+            result = run_wencai_indicator_fetch(dry_run=dry_run, limit=limit)
+            task["results"].append({
+                "source": "问财行业指标",
+                "ok": True,
+                "count": f"查询{result.get('total_queries', 0)}次 写入{result.get('total_indicators', 0)}条",
+            })
+        except Exception as e:
+            logger.exception(f"wencai indicators fetch error: {e}")
+            task["results"].append({"source": "问财行业指标", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = 1
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id}
+
+
+@router.post("/api/wencai-indicators/fetch-single", response_class=JSONResponse)
+def wencai_indicators_fetch_single(
+    l1: str, l2: str, metric_name: str, metric_type: str,
+    l3: str = None, query: str = None, dry_run: bool = True,
+):
+    """单个指标测试查询（默认 dry_run=True，不写库）"""
+    try:
+        from ingestion.wencai_indicator_fetcher import fetch_single_indicator
+        result = fetch_single_indicator(
+            l1=l1, l2=l2, l3=l3 or None,
+            metric_name=metric_name, metric_type=metric_type,
+            query=query or None, dry_run=dry_run,
+        )
+        return {"ok": True, "result": result}
+    except Exception as e:
+        logger.exception(f"wencai single fetch error: {e}")
+        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+
+
+# ==================== 行业指标库页面 ====================
+
+@router.get("/indicators", response_class=HTMLResponse)
+def industry_indicators_page(request: Request):
+    """行业指标库浏览页"""
+    return templates.TemplateResponse("industry_indicators.html", {
+        "request": request,
+        "active_page": "data",
+    })
+
+
+@router.get("/api/indicators", response_class=JSONResponse)
+def api_indicators(
+    q: str = "",
+    l1: str = "",
+    l2: str = "",
+    metric_type: str = "",
+    data_type: str = "",
+    period_year: str = "",
+    confidence: str = "",
+    source_type: str = "",
+    sort: str = "period_end_date",
+    order: str = "desc",
+    group_by: str = "",
+    limit: int = 200,
+    offset: int = 0,
+):
+    """行业指标查询 API，走云端库"""
+    from utils.db_utils import execute_cloud_query
+
+    conditions = []
+    params = []
+
+    if q:
+        conditions.append("(metric_name LIKE %s OR industry_l2 LIKE %s OR industry_l3 LIKE %s OR value_raw LIKE %s)")
+        params += [f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%"]
+    if l1:
+        conditions.append("industry_l1 = %s")
+        params.append(l1)
+    if l2:
+        conditions.append("industry_l2 = %s")
+        params.append(l2)
+    if metric_type:
+        conditions.append("metric_type = %s")
+        params.append(metric_type)
+    if data_type:
+        conditions.append("data_type = %s")
+        params.append(data_type)
+    if period_year:
+        conditions.append("period_year = %s")
+        params.append(int(period_year))
+    if confidence:
+        conditions.append("confidence = %s")
+        params.append(confidence)
+    if source_type:
+        conditions.append("source_type = %s")
+        params.append(source_type)
+
+    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+
+    _sort_cols = {"period_end_date", "value", "created_at", "metric_name", "industry_l2", "period_year"}
+    sort_col = sort if sort in _sort_cols else "period_end_date"
+    order_dir = "DESC" if order.lower() == "desc" else "ASC"
+
+    try:
+        rows = execute_cloud_query(
+            f"""SELECT id, industry_l1, industry_l2, industry_l3,
+                       metric_type, metric_name, value, value_raw,
+                       period_type, period_label, period_year, period_end_date,
+                       data_type, confidence, source_type, source_snippet,
+                       is_conflicted, created_at
+                FROM industry_indicators
+                {where}
+                ORDER BY {sort_col} {order_dir}
+                LIMIT %s OFFSET %s""",
+            params + [limit, offset],
+        )
+        # count
+        total_rows = execute_cloud_query(
+            f"SELECT COUNT(*) as cnt FROM industry_indicators {where}",
+            params,
+        )
+        total = total_rows[0]["cnt"] if total_rows else 0
+
+        data = []
+        for r in (rows or []):
+            d = dict(r)
+            # 日期序列化
+            for k in ("period_end_date", "created_at"):
+                if d.get(k):
+                    d[k] = str(d[k])
+            data.append(d)
+
+        # 分组处理
+        if group_by in ("industry_l1", "industry_l2", "metric_type"):
+            groups = {}
+            for d in data:
+                key = d.get(group_by) or "其他"
+                groups.setdefault(key, []).append(d)
+            return {"total": total, "grouped": True, "group_by": group_by, "groups": groups}
+
+        return {"total": total, "grouped": False, "rows": data}
+    except Exception as e:
+        logger.exception(f"api_indicators error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/indicators/stats", response_class=JSONResponse)
+def api_indicators_stats():
+    """指标库汇总统计"""
+    from utils.db_utils import execute_cloud_query
+    try:
+        total = execute_cloud_query("SELECT COUNT(*) as cnt FROM industry_indicators")[0]["cnt"]
+        by_l1 = execute_cloud_query(
+            "SELECT industry_l1, COUNT(*) as cnt FROM industry_indicators GROUP BY industry_l1 ORDER BY cnt DESC LIMIT 20"
+        )
+        by_type = execute_cloud_query(
+            "SELECT metric_type, COUNT(*) as cnt FROM industry_indicators GROUP BY metric_type ORDER BY cnt DESC"
+        )
+        by_source = execute_cloud_query(
+            "SELECT source_type, COUNT(*) as cnt FROM industry_indicators GROUP BY source_type ORDER BY cnt DESC"
+        )
+        by_year = execute_cloud_query(
+            "SELECT period_year, COUNT(*) as cnt FROM industry_indicators WHERE period_year IS NOT NULL GROUP BY period_year ORDER BY period_year DESC LIMIT 5"
+        )
+        conflict_cnt = execute_cloud_query(
+            "SELECT COUNT(*) as cnt FROM industry_indicators WHERE is_conflicted = 1"
+        )[0]["cnt"]
+        return {
+            "total": total,
+            "conflict_count": conflict_cnt,
+            "by_l1": [dict(r) for r in (by_l1 or [])],
+            "by_type": [dict(r) for r in (by_type or [])],
+            "by_source": [dict(r) for r in (by_source or [])],
+            "by_year": [dict(r) for r in (by_year or [])],
+        }
+    except Exception as e:
+        logger.exception(f"api_indicators_stats error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/indicators/filters", response_class=JSONResponse)
+def api_indicators_filters():
+    """获取所有筛选枚举值（l1/l2/metric_type 不重复列表）"""
+    from utils.db_utils import execute_cloud_query
+    try:
+        l1s = execute_cloud_query("SELECT DISTINCT industry_l1 FROM industry_indicators ORDER BY industry_l1")
+        l2s = execute_cloud_query("SELECT DISTINCT industry_l1, industry_l2 FROM industry_indicators ORDER BY industry_l1, industry_l2")
+        types = execute_cloud_query("SELECT DISTINCT metric_type FROM industry_indicators ORDER BY metric_type")
+        years = execute_cloud_query("SELECT DISTINCT period_year FROM industry_indicators WHERE period_year IS NOT NULL ORDER BY period_year DESC")
+        sources = execute_cloud_query("SELECT DISTINCT source_type FROM industry_indicators ORDER BY source_type")
+        return {
+            "l1s": [r["industry_l1"] for r in (l1s or [])],
+            "l2s": [{"l1": r["industry_l1"], "l2": r["industry_l2"]} for r in (l2s or [])],
+            "metric_types": [r["metric_type"] for r in (types or [])],
+            "years": [r["period_year"] for r in (years or [])],
+            "source_types": [r["source_type"] for r in (sources or [])],
+        }
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)

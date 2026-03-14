@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}手动录入{% endblock %}
+
+{% block content %}
+<!-- 页面标题 + Tab 导航 -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-extrabold tracking-tight">数据管理</h1>
+    <p class="text-sm text-slate-500 mt-1">手动录入文档到 source_documents</p>
+  </div>
+  <div class="flex gap-1 bg-slate-800/50 rounded-lg p-1">
+    <a href="/data/cleaning" class="px-4 py-1.5 rounded-md text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-700/50 transition">采集清洗</a>
+    <a href="/data/review" class="px-4 py-1.5 rounded-md text-sm font-bold text-slate-400 hover:text-white hover:bg-slate-700/50 transition">提取审核</a>
+    <a href="/data/input" class="px-4 py-1.5 rounded-md text-sm font-bold bg-primary/15 text-primary">手动录入</a>
+  </div>
+</div>
+
+<!-- 录入表单 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-emerald-400 text-base">post_add</span>
+    <h3 class="font-bold text-sm">新建文档</h3>
+  </div>
+  <div class="p-5">
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">标题</label>
+        <input type="text" id="mdTitle" placeholder="文档标题"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">来源</label>
+        <input type="text" id="mdSource" value="manual" placeholder="来源标识"
+               class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+      </div>
+      <div>
+        <label class="block text-xs text-slate-400 mb-1">文档类型</label>
+        <select id="mdDocType"
+                class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+          <option value="auto">自动识别</option>
+          {% for key, label, desc in doc_types %}
+          <option value="{{ key }}">{{ label }} — {{ desc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="flex gap-4">
+        <div class="flex-1">
+          <label class="block text-xs text-slate-400 mb-1">作者</label>
+          <input type="text" id="mdAuthor" placeholder="可选"
+                 class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none">
+        </div>
+        <div class="flex-1">
+          <label class="block text-xs text-slate-400 mb-1">发布日期</label>
+          <input type="date" id="mdDate"
+                 class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-emerald-500 focus:outline-none">
+        </div>
+      </div>
+    </div>
+    <div class="mb-4">
+      <label class="block text-xs text-slate-400 mb-1">正文内容 <span class="text-rose-400">*</span></label>
+      <textarea id="mdContent" rows="10" placeholder="粘贴文档正文..."
+                class="w-full bg-slate-800/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-emerald-500 focus:outline-none resize-y"></textarea>
+      <span id="mdCharCount" class="text-[10px] text-slate-600 mt-1 inline-block">0 字</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="submitManualDoc()" id="mdSubmitBtn"
+              class="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition">
+        <span class="material-icons-round text-sm">save</span> 录入
+      </button>
+      <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-400">
+        <input type="checkbox" id="mdAutoPush" class="accent-emerald-400" checked>
+        录入后自动推入管线
+      </label>
+      <span id="mdMsg" class="hidden text-xs px-3 py-1.5 rounded-lg"></span>
+    </div>
+  </div>
+</div>
+
+<!-- 最近手动录入记录 -->
+<div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
+  <div class="p-4 border-b border-slate-800 flex items-center gap-2">
+    <span class="material-icons-round text-slate-400 text-base">history</span>
+    <h3 class="font-bold text-sm">最近录入</h3>
+    <span class="text-[10px] text-slate-500 ml-2">source = manual 的最近 20 条</span>
+  </div>
+  <div class="p-4">
+    {% if recent_docs %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs">
+        <thead>
+          <tr class="border-b border-slate-800">
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">ID</th>
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">标题</th>
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">类型</th>
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">来源</th>
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">日期</th>
+            <th class="px-3 py-2 text-right text-slate-500 font-bold">字数</th>
+            <th class="px-3 py-2 text-left text-slate-500 font-bold">状态</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in recent_docs %}
+          <tr class="border-b border-slate-800/40 hover:bg-slate-800/20">
+            <td class="px-3 py-2 text-slate-500 font-mono">{{ d.id }}</td>
+            <td class="px-3 py-2 text-white max-w-xs truncate">{{ d.title or '(无标题)' }}</td>
+            <td class="px-3 py-2 text-violet-300 font-mono">{{ d.doc_type }}</td>
+            <td class="px-3 py-2 text-slate-400">{{ d.source }}</td>
+            <td class="px-3 py-2 text-slate-400 font-mono">{{ d.publish_date or '-' }}</td>
+            <td class="px-3 py-2 text-right text-slate-400 font-mono">{{ (d.text_content or '')|length }}</td>
+            <td class="px-3 py-2 {{ 'text-emerald-400' if d.extract_status == 'done' else 'text-amber-400' }}">{{ d.extract_status }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-xs text-slate-600 text-center py-4">暂无手动录入记录</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('mdContent').addEventListener('input', function() {
+  document.getElementById('mdCharCount').textContent = this.value.length + ' 字';
+});
+
+async function submitManualDoc() {
+  const btn = document.getElementById('mdSubmitBtn');
+  const msgEl = document.getElementById('mdMsg');
+  const content = document.getElementById('mdContent').value.trim();
+  if (!content) { msgEl.textContent = '正文不能为空'; msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400'; msgEl.classList.remove('hidden'); return; }
+
+  btn.disabled = true;
+  btn.textContent = '录入中...';
+  const body = {
+    title: document.getElementById('mdTitle').value.trim(),
+    text_content: content,
+    doc_type: document.getElementById('mdDocType').value,
+    source: document.getElementById('mdSource').value.trim() || 'manual',
+    author: document.getElementById('mdAuthor').value.trim(),
+    publish_date: document.getElementById('mdDate').value || null,
+  };
+
+  try {
+    const res = await fetch('/data/api/manual-add-doc', {
+      method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.error) {
+      msgEl.textContent = '失败: ' + data.error;
+      msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400';
+    } else {
+      const typeLabel = data.doc_type || body.doc_type;
+      msgEl.textContent = '已录入 (类型: ' + typeLabel + ')';
+      msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400';
+
+      // 自动推入管线
+      if (document.getElementById('mdAutoPush').checked) {
+        msgEl.textContent += '，推入管线中...';
+        const fd = new FormData();
+        fd.append('limit', '10');
+        await fetch('/data/api/push-to-pipeline', {method:'POST', body:fd});
+        msgEl.textContent = '已录入并推入管线 (类型: ' + typeLabel + ')';
+      }
+
+      // 清空表单
+      document.getElementById('mdTitle').value = '';
+      document.getElementById('mdContent').value = '';
+      document.getElementById('mdAuthor').value = '';
+      document.getElementById('mdDate').value = '';
+      document.getElementById('mdCharCount').textContent = '0 字';
+
+      // 刷新列表
+      setTimeout(() => location.reload(), 1000);
+    }
+  } catch(e) {
+    msgEl.textContent = '请求失败';
+    msgEl.className = 'text-xs px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400';
+  }
+  msgEl.classList.remove('hidden');
+  btn.disabled = false;
+  btn.innerHTML = '<span class="material-icons-round text-sm">save</span> 录入';
+}
+</script>
+{% endblock %}

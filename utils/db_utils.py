@@ -184,13 +184,16 @@ def table_row_count(table_name):
 # ---------- 云端连接 ----------
 
 def _get_cloud_conn():
-    """云端 MySQL 连接（带重试）"""
+    """云端 MySQL 连接（带重试）。
+    连接后设置 SESSION net_read_timeout/net_write_timeout=300，
+    覆盖服务器端默认 30 秒限制，避免长查询期间被断开（2013错误）。
+    """
     import time as _time
     from config import CLOUD_MYSQL_HOST, CLOUD_MYSQL_PORT, CLOUD_MYSQL_USER, CLOUD_MYSQL_PASSWORD, CLOUD_MYSQL_DB
     last_err = None
     for attempt in range(3):
         try:
-            return pymysql.connect(
+            conn = pymysql.connect(
                 host=CLOUD_MYSQL_HOST,
                 port=CLOUD_MYSQL_PORT,
                 user=CLOUD_MYSQL_USER,
@@ -199,9 +202,13 @@ def _get_cloud_conn():
                 charset="utf8mb4",
                 cursorclass=pymysql.cursors.DictCursor,
                 connect_timeout=15,
-                read_timeout=60,
-                write_timeout=60,
+                read_timeout=300,
+                write_timeout=300,
             )
+            # 覆盖服务器端 net_read_timeout（默认 30s），防止长查询被断开
+            with conn.cursor() as cur:
+                cur.execute("SET SESSION net_read_timeout=300, net_write_timeout=300")
+            return conn
         except Exception as e:
             last_err = e
             if attempt < 2:
@@ -937,13 +944,13 @@ def _to_ts_code(stock_code: str) -> str:
 
 
 def ensure_stock_extra_data(stock_code: str) -> dict:
-    """按需同步单只股票的 6 张增量表数据，本地有则跳过。
+    """按需增量同步单只股票的 6 张增量表数据。
 
-    检查逻辑：只要本地该股票有任何记录就视为"已同步"，避免重复拉取。
-    对体量较大的 valuation_history 只同步近 730 天。
+    检查逻辑：查本地最新日期，只从云端拉取更新的行（增量同步）。
+    对体量较大的 valuation_history 初次同步只拉近 730 天。
 
     Returns:
-        各表同步条数字典，已有数据的表返回 -1（跳过）。
+        各表新增条数字典，已是最新的表返回 0。
     """
     import logging
     logger = logging.getLogger(__name__)
@@ -962,9 +969,15 @@ def ensure_stock_extra_data(stock_code: str) -> dict:
         with local.cursor() as lc, cloud.cursor() as cc:
 
             # ── 1. insider_trading ───────────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM insider_trading WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['insider_trading'] = -1
+            lc.execute("SELECT MAX(trade_date) as max_date FROM insider_trading WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,trade_date,person_name,person_role,"
+                    "direction,trade_shares,trade_price,trade_amount,hold_shares_after,relation "
+                    "FROM insider_trading WHERE stock_code=%s AND trade_date > %s ORDER BY trade_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,stock_code,stock_name,trade_date,person_name,person_role,"
@@ -973,25 +986,31 @@ def ensure_stock_extra_data(stock_code: str) -> dict:
                     "AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 730 DAY) ORDER BY trade_date",
                     [stock_code],
                 )
-                rows = cc.fetchall()
-                for r in rows:
-                    lc.execute(
-                        """INSERT IGNORE INTO insider_trading
-                           (id,stock_code,stock_name,trade_date,person_name,person_role,
-                            direction,trade_shares,trade_price,trade_amount,hold_shares_after,relation)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [r['id'], r['stock_code'], r.get('stock_name'), r['trade_date'],
-                         r.get('person_name'), r.get('person_role'), r.get('direction'),
-                         r.get('trade_shares'), r.get('trade_price'), r.get('trade_amount'),
-                         r.get('hold_shares_after'), r.get('relation')],
-                    )
-                local.commit()
-                result['insider_trading'] = len(rows)
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """INSERT IGNORE INTO insider_trading
+                       (id,stock_code,stock_name,trade_date,person_name,person_role,
+                        direction,trade_shares,trade_price,trade_amount,hold_shares_after,relation)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r.get('stock_name'), r['trade_date'],
+                     r.get('person_name'), r.get('person_role'), r.get('direction'),
+                     r.get('trade_shares'), r.get('trade_price'), r.get('trade_amount'),
+                     r.get('hold_shares_after'), r.get('relation')],
+                )
+            local.commit()
+            result['insider_trading'] = len(rows)
 
             # ── 2. shareholder_count ─────────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM shareholder_count WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['shareholder_count'] = -1
+            lc.execute("SELECT MAX(end_date) as max_date FROM shareholder_count WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,end_date,holder_count,holder_count_change,"
+                    "change_pct,avg_share_per_holder,avg_amount_per_holder "
+                    "FROM shareholder_count WHERE stock_code=%s AND end_date > %s ORDER BY end_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,stock_code,stock_name,end_date,holder_count,holder_count_change,"
@@ -999,25 +1018,31 @@ def ensure_stock_extra_data(stock_code: str) -> dict:
                     "FROM shareholder_count WHERE stock_code=%s ORDER BY end_date DESC LIMIT 12",
                     [stock_code],
                 )
-                rows = cc.fetchall()
-                for r in rows:
-                    lc.execute(
-                        """INSERT IGNORE INTO shareholder_count
-                           (id,stock_code,stock_name,end_date,holder_count,holder_count_change,
-                            change_pct,avg_share_per_holder,avg_amount_per_holder)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [r['id'], r['stock_code'], r.get('stock_name'), r['end_date'],
-                         r.get('holder_count'), r.get('holder_count_change'),
-                         r.get('change_pct'), r.get('avg_share_per_holder'),
-                         r.get('avg_amount_per_holder')],
-                    )
-                local.commit()
-                result['shareholder_count'] = len(rows)
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """INSERT IGNORE INTO shareholder_count
+                       (id,stock_code,stock_name,end_date,holder_count,holder_count_change,
+                        change_pct,avg_share_per_holder,avg_amount_per_holder)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r.get('stock_name'), r['end_date'],
+                     r.get('holder_count'), r.get('holder_count_change'),
+                     r.get('change_pct'), r.get('avg_share_per_holder'),
+                     r.get('avg_amount_per_holder')],
+                )
+            local.commit()
+            result['shareholder_count'] = len(rows)
 
             # ── 3. institutional_holding ─────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM institutional_holding WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['institutional_holding'] = -1
+            lc.execute("SELECT MAX(report_date) as max_date FROM institutional_holding WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,report_date,institution_type,"
+                    "hold_shares,hold_ratio,hold_change,hold_value "
+                    "FROM institutional_holding WHERE stock_code=%s AND report_date > %s ORDER BY report_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,stock_code,stock_name,report_date,institution_type,"
@@ -1025,24 +1050,30 @@ def ensure_stock_extra_data(stock_code: str) -> dict:
                     "FROM institutional_holding WHERE stock_code=%s ORDER BY report_date DESC LIMIT 20",
                     [stock_code],
                 )
-                rows = cc.fetchall()
-                for r in rows:
-                    lc.execute(
-                        """INSERT IGNORE INTO institutional_holding
-                           (id,stock_code,stock_name,report_date,institution_type,
-                            hold_shares,hold_ratio,hold_change,hold_value)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [r['id'], r['stock_code'], r.get('stock_name'), r['report_date'],
-                         r.get('institution_type'), r.get('hold_shares'),
-                         r.get('hold_ratio'), r.get('hold_change'), r.get('hold_value')],
-                    )
-                local.commit()
-                result['institutional_holding'] = len(rows)
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """INSERT IGNORE INTO institutional_holding
+                       (id,stock_code,stock_name,report_date,institution_type,
+                        hold_shares,hold_ratio,hold_change,hold_value)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r.get('stock_name'), r['report_date'],
+                     r.get('institution_type'), r.get('hold_shares'),
+                     r.get('hold_ratio'), r.get('hold_change'), r.get('hold_value')],
+                )
+            local.commit()
+            result['institutional_holding'] = len(rows)
 
             # ── 4. valuation_history ─────────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM valuation_history WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['valuation_history'] = -1
+            lc.execute("SELECT MAX(trade_date) as max_date FROM valuation_history WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,"
+                    "dividend_yield,market_cap,circ_market_cap "
+                    "FROM valuation_history WHERE stock_code=%s AND trade_date > %s ORDER BY trade_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,"
@@ -1051,47 +1082,59 @@ def ensure_stock_extra_data(stock_code: str) -> dict:
                     "AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 730 DAY) ORDER BY trade_date",
                     [stock_code],
                 )
-                rows = cc.fetchall()
-                for r in rows:
-                    lc.execute(
-                        """INSERT IGNORE INTO valuation_history
-                           (id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,
-                            dividend_yield,market_cap,circ_market_cap)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [r['id'], r['stock_code'], r['trade_date'],
-                         r.get('pe_ttm'), r.get('pb_mrq'), r.get('ps_ttm'),
-                         r.get('dividend_yield'), r.get('market_cap'), r.get('circ_market_cap')],
-                    )
-                local.commit()
-                result['valuation_history'] = len(rows)
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """INSERT IGNORE INTO valuation_history
+                       (id,stock_code,trade_date,pe_ttm,pb_mrq,ps_ttm,
+                        dividend_yield,market_cap,circ_market_cap)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r['trade_date'],
+                     r.get('pe_ttm'), r.get('pb_mrq'), r.get('ps_ttm'),
+                     r.get('dividend_yield'), r.get('market_cap'), r.get('circ_market_cap')],
+                )
+            local.commit()
+            result['valuation_history'] = len(rows)
 
             # ── 5. etf_constituent ───────────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM etf_constituent WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['etf_constituent'] = -1
+            lc.execute("SELECT MAX(report_date) as max_date FROM etf_constituent WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date "
+                    "FROM etf_constituent WHERE stock_code=%s AND report_date > %s ORDER BY report_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date "
                     "FROM etf_constituent WHERE stock_code=%s ORDER BY report_date DESC LIMIT 100",
                     [stock_code],
                 )
-                rows = cc.fetchall()
-                for r in rows:
-                    lc.execute(
-                        """INSERT IGNORE INTO etf_constituent
-                           (id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                        [r['id'], r['etf_code'], r.get('etf_name'), r['stock_code'],
-                         r.get('stock_name'), r.get('weight'), r.get('shares'),
-                         r.get('amount'), r.get('report_date')],
-                    )
-                local.commit()
-                result['etf_constituent'] = len(rows)
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """INSERT IGNORE INTO etf_constituent
+                       (id,etf_code,etf_name,stock_code,stock_name,weight,shares,amount,report_date)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['etf_code'], r.get('etf_name'), r['stock_code'],
+                     r.get('stock_name'), r.get('weight'), r.get('shares'),
+                     r.get('amount'), r.get('report_date')],
+                )
+            local.commit()
+            result['etf_constituent'] = len(rows)
 
             # ── 6. margin_trading ────────────────────────────────────────────
-            lc.execute("SELECT COUNT(*) as cnt FROM margin_trading WHERE stock_code=%s", [stock_code])
-            if lc.fetchone()['cnt'] > 0:
-                result['margin_trading'] = -1
+            lc.execute("SELECT MAX(trade_date) as max_date FROM margin_trading WHERE stock_code=%s", [stock_code])
+            local_max = lc.fetchone()['max_date']
+            if local_max:
+                cc.execute(
+                    "SELECT id,stock_code,stock_name,trade_date,margin_balance,margin_buy_amount,"
+                    "margin_repay_amount,short_balance,short_sell_volume,short_repay_volume,"
+                    "short_sell_amount,total_balance,exchange "
+                    "FROM margin_trading WHERE stock_code=%s AND trade_date > %s ORDER BY trade_date",
+                    [stock_code, local_max],
+                )
             else:
                 cc.execute(
                     "SELECT id,stock_code,stock_name,trade_date,margin_balance,margin_buy_amount,"

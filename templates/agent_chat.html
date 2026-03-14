@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+{% block title %}AI 数据助手{% endblock %}
+
+{% block extra_styles %}
+.chat-bubble-user {
+  background: #135bec;
+  border-radius: 16px 16px 4px 16px;
+}
+.chat-bubble-ai {
+  background: #1a2233;
+  border: 1px solid #2d3748;
+  border-radius: 16px 16px 16px 4px;
+}
+.chat-bubble-ai pre {
+  background: #101622;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  font-size: 0.8rem;
+  margin: 8px 0;
+}
+.chat-bubble-ai code {
+  font-family: 'Courier New', monospace;
+  font-size: 0.85em;
+  background: rgba(19,91,236,0.15);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.typing-dot {
+  width: 6px; height: 6px;
+  background: #64748b;
+  border-radius: 50%;
+  animation: typing 1.2s infinite;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+@keyframes typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-6px); opacity: 1; }
+}
+#inputWrap.drag-over {
+  border-color: #135bec;
+  background: rgba(19,91,236,0.08);
+}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-full">
+  <!-- 顶部标题栏 -->
+  <div class="flex items-center justify-between px-6 py-3 border-b border-border-dark flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 bg-primary/20 rounded-lg flex items-center justify-center">
+        <span class="material-icons-round text-primary text-lg">smart_toy</span>
+      </div>
+      <div>
+        <h1 class="font-semibold text-sm">AI 数据助手</h1>
+        <p class="text-xs text-slate-500">DeepSeek · 可查询你的私有数据库</p>
+      </div>
+    </div>
+    <button onclick="clearHistory()" class="text-xs text-slate-500 hover:text-slate-300 flex items-center gap-1 transition-colors">
+      <span class="material-icons-round text-sm">delete_sweep</span>清空对话
+    </button>
+  </div>
+
+  <!-- 消息区域 -->
+  <div id="chatMessages" class="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+    <!-- 欢迎消息 -->
+    <div class="flex gap-3">
+      <div class="w-7 h-7 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+        <span class="material-icons-round text-primary text-sm">smart_toy</span>
+      </div>
+      <div class="chat-bubble-ai px-4 py-3 max-w-2xl">
+        <p class="text-sm text-slate-200">你好！我可以帮你查询和分析你的股票数据库。</p>
+        <p class="text-xs text-slate-500 mt-2">试试问我：</p>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <button onclick="sendSuggestion(this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full transition-colors">最近有哪些重要性高的利好消息？</button>
+          <button onclick="sendSuggestion(this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full transition-colors">我的自选股最近表现怎么样？</button>
+          <button onclick="sendSuggestion(this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full transition-colors">近期市场热点主题有哪些？</button>
+          <button onclick="sendSuggestion(this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full transition-colors">北向资金最近流向如何？</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 输入区域 -->
+  <div class="px-6 py-4 border-t border-border-dark flex-shrink-0">
+    <div class="flex gap-3 items-end">
+      <div id="inputWrap" class="flex-1 bg-card-dark border border-border-dark rounded-xl px-4 py-3 focus-within:border-primary transition-colors"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
+        <textarea
+          id="userInput"
+          rows="1"
+          placeholder="问我任何关于你的股票数据的问题，或从资金热度页拖入新闻..."
+          class="w-full bg-transparent text-sm text-slate-200 placeholder-slate-600 resize-none outline-none"
+          style="max-height: 120px;"
+          onkeydown="handleKeydown(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+      </div>
+      <button
+        id="sendBtn"
+        onclick="sendMessage()"
+        class="w-10 h-10 bg-primary hover:bg-primary/80 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 disabled:opacity-40"
+      >
+        <span class="material-icons-round text-white text-lg">send</span>
+      </button>
+    </div>
+    <p class="text-xs text-slate-600 mt-2 text-center">由 DeepSeek 驱动 · 数据来自本地数据库 · 仅供参考</p>
+  </div>
+</div>
+
+<script>
+const SESSION_ID = 'agent_' + Date.now();
+let isLoading = false;
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function sendSuggestion(btn) {
+  document.getElementById('userInput').value = btn.textContent;
+  sendMessage();
+}
+
+function scrollToBottom() {
+  const el = document.getElementById('chatMessages');
+  el.scrollTop = el.scrollHeight;
+}
+
+function appendUserMessage(text) {
+  const el = document.getElementById('chatMessages');
+  el.insertAdjacentHTML('beforeend', `
+    <div class="flex gap-3 justify-end">
+      <div class="chat-bubble-user px-4 py-3 max-w-2xl">
+        <p class="text-sm text-white">${escapeHtml(text)}</p>
+      </div>
+      <div class="w-7 h-7 bg-slate-700 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+        <span class="material-icons-round text-slate-300 text-sm">person</span>
+      </div>
+    </div>
+  `);
+  scrollToBottom();
+}
+
+function appendTypingIndicator() {
+  const el = document.getElementById('chatMessages');
+  el.insertAdjacentHTML('beforeend', `
+    <div id="typingIndicator" class="flex gap-3">
+      <div class="w-7 h-7 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+        <span class="material-icons-round text-primary text-sm">smart_toy</span>
+      </div>
+      <div class="chat-bubble-ai px-4 py-3">
+        <div class="flex gap-1 items-center h-4">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>
+      </div>
+    </div>
+  `);
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  document.getElementById('typingIndicator')?.remove();
+}
+
+function appendAiMessage(text) {
+  const el = document.getElementById('chatMessages');
+  el.insertAdjacentHTML('beforeend', `
+    <div class="flex gap-3">
+      <div class="w-7 h-7 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+        <span class="material-icons-round text-primary text-sm">smart_toy</span>
+      </div>
+      <div class="chat-bubble-ai px-4 py-3 max-w-3xl">
+        <div class="text-sm text-slate-200 prose-sm">${formatMarkdown(text)}</div>
+      </div>
+    </div>
+  `);
+  scrollToBottom();
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function formatMarkdown(text) {
+  // 简单 markdown 渲染
+  return text
+    .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3 class="font-semibold text-slate-100 mt-3 mb-1">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 class="font-bold text-slate-100 mt-4 mb-2">$1</h2>')
+    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc text-slate-300">$1</li>')
+    .replace(/\n/g, '<br>');
+}
+
+// ── Drop zone: FOE JSON 新闻拖入支持 ──
+function handleDragOver(event) {
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'copy';
+  document.getElementById('inputWrap').classList.add('drag-over');
+}
+
+function handleDragLeave(event) {
+  document.getElementById('inputWrap').classList.remove('drag-over');
+}
+
+function handleDrop(event) {
+  event.preventDefault();
+  document.getElementById('inputWrap').classList.remove('drag-over');
+
+  var raw = event.dataTransfer.getData('text/plain') || '';
+  if (!raw) return;
+
+  var formatted = raw;
+  try {
+    var obj = JSON.parse(raw);
+    // FOE 格式：含 fact / evidence / reason / summary 字段
+    if (obj && (obj.fact !== undefined || obj.evidence !== undefined || obj.summary !== undefined)) {
+      var parts = [];
+      if (obj.fact) parts.push('【事实】' + obj.fact);
+      if (obj.opinion) parts.push('【观点】' + obj.opinion);
+      // evidence 或 reason 均作为依据
+      var ev = obj.evidence || obj.reason || '';
+      if (ev) parts.push('【依据】' + ev);
+      if (!parts.length && obj.summary) parts.push('【摘要】' + obj.summary);
+      if (parts.length) formatted = parts.join('\n');
+    }
+  } catch (e) {
+    // 非 JSON，按纯文本处理
+  }
+
+  if (!formatted) return;
+  var textarea = document.getElementById('userInput');
+  var current = textarea.value;
+  textarea.value = current ? (current + '\n' + formatted) : formatted;
+  autoResize(textarea);
+  textarea.focus();
+}
+
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('userInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  isLoading = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  appendUserMessage(text);
+  appendTypingIndicator();
+
+  try {
+    const resp = await fetch('/agent/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, session_id: SESSION_ID})
+    });
+    const data = await resp.json();
+    removeTypingIndicator();
+    if (data.ok) {
+      appendAiMessage(data.reply);
+    } else {
+      appendAiMessage('❌ 出错了：' + (data.error || '未知错误'));
+    }
+  } catch (e) {
+    removeTypingIndicator();
+    appendAiMessage('❌ 网络错误：' + e.message);
+  } finally {
+    isLoading = false;
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+
+async function clearHistory() {
+  await fetch(`/agent/history/${SESSION_ID}`, {method: 'DELETE'});
+  const el = document.getElementById('chatMessages');
+  // 只保留欢迎消息（第一个子元素）
+  while (el.children.length > 1) el.removeChild(el.lastChild);
+}
+</script>
+{% endblock %}

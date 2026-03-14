@@ -497,7 +497,6 @@ def stock_detail(request: Request, stock_code: str, user: TokenData = Depends(ge
     layered_tags = _get_knowledge_tags(stock_code)
     research = _get_latest_research(stock_code)
     history = _get_research_history(stock_code)
-    news = _get_related_news(stock_code)
     capital = _get_capital_flow(stock_code, 250)
 
     # 是否已在 watchlist
@@ -523,7 +522,6 @@ def stock_detail(request: Request, stock_code: str, user: TokenData = Depends(ge
         "tags_json": json.dumps(core_tags + more_tags, ensure_ascii=False),
         "research": research,
         "history": history,
-        "news": news,
         "capital": capital,
         "in_watchlist": in_watchlist,
         "can_chart_analysis": can_chart,
@@ -1394,4 +1392,338 @@ def api_chips(stock_code: str, date: str = None):
         "chips": chips,
         "cost_90": cost_90,
         "cost_70": cost_70,
+    })
+
+
+@router.get("/{stock_code}/api/related-chunks")
+def api_related_chunks(stock_code: str, limit: int = 8):
+    """基于 text_chunks + KG 实体/三元组的关联内容检索（替代旧关联新闻）
+
+    策略：
+    1. 用 stock_name LIKE 搜索 text_chunks，取最新 limit 条
+    2. 查 KG 找关联实体（company 节点通过 entity_name/external_id 匹配，depth=1）
+    3. 用关联实体名 LIKE 搜索 text_chunks 补充（去重，最多 limit 条）
+    4. 返回 chunks + kg_entities + kg_triples 三部分
+    """
+    # 1. 获取股票名称
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=%s", [stock_code])
+    stock_name = info[0]["stock_name"] if info else ""
+
+    seen_chunk_ids = set()
+    chunks = []
+
+    def _fetch_chunks_by_keyword(keyword: str, n: int) -> list:
+        """按关键词 LIKE 搜 text_chunks，返回格式化 list"""
+        like = f"%{keyword}%"
+        rows = execute_query(
+            """SELECT id, chunk_text, doc_type, publish_time, source_doc_title
+               FROM text_chunks
+               WHERE chunk_text LIKE %s
+               ORDER BY publish_time DESC
+               LIMIT %s""",
+            [like, n],
+        )
+        result = []
+        for r in (rows or []):
+            if r["id"] in seen_chunk_ids:
+                continue
+            seen_chunk_ids.add(r["id"])
+            text = (r["chunk_text"] or "")
+            result.append({
+                "chunk_id": r["id"],
+                "text": text[:200],
+                "doc_type": r.get("doc_type") or "",
+                "publish_time": str(r.get("publish_time") or "")[:10],
+                "source": (r.get("source_doc_title") or "")[:60],
+                "keyword": keyword,
+            })
+        return result
+
+    # 用 stock_name 搜（主力）
+    if stock_name:
+        chunks += _fetch_chunks_by_keyword(stock_name, limit)
+
+    # 2. 查 KG 找公司实体及其 depth=1 关联实体
+    kg_entity_rows = execute_query(
+        """SELECT id, entity_name, entity_type, description
+           FROM kg_entities
+           WHERE entity_name LIKE %s OR entity_name LIKE %s
+           LIMIT 5""",
+        [f"%{stock_name}%", f"%{stock_code}%"] if stock_name else [f"%{stock_code}%", f"%{stock_code}%"],
+    )
+
+    company_entity_ids = [r["id"] for r in (kg_entity_rows or [])]
+
+    # 关联实体（depth=1，最多15个）
+    related_entities = []
+    kg_triples = []
+    if company_entity_ids:
+        id_ph = ",".join(["%s"] * len(company_entity_ids))
+        rel_rows = execute_query(
+            f"""SELECT kr.id as rel_id, kr.relation_type, kr.strength, kr.evidence,
+                       ke_s.entity_name as src_name, ke_s.entity_type as src_type,
+                       ke_t.entity_name as tgt_name, ke_t.entity_type as tgt_type,
+                       ke_t.id as tgt_id
+                FROM kg_relationships kr
+                JOIN kg_entities ke_s ON kr.source_entity_id = ke_s.id
+                JOIN kg_entities ke_t ON kr.target_entity_id = ke_t.id
+                WHERE kr.source_entity_id IN ({id_ph})
+                ORDER BY kr.strength DESC
+                LIMIT 20""",
+            company_entity_ids,
+        )
+        for r in (rel_rows or []):
+            tgt_name = r["tgt_name"] or ""
+            if tgt_name:
+                related_entities.append({
+                    "id": r["tgt_id"],
+                    "name": tgt_name,
+                    "type": r["tgt_type"] or "",
+                })
+            kg_triples.append({
+                "subject": r["src_name"],
+                "relation": r["relation_type"] or "",
+                "object": tgt_name,
+                "evidence": (r.get("evidence") or "")[:80],
+                "strength": r.get("strength"),
+            })
+
+        # 反向关联（其他实体 → 本公司）
+        rev_rows = execute_query(
+            f"""SELECT kr.relation_type, ke_s.entity_name as src_name, ke_s.entity_type as src_type, ke_s.id as src_id
+                FROM kg_relationships kr
+                JOIN kg_entities ke_s ON kr.source_entity_id = ke_s.id
+                WHERE kr.target_entity_id IN ({id_ph})
+                ORDER BY kr.strength DESC
+                LIMIT 10""",
+            company_entity_ids,
+        )
+        for r in (rev_rows or []):
+            src_name = r["src_name"] or ""
+            if src_name:
+                related_entities.append({
+                    "id": r["src_id"],
+                    "name": src_name,
+                    "type": r["src_type"] or "",
+                })
+
+    # 去重 related_entities
+    seen_ent = set()
+    deduped_entities = []
+    for e in related_entities:
+        if e["name"] not in seen_ent:
+            seen_ent.add(e["name"])
+            deduped_entities.append(e)
+    deduped_entities = deduped_entities[:12]
+
+    # 3. 用关联实体名补充 chunks（每个实体最多取 2 条）
+    remaining = limit - len(chunks)
+    if remaining > 0:
+        for ent in deduped_entities[:6]:
+            if remaining <= 0:
+                break
+            added = _fetch_chunks_by_keyword(ent["name"], 2)
+            chunks += added
+            remaining -= len(added)
+
+    # kg_entities 汇总（公司本体 + 关联实体）
+    kg_entities_out = []
+    for r in (kg_entity_rows or []):
+        kg_entities_out.append({
+            "name": r["entity_name"],
+            "type": r["entity_type"],
+            "description": (r.get("description") or "")[:100],
+            "is_main": True,
+        })
+    for e in deduped_entities:
+        kg_entities_out.append({
+            "name": e["name"],
+            "type": e["type"],
+            "description": "",
+            "is_main": False,
+        })
+
+    return JSONResponse({
+        "ok": True,
+        "stock_name": stock_name,
+        "chunks": chunks[:limit],
+        "kg_entities": kg_entities_out[:15],
+        "kg_triples": kg_triples[:10],
+    })
+
+
+@router.post("/{stock_code}/api/fetch-online")
+def api_fetch_online(stock_code: str):
+    """L3 在线补充：拉取东方财富研报/新闻 + 问财搜索，写入 source_documents（云端），返回摘要列表。
+
+    来源优先级：
+    1. 东方财富个股研报 (ak.stock_research_report_em) — 标题+机构+评级+PDF链接
+    2. 东方财富个股新闻 (ak.stock_news_em) — 最近30条，去重后写入
+    3. 问财关键词搜索 (pywencai) — 需 WENCAI_COOKIE 配置，无 cookie 则跳过
+    """
+    import hashlib
+    from datetime import datetime
+    from utils.db_utils import execute_cloud_insert, execute_cloud_query
+
+    info = execute_query("SELECT stock_name FROM stock_info WHERE stock_code=%s", [stock_code])
+    stock_name = info[0]["stock_name"] if info else stock_code
+
+    results = []  # 返回给前端的摘要列表，每项含 source/title/date/url
+
+    # ── 工具函数 ──────────────────────────────────────────────
+    def _make_ref(prefix: str, text: str) -> str:
+        """生成 source_ref 用于去重（前缀 + MD5 前16位）"""
+        return f"{prefix}:{hashlib.md5(text.encode()).hexdigest()[:16]}"
+
+    def _is_duplicate(ref: str) -> bool:
+        rows = execute_cloud_query(
+            "SELECT id FROM source_documents WHERE source_ref=%s LIMIT 1", [ref]
+        )
+        return bool(rows)
+
+    def _save_source_doc(doc_type, file_type, title, author, publish_date,
+                         source, text_content, source_ref, url=None):
+        """写入 source_documents，返回 id 或 None（重复）"""
+        if _is_duplicate(source_ref):
+            return None
+        try:
+            doc_id = execute_cloud_insert(
+                """INSERT INTO source_documents
+                   (doc_type, file_type, title, author, publish_date, source,
+                    oss_url, text_content, extract_status, source_ref)
+                   VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'pending',%s)""",
+                [doc_type, file_type, title, author, publish_date, source,
+                 url, text_content, source_ref],
+            )
+            return doc_id
+        except Exception as e:
+            logger.warning(f"写入 source_documents 失败: {e}")
+            return None
+
+    # ── 1. 东方财富个股研报 ──────────────────────────────────
+    try:
+        import akshare as ak
+        df = ak.stock_research_report_em(symbol=stock_code)
+        if df is not None and not df.empty:
+            for _, row in df.head(10).iterrows():
+                title = str(row.get("报告名称", "") or "").strip()
+                if not title:
+                    continue
+                institution = str(row.get("机构", "") or "")
+                rating = str(row.get("东财评级", "") or "")
+                pub_date = str(row.get("日期", "") or "")[:10]
+                pdf_url = str(row.get("报告PDF链接", "") or "")
+
+                text = f"【研报】{title}\n机构：{institution}  评级：{rating}\n日期：{pub_date}"
+                ref = _make_ref("em_report", title + pub_date)
+                doc_id = _save_source_doc(
+                    doc_type="research_report", file_type="text",
+                    title=title, author=institution, publish_date=pub_date or None,
+                    source="eastmoney_report", text_content=text,
+                    source_ref=ref, url=pdf_url,
+                )
+                results.append({
+                    "source": "东财研报",
+                    "title": title,
+                    "meta": f"{institution} · {rating}",
+                    "date": pub_date,
+                    "url": pdf_url,
+                    "saved": doc_id is not None,
+                })
+    except Exception as e:
+        logger.warning(f"东方财富研报拉取失败: {e}")
+
+    # ── 2. 东方财富个股新闻 ──────────────────────────────────
+    try:
+        import akshare as ak
+        df = ak.stock_news_em(symbol=stock_code)
+        if df is not None and not df.empty:
+            for _, row in df.head(30).iterrows():
+                title = str(row.get("新闻标题", "") or "").strip()
+                content = str(row.get("新闻内容", "") or "")
+                pub_time = str(row.get("发布时间", "") or "")[:10]
+                url = str(row.get("新闻链接", "") or "")
+                source_name = str(row.get("文章来源", "eastmoney") or "")
+
+                if not title:
+                    continue
+                ref = _make_ref("em_news", title + pub_time)
+                text = f"{title}\n{content[:500]}" if content else title
+                doc_id = _save_source_doc(
+                    doc_type="news", file_type="text",
+                    title=title, author=source_name, publish_date=pub_time or None,
+                    source="eastmoney_news", text_content=text,
+                    source_ref=ref, url=url,
+                )
+                results.append({
+                    "source": "东财新闻",
+                    "title": title,
+                    "meta": source_name,
+                    "date": pub_time,
+                    "url": url,
+                    "saved": doc_id is not None,
+                })
+    except Exception as e:
+        logger.warning(f"东方财富新闻拉取失败: {e}")
+
+    # ── 3. 问财关键词搜索 ────────────────────────────────────
+    # pywencai 通过 node 执行 hexin-v.bundle.js 动态生成同花顺 hexin-v token，无需登录
+    # 注意：问财对数据中心 IP 有 IP 级别拦截，在个人宽带环境下无需任何配置即可使用
+    try:
+        import sys as _sys, os as _os
+        _sys.path.insert(0, _os.path.dirname(_os.path.dirname(__file__)))
+        import pywencai
+
+        # 构建查询关键词：公司名 + KG 关联主题/行业（最多2个）
+        kg_rows = execute_query(
+            """SELECT ke_t.entity_name
+               FROM kg_relationships kr
+               JOIN kg_entities ke_s ON kr.source_entity_id = ke_s.id
+               JOIN kg_entities ke_t ON kr.target_entity_id = ke_t.id
+               WHERE ke_s.entity_name LIKE %s
+                 AND ke_t.entity_type IN ('theme','industry')
+               ORDER BY kr.strength DESC LIMIT 2""",
+            [f"%{stock_name}%"],
+        )
+        kw_parts = [stock_name] + [r["entity_name"] for r in (kg_rows or [])]
+        query = " ".join(kw_parts[:3])
+
+        wc_result = pywencai.get(query=query, query_type="news", retry=2)
+        if wc_result is not None:
+            rows_wc = wc_result if isinstance(wc_result, list) else (
+                wc_result.to_dict("records") if hasattr(wc_result, "to_dict") else []
+            )
+            for r in rows_wc[:10]:
+                title = str(r.get("title") or r.get("新闻标题") or r.get("标题") or "").strip()
+                content = str(r.get("content") or r.get("新闻内容") or r.get("摘要") or "")
+                pub_time = str(r.get("pub_time") or r.get("发布时间") or r.get("日期") or "")[:10]
+                url = str(r.get("url") or r.get("链接") or "")
+
+                if not title:
+                    continue
+                ref = _make_ref("wencai", title + pub_time)
+                text = f"{title}\n{content[:500]}" if content else title
+                doc_id = _save_source_doc(
+                    doc_type="news", file_type="text",
+                    title=title, author="iwencai", publish_date=pub_time or None,
+                    source="iwencai", text_content=text,
+                    source_ref=ref, url=url,
+                )
+                results.append({
+                    "source": "问财",
+                    "title": title,
+                    "meta": f"查询: {query}",
+                    "date": pub_time,
+                    "url": url,
+                    "saved": doc_id is not None,
+                })
+    except Exception as e:
+        logger.warning(f"问财搜索失败: {e}")
+
+    new_count = sum(1 for r in results if r.get("saved"))
+    return JSONResponse({
+        "ok": True,
+        "total": len(results),
+        "new_saved": new_count,
+        "items": results,
     })

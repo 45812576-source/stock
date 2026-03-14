@@ -16,6 +16,15 @@ def generate_all_dashboards(date_str=None):
     if date_str is None:
         date_str = datetime.now().strftime("%Y-%m-%d")
 
+    # ── 先跑一次 KG 增量更新（structured模式，不调Claude，零成本） ──
+    # 确保新清洗的 tag/行业/公司 进入 KG，供后续推荐使用
+    try:
+        from knowledge_graph.kg_updater import update_from_cleaned_items
+        kg_result = update_from_cleaned_items(since_date=date_str, use_claude=False)
+        logger.info(f"KG增量更新完成: {kg_result}")
+    except Exception as e:
+        logger.warning(f"KG增量更新失败（不影响Dashboard生成）: {e}")
+
     run_id = execute_insert(
         "INSERT INTO pipeline_runs (pipeline_name, details_json) VALUES ('dashboard_generate', ?)",
         [json.dumps({"date": date_str})],
@@ -213,7 +222,7 @@ def _classify_tag(tag):
 def get_tag_frequency_summary(days=7):
     """获取标签频次汇总（供热点动向使用）"""
     return execute_query(
-        """SELECT tag_name, tag_type,
+        """SELECT tag_name, MAX(tag_type) as tag_type,
                   COUNT(*) as appear_count,
                   SUM(CASE WHEN dashboard_type <= 2 THEN 1 ELSE 0 END) as macro_count,
                   SUM(CASE WHEN dashboard_type BETWEEN 3 AND 6 THEN 1 ELSE 0 END) as industry_count,

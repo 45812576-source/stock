@@ -1,0 +1,563 @@
+{% extends "base.html" %}
+{% block title %}行业指标库{% endblock %}
+
+{% block extra_styles %}
+.tab-btn { padding: 0.5rem 1.25rem; font-size: 0.8rem; font-weight: 700; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.tab-btn.active { color: #135bec; border-bottom-color: #135bec; }
+.tab-btn:not(.active) { color: #64748b; }
+.tab-btn:not(.active):hover { color: #94a3b8; }
+
+.ind-row { transition: background 0.15s; }
+.ind-row:hover { background: rgba(19,91,236,0.05); }
+
+.badge-type { display:inline-block; padding:1px 8px; border-radius:9999px; font-size:10px; font-weight:700; }
+.badge-growth_rate  { background:rgba(16,185,129,0.12); color:#34d399; }
+.badge-output       { background:rgba(59,130,246,0.12); color:#60a5fa; }
+.badge-price        { background:rgba(245,158,11,0.12); color:#fbbf24; }
+.badge-market_size  { background:rgba(139,92,246,0.12); color:#a78bfa; }
+.badge-penetration  { background:rgba(239,68,68,0.12); color:#f87171; }
+.badge-capacity     { background:rgba(20,184,166,0.12); color:#2dd4bf; }
+.badge-inventory    { background:rgba(249,115,22,0.12); color:#fb923c; }
+.badge-other        { background:rgba(100,116,139,0.12); color:#94a3b8; }
+
+.badge-high   { background:rgba(16,185,129,0.15); color:#34d399; }
+.badge-medium { background:rgba(245,158,11,0.15); color:#fbbf24; }
+.badge-low    { background:rgba(239,68,68,0.15); color:#f87171; }
+
+.badge-actual   { background:rgba(59,130,246,0.12); color:#60a5fa; }
+.badge-forecast { background:rgba(139,92,246,0.12); color:#a78bfa; }
+
+.filter-select {
+  background: #1a2233; border: 1px solid #2d3748; color: #e2e8f0;
+  border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.75rem;
+  outline: none; cursor: pointer;
+}
+.filter-select:focus { border-color: #135bec; }
+
+.sort-th { cursor:pointer; user-select:none; white-space:nowrap; }
+.sort-th:hover { color: #135bec; }
+.sort-th .sort-icon { font-size:14px; vertical-align:middle; opacity:0.4; }
+.sort-th.active-sort .sort-icon { opacity:1; color:#135bec; }
+
+.group-header {
+  background: rgba(19,91,236,0.08);
+  border-left: 3px solid #135bec;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #60a5fa;
+  letter-spacing: 0.05em;
+}
+
+.snippet-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 0.7rem;
+}
+.snippet-cell:hover { white-space: normal; color: #94a3b8; }
+{% endblock %}
+
+{% block content %}
+<div class="p-6">
+  <!-- 页面标题 + Tab 导航 -->
+  <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+    <div>
+      <h1 class="text-2xl font-extrabold tracking-tight">数据管理</h1>
+      <p class="text-sm text-slate-500 mt-1">信息源管理 · 文档提取 · 清洗管线</p>
+    </div>
+  </div>
+
+  <!-- Tab 导航 -->
+  <div class="flex items-center gap-1 border-b border-slate-800 mb-6">
+    <a href="/data/cleaning" class="tab-btn">
+      <span class="material-icons-round text-sm align-middle mr-1">cloud_sync</span>采集清洗
+    </a>
+    <a href="/data/review" class="tab-btn">
+      <span class="material-icons-round text-sm align-middle mr-1">rule</span>提取审核
+    </a>
+    <a href="/search" class="tab-btn">
+      <span class="material-icons-round text-sm align-middle mr-1">table_chart</span>Chunk 检索
+    </a>
+    <a href="/data/indicators" class="tab-btn active">
+      <span class="material-icons-round text-sm align-middle mr-1">leaderboard</span>行业指标库
+    </a>
+  </div>
+
+  <!-- 统计卡片 -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5" id="statsCards">
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">总指标条数</p>
+      <p class="text-2xl font-bold text-white font-mono" id="stat-total">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">覆盖行业(L1)</p>
+      <p class="text-2xl font-bold text-blue-400 font-mono" id="stat-l1">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">指标类型</p>
+      <p class="text-2xl font-bold text-violet-400 font-mono" id="stat-types">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">冲突记录</p>
+      <p class="text-2xl font-bold text-amber-400 font-mono" id="stat-conflict">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 text-center">
+      <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">数据来源</p>
+      <p class="text-2xl font-bold text-emerald-400 font-mono" id="stat-sources">—</p>
+    </div>
+  </div>
+
+  <!-- 主面板 -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+    <!-- 工具栏 -->
+    <div class="p-4 border-b border-slate-800 flex flex-wrap gap-3 items-center">
+      <!-- 搜索框 -->
+      <div class="relative flex-1 min-w-[200px]">
+        <span class="material-icons-round absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-base">search</span>
+        <input id="searchInput" type="text" placeholder="搜索指标名、行业、原始文本…"
+          class="w-full bg-slate-800 border border-slate-700 rounded-lg pl-8 pr-3 py-1.5 text-sm text-slate-200 placeholder-slate-600 outline-none focus:border-primary transition"
+          oninput="debouncedLoad()">
+      </div>
+
+      <!-- 筛选器 -->
+      <select id="filterL1" class="filter-select" onchange="onL1Change()">
+        <option value="">全部行业(L1)</option>
+      </select>
+      <select id="filterL2" class="filter-select" onchange="loadData()">
+        <option value="">全部子行业</option>
+      </select>
+      <select id="filterType" class="filter-select" onchange="loadData()">
+        <option value="">全部类型</option>
+        <option value="growth_rate">增速</option>
+        <option value="output">产量</option>
+        <option value="price">价格</option>
+        <option value="market_size">市场规模</option>
+        <option value="penetration">渗透率</option>
+        <option value="capacity">产能</option>
+        <option value="inventory">库存</option>
+      </select>
+      <select id="filterYear" class="filter-select" onchange="loadData()">
+        <option value="">全部年份</option>
+      </select>
+      <select id="filterDataType" class="filter-select" onchange="loadData()">
+        <option value="">actual+forecast</option>
+        <option value="actual">实际值</option>
+        <option value="forecast">预测值</option>
+      </select>
+      <select id="filterConfidence" class="filter-select" onchange="loadData()">
+        <option value="">全部置信度</option>
+        <option value="high">高</option>
+        <option value="medium">中</option>
+        <option value="low">低</option>
+      </select>
+
+      <!-- 分隔 -->
+      <div class="h-5 w-px bg-slate-700 hidden md:block"></div>
+
+      <!-- 分组 -->
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs text-slate-500 font-bold">分组</span>
+        <select id="groupBy" class="filter-select" onchange="loadData()">
+          <option value="">不分组</option>
+          <option value="industry_l1">按一级行业</option>
+          <option value="industry_l2">按子行业</option>
+          <option value="metric_type">按指标类型</option>
+        </select>
+      </div>
+
+      <!-- 采集触发 -->
+      <button onclick="triggerFetch()" class="ml-auto flex items-center gap-1.5 px-3 py-1.5 bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 rounded-lg text-xs font-bold transition">
+        <span class="material-icons-round text-sm">refresh</span>立即采集
+      </button>
+    </div>
+
+    <!-- 分页 + 排序行 -->
+    <div class="flex items-center gap-3 px-4 py-2 border-b border-slate-800 text-xs text-slate-500">
+      <span id="resultCount">加载中…</span>
+      <div class="ml-auto flex items-center gap-2">
+        <span>排序</span>
+        <select id="sortCol" class="filter-select" onchange="loadData()">
+          <option value="period_end_date">数据期末</option>
+          <option value="value">数值</option>
+          <option value="created_at">入库时间</option>
+          <option value="metric_name">指标名</option>
+          <option value="industry_l2">子行业</option>
+        </select>
+        <button onclick="toggleOrder()" id="orderBtn"
+          class="flex items-center gap-0.5 px-2 py-1 bg-slate-800 rounded text-xs hover:bg-slate-700 transition font-mono">
+          <span class="material-icons-round text-sm" id="orderIcon">arrow_downward</span>
+          <span id="orderLabel">降序</span>
+        </button>
+        <span class="text-slate-700">|</span>
+        <span>每页</span>
+        <select id="pageSize" class="filter-select" onchange="loadData()">
+          <option value="100">100</option>
+          <option value="200" selected>200</option>
+          <option value="500">500</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 表格区域 -->
+    <div class="overflow-x-auto" id="tableWrap">
+      <table class="w-full text-xs" id="indTable">
+        <thead>
+          <tr class="border-b border-slate-800 text-slate-500">
+            <th class="px-3 py-2 text-left sort-th" onclick="setSort('industry_l2')">
+              行业 <span class="material-icons-round sort-icon" id="sort-industry_l2">unfold_more</span>
+            </th>
+            <th class="px-3 py-2 text-left sort-th" onclick="setSort('metric_name')">
+              指标名 <span class="material-icons-round sort-icon" id="sort-metric_name">unfold_more</span>
+            </th>
+            <th class="px-3 py-2 text-left">类型</th>
+            <th class="px-3 py-2 text-right sort-th" onclick="setSort('value')">
+              数值 <span class="material-icons-round sort-icon" id="sort-value">unfold_more</span>
+            </th>
+            <th class="px-3 py-2 text-left">原始</th>
+            <th class="px-3 py-2 text-left sort-th" onclick="setSort('period_end_date')">
+              期间 <span class="material-icons-round sort-icon" id="sort-period_end_date">unfold_more</span>
+            </th>
+            <th class="px-3 py-2 text-left">类别</th>
+            <th class="px-3 py-2 text-left">置信</th>
+            <th class="px-3 py-2 text-left">来源</th>
+            <th class="px-3 py-2 text-left">摘录</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <tr><td colspan="10" class="px-4 py-8 text-center text-slate-600">加载中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 加载更多 -->
+    <div id="loadMoreBar" class="hidden px-4 py-3 border-t border-slate-800 text-center">
+      <button onclick="loadMore()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-slate-400 font-bold transition">
+        加载更多
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 采集任务 Toast -->
+<div id="fetchToast" class="hidden fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900 border border-primary/40 rounded-xl px-5 py-3 shadow-2xl text-sm">
+  <span class="material-icons-round text-primary animate-spin text-base">sync</span>
+  <span id="fetchToastMsg">问财行业指标采集中…</span>
+  <button onclick="document.getElementById('fetchToast').classList.add('hidden')" class="ml-2 text-slate-600 hover:text-slate-400">
+    <span class="material-icons-round text-sm">close</span>
+  </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── 状态 ─────────────────────────────────────────────────────
+let _currentOrder = 'desc';
+let _currentSort = 'period_end_date';
+let _currentOffset = 0;
+let _allL2 = [];  // [{l1, l2}]
+let _debounceTimer = null;
+
+// ── 初始化 ────────────────────────────────────────────────────
+async function init() {
+  await Promise.all([loadStats(), loadFilters()]);
+  loadData();
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch('/data/api/indicators/stats');
+    const d = await r.json();
+    document.getElementById('stat-total').textContent = (d.total || 0).toLocaleString();
+    document.getElementById('stat-l1').textContent = (d.by_l1 || []).length;
+    document.getElementById('stat-types').textContent = (d.by_type || []).length;
+    document.getElementById('stat-conflict').textContent = d.conflict_count || 0;
+    document.getElementById('stat-sources').textContent = (d.by_source || []).length;
+  } catch(e) {}
+}
+
+async function loadFilters() {
+  try {
+    const r = await fetch('/data/api/indicators/filters');
+    const d = await r.json();
+
+    // L1
+    const l1Sel = document.getElementById('filterL1');
+    (d.l1s || []).forEach(l1 => {
+      const opt = document.createElement('option');
+      opt.value = l1; opt.textContent = l1;
+      l1Sel.appendChild(opt);
+    });
+
+    // L2 全集
+    _allL2 = d.l2s || [];
+    _rebuildL2();
+
+    // 年份
+    const yearSel = document.getElementById('filterYear');
+    (d.years || []).forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y + '年';
+      yearSel.appendChild(opt);
+    });
+  } catch(e) {}
+}
+
+function onL1Change() {
+  _rebuildL2();
+  loadData();
+}
+
+function _rebuildL2() {
+  const l1 = document.getElementById('filterL1').value;
+  const l2Sel = document.getElementById('filterL2');
+  const prevVal = l2Sel.value;
+  l2Sel.innerHTML = '<option value="">全部子行业</option>';
+  const filtered = l1 ? _allL2.filter(x => x.l1 === l1) : _allL2;
+  filtered.forEach(({l2}) => {
+    const opt = document.createElement('option');
+    opt.value = l2; opt.textContent = l2;
+    l2Sel.appendChild(opt);
+  });
+  // 保留之前的选值（若还存在）
+  if (filtered.find(x => x.l2 === prevVal)) l2Sel.value = prevVal;
+}
+
+// ── 数据加载 ──────────────────────────────────────────────────
+function _buildParams(offset = 0) {
+  const p = new URLSearchParams();
+  const q = document.getElementById('searchInput').value.trim();
+  const l1 = document.getElementById('filterL1').value;
+  const l2 = document.getElementById('filterL2').value;
+  const type = document.getElementById('filterType').value;
+  const year = document.getElementById('filterYear').value;
+  const dt = document.getElementById('filterDataType').value;
+  const conf = document.getElementById('filterConfidence').value;
+  const grp = document.getElementById('groupBy').value;
+  const limit = document.getElementById('pageSize').value;
+
+  if (q)    p.set('q', q);
+  if (l1)   p.set('l1', l1);
+  if (l2)   p.set('l2', l2);
+  if (type) p.set('metric_type', type);
+  if (year) p.set('period_year', year);
+  if (dt)   p.set('data_type', dt);
+  if (conf) p.set('confidence', conf);
+  if (grp)  p.set('group_by', grp);
+  p.set('sort', _currentSort);
+  p.set('order', _currentOrder);
+  p.set('limit', limit);
+  p.set('offset', offset);
+  return p;
+}
+
+async function loadData() {
+  _currentOffset = 0;
+  document.getElementById('tableBody').innerHTML =
+    '<tr><td colspan="10" class="px-4 py-8 text-center text-slate-600">加载中…</td></tr>';
+  document.getElementById('loadMoreBar').classList.add('hidden');
+
+  try {
+    const r = await fetch('/data/api/indicators?' + _buildParams(0));
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    renderTable(d, false);
+  } catch(e) {
+    document.getElementById('tableBody').innerHTML =
+      `<tr><td colspan="10" class="px-4 py-8 text-center text-red-400">${e.message}</td></tr>`;
+  }
+}
+
+async function loadMore() {
+  const limit = parseInt(document.getElementById('pageSize').value);
+  _currentOffset += limit;
+  try {
+    const r = await fetch('/data/api/indicators?' + _buildParams(_currentOffset));
+    const d = await r.json();
+    renderTable(d, true);
+  } catch(e) {}
+}
+
+function debouncedLoad() {
+  clearTimeout(_debounceTimer);
+  _debounceTimer = setTimeout(loadData, 320);
+}
+
+// ── 渲染 ──────────────────────────────────────────────────────
+const _typeLabels = {
+  growth_rate:'增速', output:'产量', price:'价格', market_size:'市场规模',
+  penetration:'渗透率', capacity:'产能', inventory:'库存'
+};
+const _confLabels = { high:'高', medium:'中', low:'低' };
+const _sourceLabels = { pipeline_d:'研报D管', pipeline_a_lite:'摘要A管', wencai:'问财', akshare:'AKShare', manual:'手动' };
+
+function _typeClass(t) {
+  return 'badge-type badge-' + (t || 'other');
+}
+function _confClass(c) { return 'badge badge-' + (c || 'medium'); }
+function _dtClass(dt) { return 'badge badge-' + (dt || 'actual'); }
+
+function _rowHtml(row) {
+  const industry = [row.industry_l1, row.industry_l2, row.industry_l3].filter(Boolean).join(' › ');
+  const val = row.value !== null && row.value !== undefined
+    ? parseFloat(row.value).toLocaleString('zh-CN', {maximumFractionDigits: 4})
+    : '—';
+  const conflictBadge = row.is_conflicted
+    ? '<span class="ml-1 text-amber-400 material-icons-round" title="数值冲突" style="font-size:12px">warning</span>' : '';
+  return `
+  <tr class="ind-row border-b border-slate-800/60">
+    <td class="px-3 py-2 text-slate-300 font-medium" style="max-width:160px">
+      <div class="text-[11px] font-bold truncate">${row.industry_l2 || ''}</div>
+      <div class="text-[10px] text-slate-600 truncate">${row.industry_l1 || ''}</div>
+    </td>
+    <td class="px-3 py-2" style="max-width:200px">
+      <span class="text-slate-200 text-[11px]">${row.metric_name || ''}</span>${conflictBadge}
+    </td>
+    <td class="px-3 py-2"><span class="${_typeClass(row.metric_type)}">${_typeLabels[row.metric_type] || row.metric_type || '—'}</span></td>
+    <td class="px-3 py-2 text-right font-mono font-bold ${row.value !== null ? 'text-white' : 'text-slate-600'}">${val}</td>
+    <td class="px-3 py-2 text-slate-500 text-[11px]" style="max-width:120px">
+      <span title="${row.value_raw || ''}" class="truncate block">${row.value_raw || '—'}</span>
+    </td>
+    <td class="px-3 py-2 text-slate-400 font-mono text-[11px]">
+      <div>${row.period_label || '—'}</div>
+      ${row.period_end_date ? `<div class="text-slate-600 text-[10px]">${row.period_end_date}</div>` : ''}
+    </td>
+    <td class="px-3 py-2"><span class="${_dtClass(row.data_type)}">${row.data_type === 'forecast' ? '预测' : '实际'}</span></td>
+    <td class="px-3 py-2"><span class="${_confClass(row.confidence)}">${_confLabels[row.confidence] || row.confidence || '—'}</span></td>
+    <td class="px-3 py-2 text-[10px] text-slate-500">${_sourceLabels[row.source_type] || row.source_type || '—'}</td>
+    <td class="px-3 py-2 snippet-cell" title="${(row.source_snippet || '').replace(/"/g,'&quot;')}">${row.source_snippet || '—'}</td>
+  </tr>`;
+}
+
+function _groupHeaderHtml(label, count) {
+  return `<tr><td colspan="10" class="group-header">
+    ${label} <span class="text-slate-500 font-normal ml-2">${count} 条</span>
+  </td></tr>`;
+}
+
+function renderTable(d, append) {
+  const body = document.getElementById('tableBody');
+  const limit = parseInt(document.getElementById('pageSize').value);
+
+  if (!append) {
+    document.getElementById('resultCount').textContent =
+      `共 ${(d.total || 0).toLocaleString()} 条`;
+  }
+
+  let html = '';
+  if (d.grouped) {
+    const groups = d.groups || {};
+    Object.keys(groups).sort().forEach(key => {
+      const rows = groups[key];
+      html += _groupHeaderHtml(key, rows.length);
+      rows.forEach(row => { html += _rowHtml(row); });
+    });
+  } else {
+    const rows = d.rows || [];
+    if (!append && rows.length === 0) {
+      html = '<tr><td colspan="10" class="px-4 py-10 text-center text-slate-600">暂无数据</td></tr>';
+    } else {
+      rows.forEach(row => { html += _rowHtml(row); });
+    }
+  }
+
+  if (append) {
+    body.insertAdjacentHTML('beforeend', html);
+  } else {
+    body.innerHTML = html;
+  }
+
+  // 加载更多按钮
+  const rows = d.grouped ? [] : (d.rows || []);
+  const showMore = !d.grouped && rows.length >= limit && d.total > _currentOffset + limit;
+  document.getElementById('loadMoreBar').classList.toggle('hidden', !showMore);
+}
+
+// ── 排序 ─────────────────────────────────────────────────────
+function setSort(col) {
+  if (_currentSort === col) {
+    _currentOrder = _currentOrder === 'desc' ? 'asc' : 'desc';
+  } else {
+    _currentSort = col;
+    _currentOrder = 'desc';
+  }
+  document.getElementById('sortCol').value = col;
+  _updateSortUI();
+  loadData();
+}
+
+function toggleOrder() {
+  _currentOrder = _currentOrder === 'desc' ? 'asc' : 'desc';
+  _updateSortUI();
+  loadData();
+}
+
+function _updateSortUI() {
+  document.getElementById('orderIcon').textContent =
+    _currentOrder === 'desc' ? 'arrow_downward' : 'arrow_upward';
+  document.getElementById('orderLabel').textContent =
+    _currentOrder === 'desc' ? '降序' : '升序';
+
+  // 更新表头高亮
+  ['industry_l2','metric_name','value','period_end_date'].forEach(col => {
+    const el = document.getElementById('sort-' + col);
+    if (!el) return;
+    el.closest('th').classList.toggle('active-sort', col === _currentSort);
+    el.textContent = col === _currentSort
+      ? (_currentOrder === 'desc' ? 'arrow_downward' : 'arrow_upward')
+      : 'unfold_more';
+  });
+}
+
+// sortCol select 同步
+document.getElementById('sortCol').addEventListener('change', function() {
+  _currentSort = this.value;
+  _updateSortUI();
+  loadData();
+});
+
+// ── 问财采集触发 ─────────────────────────────────────────────
+let _fetchTaskId = null;
+let _fetchPollTimer = null;
+
+async function triggerFetch() {
+  const toast = document.getElementById('fetchToast');
+  document.getElementById('fetchToastMsg').textContent = '问财行业指标采集中…';
+  toast.classList.remove('hidden');
+
+  try {
+    const r = await fetch('/data/api/wencai-indicators/fetch?limit=20', { method: 'POST' });
+    const d = await r.json();
+    _fetchTaskId = d.task_id;
+    _fetchPollTimer = setInterval(_pollFetchTask, 3000);
+  } catch(e) {
+    document.getElementById('fetchToastMsg').textContent = '启动失败: ' + e.message;
+    setTimeout(() => toast.classList.add('hidden'), 3000);
+  }
+}
+
+async function _pollFetchTask() {
+  if (!_fetchTaskId) return;
+  try {
+    const r = await fetch('/data/task-status/' + _fetchTaskId);
+    const d = await r.json();
+    if (d.status === 'done') {
+      clearInterval(_fetchPollTimer);
+      const res = d.results?.[0];
+      document.getElementById('fetchToastMsg').textContent =
+        res?.ok ? `采集完成：${res.count}` : ('失败: ' + (res?.error || ''));
+      setTimeout(() => {
+        document.getElementById('fetchToast').classList.add('hidden');
+        loadStats();
+        loadData();
+      }, 2500);
+    }
+  } catch(e) {}
+}
+
+// ── 启动 ─────────────────────────────────────────────────────
+init();
+</script>
+{% endblock %}

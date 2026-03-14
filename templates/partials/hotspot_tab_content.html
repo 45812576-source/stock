@@ -1,0 +1,779 @@
+{# Tab content partial — returned by AJAX for each tab #}
+
+{% if not research %}
+<!-- No research yet -->
+<div class="text-center py-16">
+  <span class="material-icons-round text-5xl text-slate-700 mb-4">science</span>
+  <p class="text-slate-500 mb-6">尚未执行深度研究</p>
+  <button onclick="triggerResearch({{ group.id }})" id="researchBtnEmpty"
+          class="bg-primary hover:bg-primary/90 text-white rounded-lg px-6 py-3 text-sm font-bold flex items-center gap-2 mx-auto transition-all">
+    <span class="material-icons-round text-sm">biotech</span> 执行深度研究
+  </button>
+</div>
+
+{% elif active_tab == 'logic' %}
+<!-- ═══ Logic Tab ═══ -->
+<div>
+  <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">投资逻辑</h3>
+  <div class="bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 relative overflow-hidden">
+    <span class="material-icons-round absolute -right-4 -bottom-4 text-8xl text-slate-700/10">format_quote</span>
+    {% if group.group_logic %}
+    <p class="text-lg leading-relaxed font-medium">{{ group.group_logic }}</p>
+    {% else %}
+    <p class="text-slate-500">暂无成组逻辑分析</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- 综合论证（logic_synthesis） -->
+{% if research.logic_synthesis and research.logic_synthesis.thesis_summary %}
+<div class="mt-6 bg-gradient-to-br from-slate-800/40 to-slate-800/20 border border-primary/20 rounded-xl p-6"
+     data-draggable data-chat-label="综合论证"
+     data-chat-context="{{ research.logic_synthesis.thesis_summary | e }}">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="material-icons-round text-sm text-primary">hub</span>
+    <h4 class="font-bold text-sm text-primary">综合论证</h4>
+  </div>
+  <p class="text-sm text-slate-300 leading-relaxed">{{ research.logic_synthesis.thesis_summary }}</p>
+</div>
+{% endif %}
+
+<!-- 新闻论据 -->
+{% if research.logic_synthesis and research.logic_synthesis.news_digest %}
+<div class="mt-6">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="material-icons-round text-sm text-amber-400">newspaper</span>
+    <h4 class="font-bold text-sm">关键新闻论据</h4>
+  </div>
+  <div class="space-y-2">
+    {% for nd in research.logic_synthesis.news_digest %}
+    <div class="flex items-start gap-3 p-3 rounded-lg bg-slate-800/20 border border-slate-700/40">
+      <div class="shrink-0 mt-0.5">
+        {% if nd.direction == 'positive' %}
+        <span class="inline-block w-2 h-2 rounded-full bg-red-400"></span>
+        {% elif nd.direction == 'negative' %}
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400"></span>
+        {% else %}
+        <span class="inline-block w-2 h-2 rounded-full bg-slate-400"></span>
+        {% endif %}
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm text-slate-400">{{ nd.fact }}</p>
+        <p class="text-sm text-slate-300 mt-1 font-medium">→ {{ nd.implication }}</p>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Macro / Industry Supporting -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+  {% if research.logic_synthesis and research.logic_synthesis.macro_impact %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="material-icons-round text-sm text-blue-400">public</span>
+      <h4 class="font-bold text-sm">宏观环境影响</h4>
+    </div>
+    <p class="text-sm text-slate-400 leading-relaxed">{{ research.logic_synthesis.macro_impact }}</p>
+  </div>
+  {% elif research.macro_json and research.macro_json.macro_supporting %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="material-icons-round text-sm text-blue-400">public</span>
+      <h4 class="font-bold text-sm">宏观环境支撑</h4>
+    </div>
+    <p class="text-sm text-slate-400 leading-relaxed">{{ research.macro_json.macro_supporting }}</p>
+  </div>
+  {% endif %}
+  {% if research.logic_synthesis and research.logic_synthesis.industry_impact %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="material-icons-round text-sm text-emerald-400">factory</span>
+      <h4 class="font-bold text-sm">行业格局影响</h4>
+    </div>
+    <p class="text-sm text-slate-400 leading-relaxed">{{ research.logic_synthesis.industry_impact }}</p>
+  </div>
+  {% elif research.industry_json and research.industry_json.industry_supporting %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-slate-700/50">
+    <div class="flex items-center gap-2 mb-3">
+      <span class="material-icons-round text-sm text-emerald-400">factory</span>
+      <h4 class="font-bold text-sm">行业趋势支撑</h4>
+    </div>
+    <p class="text-sm text-slate-400 leading-relaxed">{{ research.industry_json.industry_supporting }}</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- 3 Summary Cards: news / industry / macro hit -->
+{% if research.logic_synthesis %}
+{% set ls = research.logic_synthesis %}
+{% if ls.news_summary or ls.industry_summary or ls.macro_hit_summary %}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+  {% if ls.news_summary %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-amber-500/20">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-icons-round text-sm text-amber-400">newspaper</span>
+      <h4 class="font-bold text-xs text-amber-400 uppercase tracking-wider">新闻支撑</h4>
+    </div>
+    <p class="text-xs text-slate-400 leading-relaxed">{{ ls.news_summary }}</p>
+  </div>
+  {% endif %}
+  {% if ls.industry_summary %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-emerald-500/20">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-icons-round text-sm text-emerald-400">factory</span>
+      <h4 class="font-bold text-xs text-emerald-400 uppercase tracking-wider">影响行业</h4>
+    </div>
+    <p class="text-xs text-slate-400 leading-relaxed">{{ ls.industry_summary }}</p>
+  </div>
+  {% endif %}
+  {% if ls.macro_hit_summary %}
+  <div class="p-4 bg-slate-800/20 rounded-xl border border-blue-500/20">
+    <div class="flex items-center gap-2 mb-2">
+      <span class="material-icons-round text-sm text-blue-400">track_changes</span>
+      <h4 class="font-bold text-xs text-blue-400 uppercase tracking-wider">宏观命中</h4>
+    </div>
+    <p class="text-xs text-slate-400 leading-relaxed">{{ ls.macro_hit_summary }}</p>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endif %}
+
+<!-- 投资机会点 -->
+{% if research.logic_synthesis and research.logic_synthesis.investment_opportunity_points %}
+<div class="mt-8">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="material-icons-round text-sm text-yellow-400">tips_and_updates</span>
+    <h4 class="font-bold text-sm text-yellow-400">投资机会点</h4>
+  </div>
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {% for opp in research.logic_synthesis.investment_opportunity_points %}
+    <div class="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20"
+         data-draggable data-chat-label="投资机会点：{{ opp.trigger | e }}"
+         data-chat-context="触发：{{ opp.trigger | e }} 受益：{{ opp.beneficiary | e }} 风险：{{ opp.risk | e }}">
+      <div class="flex items-start gap-2 mb-2">
+        <span class="material-icons-round text-xs text-yellow-400 mt-0.5 shrink-0">bolt</span>
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] text-yellow-400/60 uppercase tracking-wider mb-0.5">触发条件</p>
+          <p class="text-sm text-slate-200 font-medium">{{ opp.trigger }}</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-2 mb-2 pl-5">
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] text-emerald-400/60 uppercase tracking-wider mb-0.5">受益标的</p>
+          <p class="text-xs text-emerald-300">{{ opp.beneficiary }}</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-2 pl-5">
+        <div class="flex-1 min-w-0">
+          <p class="text-[10px] text-red-400/60 uppercase tracking-wider mb-0.5">主要风险</p>
+          <p class="text-xs text-red-300/80">{{ opp.risk }}</p>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% elif active_tab == 'news' %}
+<!-- ═══ News Tab ═══ -->
+{% set news_list = research.news_parsed if research.news_parsed else research.news %}
+{% set news_list = news_list|sort(attribute='importance', reverse=true) %}
+<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">关联新闻 ({{ news_list|length }}条)</h3>
+{% if news_list %}
+<div class="space-y-4">
+  {% for n in news_list[:15] %}
+  <div class="p-4 rounded-xl bg-slate-800/20 border border-slate-700/50 hover:border-slate-600 transition-colors"
+       data-draggable data-chat-label="{{ (n.title or n.fact or '新闻') | truncate(30) | e }}"
+       data-chat-context="{{ (n.fact or n.summary or '') | e }}">
+    <div class="flex items-start gap-2 mb-2">
+      <span class="text-xs mt-0.5">📋</span>
+      <p class="text-sm text-slate-400">{{ n.fact or n.summary or '' }}</p>
+    </div>
+    {% if n.highlight %}
+    <div class="flex items-start gap-2 mb-2 px-2 py-1.5 rounded-lg bg-amber-500/5 border border-amber-500/15">
+      <span class="text-xs mt-0.5 shrink-0">💡</span>
+      <p class="text-xs text-amber-300/90 font-medium leading-snug">{{ n.highlight }}</p>
+    </div>
+    {% endif %}
+    {% if n.opinion and n.opinion != '无明确观点' %}
+    <div class="flex items-start gap-2 mb-2">
+      <span class="text-xs mt-0.5">💬</span>
+      <p class="text-sm text-slate-500 italic">{{ n.opinion }}</p>
+    </div>
+    {% endif %}
+    {% if n.supporting %}
+    <div class="flex items-start gap-2 mt-2 p-2.5 rounded-lg {{ 'bg-red-500/5 border border-red-500/15' if n.direction == 'positive' else 'bg-emerald-500/5 border border-emerald-500/15' if n.direction == 'negative' else 'bg-slate-700/20 border border-slate-600/20' }}">
+      <span class="text-xs mt-0.5 shrink-0">🔗</span>
+      <div class="flex-1 min-w-0">
+        <p class="text-[10px] text-slate-500 mb-1">与投资逻辑的关系</p>
+        <p class="text-sm font-medium {{ 'text-red-400' if n.direction == 'positive' else 'text-emerald-400' if n.direction == 'negative' else 'text-slate-400' }}">
+          {{ n.supporting }}
+        </p>
+      </div>
+      <div class="shrink-0 ml-2">
+        {% if n.direction == 'positive' %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">利好</span>
+        {% elif n.direction == 'negative' %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">利空</span>
+        {% else %}
+        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">中性</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="flex items-center gap-3 mt-2 text-[10px] text-slate-600">
+      <span>{{ '⭐' * (n.importance|default(0)|int) }}</span>
+      <span>关联{{ n.match_tags or 1 }}标签</span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-sm text-slate-600 text-center py-8">暂无关联新闻</p>
+{% endif %}
+
+{% elif active_tab == 'heat' %}
+<!-- ═══ Theme Heat Tab ═══ -->
+<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">主题热度（15日）</h3>
+{% if research.theme_heat and research.theme_heat.dates %}
+<div id="heat-chart" style="height: 350px;"></div>
+<div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
+  {% for tag in research.theme_heat.tags %}
+  <div class="p-3 bg-slate-800/20 rounded-lg border border-slate-700/50">
+    <div class="flex justify-between items-center">
+      <span class="text-sm font-bold">#{{ tag }}</span>
+      <span class="text-xs font-bold text-primary">
+        {{ research.theme_heat.totals.get(tag, 0) if research.theme_heat.totals else 0 }}次
+      </span>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<script>
+(function() {
+  var heatData = {{ research.theme_heat | tojson }};
+  var dates = heatData.dates || [];
+  var tags = heatData.tags || [];
+  var matrix = heatData.matrix || {};
+  var z = [];
+  tags.forEach(function(tag) {
+    var row = [];
+    dates.forEach(function(d) {
+      row.push((matrix[tag] && matrix[tag][d]) ? matrix[tag][d] : 0);
+    });
+    z.push(row);
+  });
+  if (z.length > 0) {
+    Plotly.newPlot('heat-chart', [{
+      x: dates, y: tags, z: z, type: 'heatmap',
+      colorscale: [[0,'rgba(15,23,42,0.8)'],[0.25,'#1e40af'],[0.5,'#3b82f6'],[0.75,'#f97316'],[1,'#ef4444']],
+      hoverongaps: false, showscale: true,
+      colorbar: { title: { text: '出现次数', font: { size: 10, color: '#94a3b8' } }, tickfont: { color: '#94a3b8' } },
+    }], {
+      margin: { t: 10, b: 40, l: 120, r: 10 },
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#94a3b8', size: 10 },
+      xaxis: { gridcolor: 'rgba(100,116,139,0.15)', tickangle: -30 },
+      yaxis: { gridcolor: 'rgba(100,116,139,0.15)', autorange: 'reversed' },
+    }, { displayModeBar: false, responsive: true });
+  }
+})();
+</script>
+{% else %}
+<p class="text-sm text-slate-600 text-center py-8">暂无主题热度数据</p>
+{% endif %}
+
+<!-- 细分行业热度 -->
+{% if research.industry_heat and research.industry_heat.industries %}
+{% set ih = research.industry_heat %}
+{% set dl = ih.days_list if ih.days_list else [7, 15, 30] %}
+<div class="mt-8">
+  <h4 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">细分行业热度</h4>
+  <!-- 时间窗口选项卡 -->
+  <div class="flex gap-2 mb-4" id="ind-heat-tabs">
+    {% for d in dl %}
+    <button onclick="switchIndHeatTab({{ d }})" id="ind-tab-{{ d }}"
+            class="px-3 py-1 text-xs font-bold rounded-lg border transition-all {{ 'bg-primary border-primary text-white' if loop.first else 'border-slate-700 text-slate-400 hover:border-primary hover:text-primary' }}">
+      近{{ d }}天
+    </button>
+    {% endfor %}
+  </div>
+  <!-- 行业热度表格 -->
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm" id="ind-heat-table">
+      <thead>
+        <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+          <th class="text-left py-2 px-2">行业</th>
+          <th class="text-right py-2 px-2" id="ind-heat-cnt-header">chunk数</th>
+          <th class="text-right py-2 px-2">7日净流入(亿)</th>
+          <th class="text-right py-2 px-2">市值(亿)</th>
+          <th class="text-right py-2 px-2">流入/市值</th>
+          <th class="text-center py-2 px-2">深入</th>
+        </tr>
+      </thead>
+      <tbody id="ind-heat-tbody">
+        {% for ind in ih.industries[:15] %}
+        <tr class="border-b border-slate-700/30 hover:bg-slate-700/10"
+            data-total7="{{ ind.get('total_7', 0) }}"
+            data-total15="{{ ind.get('total_15', 0) }}"
+            data-total30="{{ ind.get('total_30', 0) }}">
+          <td class="py-2 px-2 font-medium">{{ ind.name }}</td>
+          <td class="py-2 px-2 text-right font-mono text-xs ind-heat-cnt text-primary font-bold">{{ ind.get('total_7', 0) }}</td>
+          <td class="py-2 px-2 text-right font-mono text-xs {{ 'text-red-400' if (ind.capital_net_inflow or 0) > 0 else 'text-emerald-400' }}">
+            {{ '%.2f'|format((ind.capital_net_inflow or 0) / 1e8) }}
+          </td>
+          <td class="py-2 px-2 text-right font-mono text-xs text-slate-400">
+            {{ '%.0f'|format((ind.market_cap or 0) / 1e8) if ind.market_cap else '-' }}
+          </td>
+          <td class="py-2 px-2 text-right font-mono text-xs {{ 'text-red-400' if (ind.flow_cap_ratio or 0) > 0 else 'text-emerald-400' if (ind.flow_cap_ratio or 0) < 0 else 'text-slate-500' }}">
+            {{ '%.3f'|format(ind.flow_cap_ratio or 0) }}%
+          </td>
+          <td class="py-2 px-2 text-center">
+            <a href="/sector/{{ ind.name }}" class="text-primary hover:underline text-xs">→</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<script>
+(function() {
+  var _curDays = {{ dl[0] if dl else 7 }};
+  window.switchIndHeatTab = function(days) {
+    _curDays = days;
+    // 更新按钮样式
+    [{{ dl | join(',') }}].forEach(function(d) {
+      var btn = document.getElementById('ind-tab-' + d);
+      if (!btn) return;
+      btn.className = btn.className.replace(/bg-primary border-primary text-white|border-slate-700 text-slate-400 hover:border-primary hover:text-primary/g, '').trim();
+      if (d === days) {
+        btn.className += ' bg-primary border-primary text-white';
+      } else {
+        btn.className += ' border-slate-700 text-slate-400 hover:border-primary hover:text-primary';
+      }
+    });
+    // 更新表格数值
+    document.querySelectorAll('#ind-heat-tbody tr').forEach(function(tr) {
+      var cnt = tr.getAttribute('data-total' + days) || '0';
+      var el = tr.querySelector('.ind-heat-cnt');
+      if (el) el.textContent = cnt;
+    });
+  };
+})();
+</script>
+{% endif %}
+
+{% elif active_tab == 'macro' %}
+<!-- ═══ Macro Tab ═══ -->
+<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">宏观分析</h3>
+{% if research.macro_json and research.macro_json.summary %}
+<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-6"
+     data-draggable data-chat-label="宏观分析摘要"
+     data-chat-context="{{ research.macro_json.summary | e }}">
+  <p class="text-sm text-slate-300 leading-relaxed">{{ research.macro_json.summary }}</p>
+</div>
+{% if research.macro_json.factors %}
+{% set pos_factors = research.macro_json.factors | selectattr('direction', 'equalto', 'positive') | list %}
+{% set neg_factors = research.macro_json.factors | selectattr('direction', 'equalto', 'negative') | list %}
+{% set neu_factors = research.macro_json.factors | rejectattr('direction', 'equalto', 'positive') | rejectattr('direction', 'equalto', 'negative') | list %}
+
+<!-- 利好/利空/中性三层分栏 -->
+{% if pos_factors %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0"></span>
+    <h4 class="text-xs font-bold text-red-400 uppercase tracking-wider">利好因素（{{ pos_factors|length }}）</h4>
+  </div>
+  <div class="space-y-3">
+    {% for f in pos_factors %}
+    <div class="p-4 rounded-xl border border-red-500/30 bg-red-500/5"
+         data-draggable data-chat-label="利好因素：{{ f.name | e }}"
+         data-chat-context="{{ f.name | e }}：{{ f.logic_relation | e }} 当前状态：{{ f.current_state | e }}">
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="font-bold text-sm text-red-300">{{ f.name }}</h4>
+        <div class="flex items-center gap-1.5">
+          {% if f.db_hit is defined %}
+          {% if f.db_hit %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400">已命中</span>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-600/30 text-slate-500">未命中</span>
+          {% endif %}
+          {% endif %}
+          <span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">{{ f.confidence or 'medium' }}</span>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mb-1">当前状态: {{ f.current_state }}</p>
+      <p class="text-sm text-slate-300">{{ f.logic_relation }}</p>
+      {% if f.db_evidence %}
+      <div class="mt-2 px-3 py-1.5 rounded bg-cyan-500/5 border border-cyan-500/15">
+        <p class="text-[10px] text-cyan-400/70 mb-0.5">数据库证据</p>
+        <p class="text-xs text-cyan-300/80">{{ f.db_evidence }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if neu_factors %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0"></span>
+    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">中性因素（{{ neu_factors|length }}）</h4>
+  </div>
+  <div class="space-y-3">
+    {% for f in neu_factors %}
+    <div class="p-4 rounded-xl border border-slate-700/50 bg-slate-800/20"
+         data-draggable data-chat-label="中性因素：{{ f.name | e }}"
+         data-chat-context="{{ f.name | e }}：{{ f.logic_relation | e }} 当前状态：{{ f.current_state | e }}">
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="font-bold text-sm">{{ f.name }}</h4>
+        <div class="flex items-center gap-1.5">
+          {% if f.db_hit is defined %}
+          {% if f.db_hit %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400">已命中</span>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-600/30 text-slate-500">未命中</span>
+          {% endif %}
+          {% endif %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-400">中性</span>
+          <span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">{{ f.confidence or 'medium' }}</span>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mb-1">当前状态: {{ f.current_state }}</p>
+      <p class="text-sm text-slate-300">{{ f.logic_relation }}</p>
+      {% if f.db_evidence %}
+      <div class="mt-2 px-3 py-1.5 rounded bg-cyan-500/5 border border-cyan-500/15">
+        <p class="text-[10px] text-cyan-400/70 mb-0.5">数据库证据</p>
+        <p class="text-xs text-cyan-300/80">{{ f.db_evidence }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% if neg_factors %}
+<div class="mb-5">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+    <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider">利空因素（{{ neg_factors|length }}）</h4>
+  </div>
+  <div class="space-y-3">
+    {% for f in neg_factors %}
+    <div class="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5"
+         data-draggable data-chat-label="利空因素：{{ f.name | e }}"
+         data-chat-context="{{ f.name | e }}：{{ f.logic_relation | e }} 当前状态：{{ f.current_state | e }}">
+      <div class="flex items-center justify-between mb-2">
+        <h4 class="font-bold text-sm text-emerald-300">{{ f.name }}</h4>
+        <div class="flex items-center gap-1.5">
+          {% if f.db_hit is defined %}
+          {% if f.db_hit %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/20 text-cyan-400">已命中</span>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-600/30 text-slate-500">未命中</span>
+          {% endif %}
+          {% endif %}
+          <span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">{{ f.confidence or 'medium' }}</span>
+        </div>
+      </div>
+      <p class="text-xs text-slate-500 mb-1">当前状态: {{ f.current_state }}</p>
+      <p class="text-sm text-slate-300">{{ f.logic_relation }}</p>
+      {% if f.db_evidence %}
+      <div class="mt-2 px-3 py-1.5 rounded bg-cyan-500/5 border border-cyan-500/15">
+        <p class="text-[10px] text-cyan-400/70 mb-0.5">数据库证据</p>
+        <p class="text-xs text-cyan-300/80">{{ f.db_evidence }}</p>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% if research.macro_json.not_tracked %}
+<div class="mt-6">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="material-icons-round text-sm text-amber-400">visibility_off</span>
+    <h4 class="font-bold text-sm text-slate-400">未跟踪因素</h4>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    {% for item in research.macro_json.not_tracked %}
+    <span class="px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-400">{{ item }}</span>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% elif research.macro_report %}
+<div class="bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300 text-sm">
+  <p>{{ research.macro_report | safe }}</p>
+</div>
+{% else %}
+<p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
+{% endif %}
+
+{% elif active_tab == 'industry' %}
+<!-- ═══ Industry Tab ═══ -->
+<h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest mb-4">行业分析</h3>
+{% if research.industry_json and research.industry_json.summary %}
+<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-700/50 mb-6"
+     data-draggable data-chat-label="行业分析摘要"
+     data-chat-context="{{ research.industry_json.summary | e }}">
+  <p class="text-sm text-slate-300 leading-relaxed">{{ research.industry_json.summary }}</p>
+</div>
+{% set ind_list = research.industry_json.industries if research.industry_json.industries else (research.industry_json.benefiting_industries if research.industry_json.benefiting_industries else []) %}
+{% if ind_list %}
+
+<!-- 上中下游产业链流程图 -->
+{% set upstream_list = ind_list | selectattr('chain_position', 'equalto', '上游') | list %}
+{% set midstream_list = ind_list | selectattr('chain_position', 'equalto', '中游') | list %}
+{% set downstream_list = ind_list | selectattr('chain_position', 'equalto', '下游') | list %}
+{% set full_list = ind_list | selectattr('chain_position', 'equalto', '全产业链') | list %}
+{% if upstream_list or midstream_list or downstream_list or full_list %}
+<div class="mb-6 p-4 bg-slate-800/30 rounded-xl border border-slate-700/50">
+  <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">产业链传导图</h4>
+  <div class="flex items-start gap-2 overflow-x-auto pb-2">
+    {% macro chain_col(label, icon, items) %}
+    {% if items %}
+    <div class="flex-shrink-0 min-w-[120px]">
+      <div class="flex items-center gap-1 mb-2 px-2 py-1 bg-slate-700/50 rounded-lg">
+        <span class="material-icons-round text-xs text-slate-400">{{ icon }}</span>
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{{ label }}</span>
+      </div>
+      <div class="space-y-1.5">
+        {% for ind in items %}
+        <div class="px-2.5 py-2 rounded-lg border text-xs font-medium leading-snug
+          {% if ind.impact_direction == 'positive' %}bg-red-500/10 border-red-500/30 text-red-300
+          {% elif ind.impact_direction == 'negative' %}bg-emerald-500/10 border-emerald-500/30 text-emerald-300
+          {% else %}bg-slate-700/30 border-slate-600/40 text-slate-300{% endif %}">
+          {{ ind.name }}
+          {% if ind.impact_direction == 'positive' %}
+          <span class="text-[9px] text-red-400 ml-0.5">▲</span>
+          {% elif ind.impact_direction == 'negative' %}
+          <span class="text-[9px] text-emerald-400 ml-0.5">▼</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="flex-shrink-0 self-center text-slate-500 font-bold text-lg px-1">→</div>
+    {% endif %}
+    {% endmacro %}
+    {{ chain_col('上游', 'landscape', upstream_list) }}
+    {{ chain_col('中游', 'factory', midstream_list) }}
+    {{ chain_col('下游', 'storefront', downstream_list) }}
+    {% if full_list %}
+    <div class="flex-shrink-0 min-w-[120px]">
+      <div class="flex items-center gap-1 mb-2 px-2 py-1 bg-slate-700/50 rounded-lg">
+        <span class="material-icons-round text-xs text-slate-400">hub</span>
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">全产业链</span>
+      </div>
+      <div class="space-y-1.5">
+        {% for ind in full_list %}
+        <div class="px-2.5 py-2 rounded-lg border text-xs font-medium leading-snug
+          {% if ind.impact_direction == 'positive' %}bg-red-500/10 border-red-500/30 text-red-300
+          {% elif ind.impact_direction == 'negative' %}bg-emerald-500/10 border-emerald-500/30 text-emerald-300
+          {% else %}bg-slate-700/30 border-slate-600/40 text-slate-300{% endif %}">
+          {{ ind.name }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="flex items-center gap-4 mt-3 text-[9px] text-slate-600">
+    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500/40"></span>利好</span>
+    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-emerald-500/40"></span>利空</span>
+    <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-slate-600/40"></span>中性/混合</span>
+  </div>
+</div>
+{% endif %}
+
+<!-- 详细行业列表 -->
+<div class="space-y-4">
+  {% for ind in ind_list %}
+  <div class="p-4 rounded-xl bg-slate-800/20 border border-slate-700/50"
+       data-draggable data-chat-label="{{ ind.name | e }}（{{ ind.chain_position or '行业' | e }}）"
+       data-chat-context="{{ ind.name | e }}：{{ ind.benefit_reason | e }} 传导路径：{{ ind.transmission_path | default('') | e }}">
+    <div class="flex items-center justify-between mb-2">
+      <h4 class="font-bold text-sm">{{ ind.name }}</h4>
+      <div class="flex items-center gap-2">
+        {% if ind.impact_type %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ 'bg-orange-500/20 text-orange-400' if ind.impact_type == 'direct' else 'bg-violet-500/20 text-violet-400' }}">
+          {{ '直接' if ind.impact_type == 'direct' else '间接' }}
+        </span>
+        {% endif %}
+        {% if ind.chain_position %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">{{ ind.chain_position }}</span>
+        {% endif %}
+        {% if ind.impact_direction %}
+        {% if ind.impact_direction == 'positive' %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400">利好</span>
+        {% elif ind.impact_direction == 'negative' %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400">利空</span>
+        {% elif ind.impact_direction == 'mixed' %}
+        <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">混合</span>
+        {% endif %}
+        {% endif %}
+        <span class="px-2 py-0.5 rounded text-[10px] bg-slate-700/50 text-slate-400">{{ ind.confidence or 'medium' }}</span>
+      </div>
+    </div>
+    <p class="text-sm text-slate-300 mb-2">{{ ind.benefit_reason }}</p>
+    {% if ind.transmission_path %}
+    <div class="flex items-start gap-1.5 mb-2">
+      <span class="material-icons-round text-[11px] text-slate-500 mt-0.5 shrink-0">route</span>
+      <p class="text-xs text-slate-500">{{ ind.transmission_path }}</p>
+    </div>
+    {% endif %}
+    {% if ind.supporting_evidence %}
+    <div class="flex items-start gap-1.5 mb-2">
+      <span class="material-icons-round text-[11px] text-cyan-500/70 mt-0.5 shrink-0">fact_check</span>
+      <p class="text-xs text-cyan-400/70">{{ ind.supporting_evidence }}</p>
+    </div>
+    {% endif %}
+    {% if ind.key_catalysts %}
+    <div class="flex flex-wrap gap-1">
+      {% for cat in ind.key_catalysts %}
+      <span class="px-2 py-0.5 rounded bg-primary/10 text-primary text-[10px]">{{ cat }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% elif research.industry_report %}
+<div class="bg-slate-800/20 rounded-xl p-6 border border-slate-700/50 leading-relaxed text-slate-300 text-sm">
+  <p>{{ research.industry_report | safe }}</p>
+</div>
+{% else %}
+<p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
+{% endif %}
+
+{% elif active_tab == 'stocks' %}
+<!-- ═══ Stocks Tab ═══ -->
+<div class="flex items-center justify-between mb-4">
+  <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest">推荐个股</h3>
+  {% if research.top10_stocks %}
+  <div class="flex items-center gap-2">
+    <button id="editToggle" onclick="toggleEditMode()"
+            class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 hover:border-primary hover:text-primary transition">
+      <span class="material-icons-round text-sm">edit</span>编辑
+    </button>
+    <button id="saveBtn" onclick="saveStocks()" style="display:none"
+            class="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90 transition">
+      <span class="material-icons-round text-sm">save</span>保存
+    </button>
+    <button id="cancelBtn" onclick="toggleEditMode()" style="display:none"
+            class="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-400 hover:text-white transition">
+      取消
+    </button>
+  </div>
+  {% endif %}
+</div>
+
+{% if research.top10_stocks %}
+<div id="stocksContainer">
+  {% for grp in research.top10_stocks %}
+  {% set grp_idx = loop.index0 %}
+  <div class="mb-6 stock-group" data-group-idx="{{ grp_idx }}">
+    <div class="flex items-center gap-2 mb-3">
+      <h4 class="font-bold text-sm">{{ grp.industry or '关联标的' }}</h4>
+      {% if grp.chain_position %}
+      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400">{{ grp.chain_position }}</span>
+      {% endif %}
+      {% if grp.impact_type %}
+      <span class="px-2 py-0.5 rounded text-[10px] font-bold {{ 'bg-orange-500/20 text-orange-400' if grp.impact_type == 'direct' else 'bg-violet-500/20 text-violet-400' }}">
+        {{ '直接' if grp.impact_type == 'direct' else '间接' }}
+      </span>
+      {% endif %}
+      <button class="edit-only hidden ml-auto text-xs text-red-400 hover:text-red-300" onclick="removeGroup({{ grp_idx }})">
+        <span class="material-icons-round text-sm">delete_outline</span>
+      </button>
+    </div>
+    {% if grp.stocks %}
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-[10px] text-slate-500 uppercase border-b border-slate-700/50">
+            <th class="text-left py-2 px-2">代码</th>
+            <th class="text-left py-2 px-2">名称 / 推荐理由</th>
+            <th class="text-left py-2 px-2">产业链环节</th>
+            <th class="text-right py-2 px-2">PE</th>
+            <th class="text-right py-2 px-2">市值(亿)</th>
+            <th class="text-right py-2 px-2">7日净流入(亿)</th>
+            <th class="edit-only hidden text-center py-2 px-2 w-10"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in grp.stocks %}
+          <tr class="border-b border-slate-700/30 hover:bg-slate-700/10 stock-row cursor-pointer" onclick="window.location='/stock/{{ s.stock_code }}'">
+            <td class="py-2 px-2 font-mono text-xs text-primary hover:underline">{{ s.stock_code }}</td>
+            <td class="py-2 px-2">
+              <p class="font-bold text-primary hover:underline">{{ s.stock_name }}</p>
+              {% if s.recommend_tags %}
+              <div class="flex flex-wrap gap-1 mt-1">
+                {% for tag in s.recommend_tags.split(',') %}
+                {% set tag_cls = 'bg-red-500/20 text-red-400' if '龙头' in tag else 'bg-emerald-500/20 text-emerald-400' if '低估' in tag else 'bg-blue-500/20 text-blue-400' if '增长' in tag else 'bg-amber-500/20 text-amber-400' if '资金' in tag else 'bg-purple-500/20 text-purple-400' if '催化' in tag else 'bg-slate-500/20 text-slate-400' %}
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-bold {{ tag_cls }}">{{ tag.strip() }}</span>
+                {% endfor %}
+              </div>
+              {% endif %}
+              {% if s.recommend_logic %}
+              <p class="text-[11px] text-slate-400 mt-0.5 leading-snug">{{ s.recommend_logic }}</p>
+              {% endif %}
+            </td>
+            <td class="py-2 px-2 text-slate-400 text-xs">{{ s.chain_position or grp.chain_position or s.industry_l2 or s.industry_l1 or '-' }}</td>
+            <td class="py-2 px-2 text-right font-mono text-xs">{{ s.pe_ratio|round(1) if s.pe_ratio else '-' }}</td>
+            <td class="py-2 px-2 text-right font-mono text-xs">{{ (s.market_cap / 1e8)|round(1)|format if s.market_cap else '-' }}</td>
+            <td class="py-2 px-2 text-right font-bold font-mono text-xs {{ 'text-red-400' if (s.total_inflow or 0) > 0 else 'text-emerald-400' }}">
+              {{ (s.total_inflow / 1e8)|round(2)|format if s.total_inflow else '0.00' }}
+            </td>
+            <td class="edit-only hidden text-center py-2 px-2" onclick="event.stopPropagation()">
+              <button class="text-red-400 hover:text-red-300" onclick="removeStock({{ grp_idx }}, {{ loop.index0 }})">
+                <span class="material-icons-round text-sm">close</span>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    <div class="edit-only hidden mt-2 flex items-center gap-2">
+      <div class="relative flex-1">
+        <input type="text" placeholder="输入股票代码或名称搜索..."
+               class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-primary focus:outline-none"
+               oninput="searchStock(this, {{ grp_idx }})" onfocus="searchStock(this, {{ grp_idx }})">
+        <div class="stock-dropdown absolute z-50 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-48 overflow-y-auto hidden"></div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<div class="edit-only hidden mt-4">
+  <button onclick="addGroup()"
+          class="flex items-center gap-1 px-3 py-2 rounded-lg border border-dashed border-slate-600 text-xs text-slate-500 hover:border-primary hover:text-primary transition w-full justify-center">
+    <span class="material-icons-round text-sm">add</span>添加行业组
+  </button>
+</div>
+<script>
+(function() {
+  window._stocksData = {{ research.top10_stocks | tojson }};
+  window._groupId = {{ group.id }};
+  initStocksEditor();
+})();
+</script>
+{% else %}
+<p class="text-sm text-slate-600 text-center py-8">请先执行深度研究</p>
+{% endif %}
+
+{% endif %}
