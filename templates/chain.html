@@ -134,23 +134,22 @@ function buildCard(c) {
   const flowColor = flowPos ? '#ef4444' : '#22c55e';
   const flowSign = flowPos ? '+' : '';
 
-  // 资金流迷你柱图（以中线为基准，正上负下）
+  // 资金流迷你柱图（绝对定位，正上负下，中线为基准）
   const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
+  const H = 48, MID = 24; // 总高48px，中线在24px
   const barHtml = flows.map((v, i) => {
-    const pct = Math.max(3, Math.round((Math.abs(v) / maxAbs) * 44));
-    if (v >= 0) {
-      return `<div class="flex-1 flex flex-col justify-end" style="height:48px;">
-        <div style="height:${pct}px;background:#ef444488;border-radius:2px 2px 0 0;" title="${dates[i]||''}: ${v>=0?'+':''}${v.toFixed(2)}亿"></div>
-      </div>`;
-    } else {
-      return `<div class="flex-1 flex flex-col justify-start" style="height:48px;">
-        <div style="height:${pct}px;background:#22c55e88;border-radius:0 0 2px 2px;" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
-      </div>`;
-    }
+    const barH = Math.max(3, Math.round((Math.abs(v) / maxAbs) * (MID - 2)));
+    const [bg, top, radius] = v >= 0
+      ? ['#ef444490', MID - barH, '2px 2px 0 0']
+      : ['#22c55e90', MID,        '0 0 2px 2px'];
+    const label = `${dates[i]||''}: ${v>=0?'+':''}${v.toFixed(2)}亿`;
+    return `<div style="position:relative;flex:1;height:${H}px;">
+      <div style="position:absolute;left:0;right:0;top:${top}px;height:${barH}px;background:${bg};border-radius:${radius};" title="${label}"></div>
+    </div>`;
   }).join('');
   const flowChart = flows.length > 0
-    ? `<div style="display:flex;gap:2px;height:48px;position:relative;">
-        <div style="position:absolute;left:0;right:0;top:50%;height:1px;background:rgba(100,116,139,0.2);"></div>
+    ? `<div style="display:flex;gap:2px;height:${H}px;position:relative;">
+        <div style="position:absolute;left:0;right:0;top:${MID}px;height:1px;background:rgba(100,116,139,0.25);pointer-events:none;"></div>
         ${barHtml}
        </div>`
     : `<div style="height:48px;display:flex;align-items:center;justify-content:center;color:#475569;font-size:11px;">暂无资金数据</div>`;
