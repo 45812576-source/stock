@@ -1,13 +1,12 @@
-"""东方财富研报采集 — 通过报告API获取研报并提取PDF全文"""
+"""东方财富研报采集 — 通过报告API获取研报并提取PDF全文，写入新管线 source_documents"""
 import logging
-import hashlib
-import json
 import tempfile
 import os
 
 import requests
 
 from ingestion.base_source import BaseSource
+from utils.db_utils import execute_cloud_query, execute_cloud_insert
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +121,22 @@ class EastmoneyReportSource(BaseSource):
                         industry = item.get("industryName", "")
                         pub_date = (item.get("publishDate") or "")[:10]
                         rating = item.get("emRatingName", "")
-                        pages = item.get("attachPages", 0)
+
+                        # 去重：按 title + source 查 source_documents
+                        full_title = f"[{org}] {title}"
+                        existing = execute_cloud_query(
+                            "SELECT id FROM source_documents WHERE source='eastmoney_report' AND title=%s LIMIT 1",
+                            [full_title],
+                        )
+                        if existing:
+                            continue
 
                         # 提取PDF全文
                         pdf_text = ""
                         if info_code:
                             pdf_text = self._download_pdf_text(info_code)
 
-                        # 构建内容
+                        # 构建提取文本（meta + PDF全文）
                         meta_lines = [f"研报标题: {title}", f"机构: {org}"]
                         if author:
                             meta_lines.append(f"作者: {author}")
@@ -142,37 +149,25 @@ class EastmoneyReportSource(BaseSource):
                         meta_lines.append(f"发布日期: {pub_date}")
 
                         if pdf_text:
-                            content = "\n".join(meta_lines) + f"\n\n=== 研报全文 ===\n{pdf_text}"
+                            extracted_text = "\n".join(meta_lines) + f"\n\n=== 研报全文 ===\n{pdf_text}"
                         else:
-                            content = "\n".join(meta_lines)
+                            extracted_text = "\n".join(meta_lines)
 
                         view_url = f"https://data.eastmoney.com/report/info/{info_code}.html"
-                        ext_id = hashlib.md5(f"em_report:{info_code}".encode()).hexdigest()
+                        extract_status = "extracted" if pdf_text else "pending"
 
-                        saved = self.save_raw_item(
-                            external_id=ext_id,
-                            title=f"[{org}] {title}",
-                            content=content,
-                            url=view_url,
-                            published_at=pub_date,
-                            item_type="report",
-                            meta_json=json.dumps({
-                                "source": "eastmoney_report",
-                                "report_type": rtype,
-                                "org": org,
-                                "author": author,
-                                "stock_name": stock_name,
-                                "stock_code": stock_code,
-                                "industry": industry,
-                                "rating": rating,
-                                "pages": pages,
-                                "has_pdf_text": bool(pdf_text),
-                                "pdf_text_len": len(pdf_text),
-                            }, ensure_ascii=False),
+                        doc_id = execute_cloud_insert(
+                            """INSERT INTO source_documents
+                               (doc_type, file_type, title, author, publish_date,
+                                source, oss_url, extracted_text, extract_status)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                            ["report", "pdf", full_title, author, pub_date,
+                             "eastmoney_report", view_url, extracted_text, extract_status],
                         )
-                        if saved:
+                        if doc_id:
                             count += 1
-                            logger.info(f"研报入库: [{org}] {title} (PDF: {len(pdf_text)}字)")
+                            self.increment_usage()
+                            logger.info(f"研报入库(source_documents): {full_title} (PDF: {len(pdf_text)}字)")
 
                     except Exception as e:
                         logger.warning(f"解析研报条目失败: {e}")

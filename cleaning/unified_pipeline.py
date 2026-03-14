@@ -1,8 +1,10 @@
 """统一清洗管线 — 对同一条 extracted_text 并发执行管线
 
-Pipeline S:  semantic_clean      (DeepSeek, 前置语义清洗)
 Pipeline A:  content_summaries   (Claude via call_model_json)
 Pipeline C:  KG triples          (DeepSeek)
+
+语义清洗(S)已在提取阶段 source_extractor._semantic_clean() 中完成，
+本管线不再重复执行。
 
 注意：Robust Kline 关键词文件（标题含特定关键词或帖主为夏天/白白）不进本管线。
 
@@ -79,124 +81,6 @@ def _parse_json(raw: str):
         return json.loads(raw.strip())
     except Exception:
         return None
-
-# ── Pipeline S: 语义清洗（前置步骤）─────────────────────────────────────────
-
-_CLEAN_PROMPTS = {
-    "pdf": """你是金融研报文本清洗专家。以下文本从PDF提取，由于多栏布局，侧边栏信息（分析师信息、股价评级、表现数据、免责声明等）可能被混入正文中间，打断了原本连贯的句子。
-
-请执行：
-1. 找到所有打断正文语义的异物文字（通常出现在句子中间，与前后文不连贯）
-2. 删除这些异物文字
-3. 修复被打断的句子，使其恢复连贯
-4. 删除页眉页脚、页码、免责声明等重复出现的模板文字
-5. 保留所有正文内容、数据、表格、图表描述、目录
-
-如果文本已经很干净，直接原样返回。只做删除和修复，不添加任何新内容。直接输出清洗后的文本。""",
-
-    "audio": """你是金融电话会议/音频转写文本清洗专家。以下文本由语音识别转写而来，包含口语噪音。
-
-请执行：
-1. 删除无意义的口语填充词和重复（"嗯"、"啊"、"那个"、"就是说"、连续重复的词句）
-2. 修复被打断的句子——电话会中常有人插话打断，导致一句话被切成两段夹着别人的话
-3. 合并说话人的断续表达，使其成为完整连贯的句子
-4. 删除主持人的程序性话术（"下面有请XX回答"、"感谢XX的提问"等）
-5. 保留所有实质性内容：观点、数据、问答、业务讨论
-6. 保留说话人标识（如有）
-
-不要改变原意，不要添加新内容，不要总结。直接输出清洗后的文本。""",
-
-    "image": """你是OCR文本校对专家。以下文本由图片OCR识别而来，可能存在识别错误。
-
-请执行：
-1. 修复明显的OCR识别错字（形近字混淆、偏旁部首错误）
-2. 修复断行导致的词语拆分和句子断裂
-3. 修复表格数据错位（数字与标签对应关系）
-4. 删除OCR产生的乱码和无意义字符
-5. 修复标点符号识别错误（如"。"识别为"o"、"，"识别为","等）
-6. 保留所有实质性内容
-
-不要改变原意，不要添加新内容。直接输出清洗后的文本。""",
-
-    "default": """你是金融文本清洗专家。以下文本从网页或文档提取，可能包含格式残留噪音。
-
-请执行：
-1. 删除混入正文的导航栏、广告、版权声明等网页/文档模板文字
-2. 修复被格式残留打断的句子
-3. 保留所有实质性内容
-
-如果文本已经很干净，直接原样返回。只做删除和修复，不添加任何新内容。直接输出清洗后的文本。""",
-}
-
-# mp3 复用 audio prompt
-_CLEAN_PROMPTS["mp3"] = _CLEAN_PROMPTS["audio"]
-# mixed 复用 default
-_CLEAN_PROMPTS["mixed"] = _CLEAN_PROMPTS["default"]
-_CLEAN_PROMPTS["txt"] = _CLEAN_PROMPTS["default"]
-
-
-def _split_long_text(text: str, chunk_size: int = 5000, overlap: int = 300) -> list:
-    """长文本分段，优先按自然段落切分"""
-    if len(text) <= chunk_size:
-        return [text]
-    try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=overlap,
-            separators=["\n\n", "\n", "。", "；", " "],
-        )
-        return splitter.split_text(text)
-    except ImportError:
-        chunks = []
-        for i in range(0, len(text), chunk_size - overlap):
-            chunks.append(text[i:i + chunk_size])
-        return chunks
-
-
-def _get_file_type(extracted_text_id: int) -> str:
-    """查询 source_documents 获取 file_type"""
-    rows = execute_cloud_query(
-        """SELECT sd.file_type FROM extracted_texts et
-           JOIN source_documents sd ON et.source_doc_id = sd.id
-           WHERE et.id = %s""",
-        [extracted_text_id],
-    )
-    return rows[0]["file_type"] if rows else "txt"
-
-
-def _run_semantic_clean(extracted_text_id: int, full_text: str, file_type: str) -> str:
-    """Pipeline S: DeepSeek 语义清洗，返回清洗后文本"""
-    prompt = _CLEAN_PROMPTS.get(file_type, _CLEAN_PROMPTS["default"])
-    chunks = _split_long_text(full_text)
-    cleaned_parts = []
-    for i, chunk in enumerate(chunks):
-        try:
-            result = _call_deepseek(prompt, chunk, max_tokens=4096, timeout=60)
-            cleaned_parts.append(result if result else chunk)
-        except Exception as e:
-            logger.warning(f"[S] 语义清洗第{i+1}/{len(chunks)}段失败 id={extracted_text_id}: {e}")
-            cleaned_parts.append(chunk)
-
-    cleaned = "\n\n".join(cleaned_parts)
-
-    # 写回 extracted_texts
-    if cleaned and len(cleaned) > 100:
-        execute_cloud_insert(
-            "UPDATE extracted_texts SET full_text=%s, semantic_clean_status='done' WHERE id=%s",
-            [cleaned, extracted_text_id],
-        )
-        logger.info(
-            f"[S] 语义清洗完成 id={extracted_text_id} type={file_type} "
-            f"({len(full_text)}→{len(cleaned)}字, {len(chunks)}段)"
-        )
-    else:
-        execute_cloud_insert(
-            "UPDATE extracted_texts SET semantic_clean_status='done' WHERE id=%s",
-            [extracted_text_id],
-        )
-        logger.info(f"[S] 语义清洗结果过短，保留原文 id={extracted_text_id}")
-
-    return cleaned or full_text
 
 
 # ── Pipeline A: content_summaries ────────────────────────────────────────────
@@ -314,13 +198,15 @@ def _link_relationship_to_chunks(
 
 def process_single(extracted_text_id: int, need_a=True, need_c=True,
                    need_d=True, on_status=None, rerun_a=False, **_kwargs) -> dict:
-    """对单条 extracted_text 先做语义清洗(S)，再并发执行管线(A/C)，串行执行管线D
+    """对单条 extracted_text 并发执行管线(A/C)，串行执行管线D
+
+    语义清洗(S)已在提取阶段完成（source_extractor._semantic_clean），本函数不重复执行。
 
     on_status(stage, msg): 可选回调，用于向调用方汇报当前阶段
     rerun_a: 为 True 时清除旧 content_summaries 记录并重跑 Pipeline A
     need_d: 为 True 时对研报/行业分析类文档执行 Pipeline D 行业指标抽取
     Returns:
-        {"summary_id": int|None, "kg_rels": int, "semantic_cleaned": bool, "chunks": int, "indicators": int}
+        {"summary_id": int|None, "kg_rels": int, "chunks": int, "indicators": int}
     """
     # 重跑：清除该 extracted_text 的旧摘要记录，重置 summary_status
     if rerun_a:
@@ -335,36 +221,18 @@ def process_single(extracted_text_id: int, need_a=True, need_c=True,
         logger.info(f"[A] 重跑：已清除旧摘要 id={extracted_text_id}")
 
     rows = execute_cloud_query(
-        "SELECT id, full_text, publish_time, semantic_clean_status FROM extracted_texts WHERE id=%s",
+        "SELECT id, full_text, publish_time FROM extracted_texts WHERE id=%s",
         [extracted_text_id],
     )
     if not rows:
-        return {"summary_id": None, "kg_rels": 0, "semantic_cleaned": False}
+        return {"summary_id": None, "kg_rels": 0, "chunks": 0, "indicators": 0}
 
     row = rows[0]
     full_text = row["full_text"] or ""
     if not full_text.strip():
-        return {"summary_id": None, "kg_rels": 0, "semantic_cleaned": False}
+        return {"summary_id": None, "kg_rels": 0, "chunks": 0, "indicators": 0}
 
-    # ★ Pipeline S: 语义清洗（前置步骤，所有文件类型）
-    semantic_cleaned = False
-    if row.get("semantic_clean_status") != "done":
-        try:
-            file_type = _get_file_type(extracted_text_id)
-            if on_status:
-                on_status("S", f"语义清洗 id={extracted_text_id} ({file_type})")
-            # 用独立线程执行，设置总超时（避免长文本多段清洗阻塞整个管线）
-            with ThreadPoolExecutor(max_workers=1) as _s_pool:
-                _s_fut = _s_pool.submit(_run_semantic_clean, extracted_text_id, full_text, file_type)
-                try:
-                    full_text = _s_fut.result(timeout=180)  # 最多等3分钟
-                    semantic_cleaned = True
-                except Exception as _s_err:
-                    logger.warning(f"[S] 语义清洗超时/失败 id={extracted_text_id}: {_s_err}，跳过继续执行A/C")
-        except Exception as e:
-            logger.error(f"[S] 语义清洗异常 id={extracted_text_id}: {e}")
-
-    # ★ 切片 + 向量索引（S完成后、A/C之前）
+    # ★ 切片 + 向量索引（A/C之前）
     chunks_count = 0
     try:
         from retrieval.chunker import chunk_and_index
@@ -397,8 +265,7 @@ def process_single(extracted_text_id: int, need_a=True, need_c=True,
     if len(full_text) > 12000:
         full_text = full_text[:12000] + "\n\n[文本已截断]"
 
-    results = {"summary_id": None, "kg_rels": 0, "semantic_cleaned": semantic_cleaned,
-               "chunks": chunks_count, "indicators": 0}
+    results = {"summary_id": None, "kg_rels": 0, "chunks": chunks_count, "indicators": 0}
     futures = {}
 
     with ThreadPoolExecutor(max_workers=2) as pool:

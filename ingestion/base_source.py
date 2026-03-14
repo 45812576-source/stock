@@ -88,6 +88,40 @@ class BaseSource(ABC):
         )
         return len(rows) > 0
 
+    def save_source_doc(self, dedup_key: str, title: str, extracted_text: str,
+                        doc_type: str = "news", file_type: str = "txt",
+                        author: str = None, publish_date: str = None) -> int:
+        """保存到 source_documents（新管线），以 source+dedup_key 去重
+
+        Args:
+            dedup_key: 唯一标识，有真实 URL 时传 URL，否则传 external_id
+            title: 文档标题
+            extracted_text: 已提取的文本内容
+            doc_type: 文档类型（news/report/announcement/earnings）
+            file_type: 文件类型（txt/pdf 等）
+            author: 作者
+            publish_date: 发布日期（str YYYY-MM-DD 或 datetime）
+        Returns:
+            新记录 id，重复则返回 None
+        """
+        existing = execute_cloud_query(
+            "SELECT id FROM source_documents WHERE source=%s AND oss_url=%s LIMIT 1",
+            [self.source_name, dedup_key],
+        )
+        if existing:
+            return None
+        doc_id = execute_cloud_insert(
+            """INSERT INTO source_documents
+               (doc_type, file_type, title, author, publish_date, source,
+                oss_url, extracted_text, extract_status)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'extracted')""",
+            [doc_type, file_type, title, author, publish_date,
+             self.source_name, dedup_key, extracted_text],
+        )
+        if doc_id:
+            self.increment_usage()
+        return doc_id
+
     def save_raw_item(self, external_id, title, content, url=None,
                       published_at=None, item_type="news", meta_json=None):
         """保存原始条目到 raw_items（旧管线，保留兼容）"""

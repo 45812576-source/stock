@@ -62,7 +62,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `ingestion/base_source.py` | 数据源基类（限流、去重）→ 写云端 |
 | `ingestion/zsxq_source.py` | 知识星球采集 → 写云端 source_documents |
 | `ingestion/source_extractor.py` | 文档提取（PDF/图片/音频）→ 写云端 extracted_texts |
-| `ingestion/eastmoney_report_source.py` | 东方财富研报（PDF全文）→ 写云端 |
+| `ingestion/eastmoney_report_source.py` | 东方财富研报（PDF全文）→ 写云端 source_documents |
 | `ingestion/fxbaogao_source.py` | 发现报告采集 → 写云端 source_documents |
 | `ingestion/djyanbao_source.py` | 洞见研报采集 → 写云端 source_documents |
 | `cleaning/unified_pipeline.py` | 统一清洗管线，并发执行 A/B2/C 三条 |
@@ -84,11 +84,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `zsxq` | 知识星球帖子 | source_documents (doc_type=news) |
 | `fxbaogao` | 发现报告研报 | source_documents (doc_type=report) |
 | `djyanbao` | 洞见研报 | source_documents (doc_type=report) |
-| `eastmoney_report` | 东方财富研报 PDF | raw_items |
-| `jasper` | Jasper AI 资讯 | raw_items |
-| `iwencai` | 问财新闻 | raw_items |
-| `cninfo_notice` | 巨潮公告 | raw_items |
-| `earnings` | 财报数据 | raw_items |
+| `eastmoney_report` | 东方财富研报 PDF | source_documents (doc_type=report) |
+| `jasper` | Jasper AI 资讯 | source_documents (doc_type=news) |
+| `iwencai` | 问财新闻 | raw_items（空壳，实际走 wencai_indicator_fetcher） |
+| `cninfo_notice` | 巨潮公告 | source_documents (doc_type=announcement) |
+| `earnings` | 财报数据 | source_documents (doc_type=earnings) |
 | `source_doc` | 手动上传文档 | raw_items |
 | `akshare` | 行情/资金流向 | 本地直写 |
 

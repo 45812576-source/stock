@@ -1,7 +1,6 @@
 """业绩预告/快报采集 — 通过 AKShare 获取全市场业绩数据"""
 import logging
 import hashlib
-import json
 from datetime import datetime
 
 from ingestion.base_source import BaseSource
@@ -82,21 +81,12 @@ class EarningsSource(BaseSource):
             if change_reason:
                 content_lines.append(f"变动原因: {change_reason}")
 
-            saved = self.save_raw_item(
-                external_id=ext_id,
+            saved = self.save_source_doc(
+                dedup_key=ext_id,
                 title=title,
-                content="\n".join(content_lines),
-                published_at=pub_date,
-                item_type="earnings_forecast",
-                meta_json=json.dumps({
-                    "source": "eastmoney",
-                    "type": "yjyg",
-                    "stock_code": code,
-                    "stock_name": name,
-                    "forecast_type": forecast_type,
-                    "period": period,
-                    "change_pct": str(change_pct) if change_pct else None,
-                }, ensure_ascii=False),
+                extracted_text="\n".join(content_lines),
+                doc_type="earnings",
+                publish_date=pub_date,
             )
             if saved:
                 count += 1
@@ -147,23 +137,12 @@ class EarningsSource(BaseSource):
             if profit_yoy and str(profit_yoy) != "nan":
                 content_lines.append(f"净利润同比: {profit_yoy:.2f}%")
 
-            saved = self.save_raw_item(
-                external_id=ext_id,
+            saved = self.save_source_doc(
+                dedup_key=ext_id,
                 title=title,
-                content="\n".join(content_lines),
-                published_at=pub_date,
-                item_type="earnings_express",
-                meta_json=json.dumps({
-                    "source": "eastmoney",
-                    "type": "yjkb",
-                    "stock_code": code,
-                    "stock_name": name,
-                    "industry": industry,
-                    "period": period,
-                    "revenue": float(revenue) if revenue and str(revenue) != "nan" else None,
-                    "profit": float(profit) if profit and str(profit) != "nan" else None,
-                    "profit_yoy": float(profit_yoy) if profit_yoy and str(profit_yoy) != "nan" else None,
-                }, ensure_ascii=False),
+                extracted_text="\n".join(content_lines),
+                doc_type="earnings",
+                publish_date=pub_date,
             )
             if saved:
                 count += 1

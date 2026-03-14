@@ -1,7 +1,6 @@
 """巨潮资讯公司公告采集 — 通过 AKShare 获取公告元数据+链接"""
 import logging
 import hashlib
-import json
 from datetime import datetime, timedelta
 
 from ingestion.base_source import BaseSource
@@ -88,7 +87,7 @@ class CninfoNoticeSource(BaseSource):
         url = str(row.get("公告链接", ""))
         stock_name = str(row.get("简称", ""))
 
-        ext_id = hashlib.md5(
+        dedup_key = url if url else hashlib.md5(
             f"cninfo:{stock_code}:{title}:{pub_date}".encode()
         ).hexdigest()
 
@@ -96,19 +95,12 @@ class CninfoNoticeSource(BaseSource):
         if url:
             content += f"\n链接: {url}"
 
-        return self.save_raw_item(
-            external_id=ext_id,
+        return self.save_source_doc(
+            dedup_key=dedup_key,
             title=f"[{stock_name}] {title}",
-            content=content,
-            url=url,
-            published_at=pub_date,
-            item_type="announcement",
-            meta_json=json.dumps({
-                "source": "cninfo",
-                "stock_code": stock_code,
-                "stock_name": stock_name,
-                "category": category,
-            }, ensure_ascii=False),
+            extracted_text=content,
+            doc_type="announcement",
+            publish_date=pub_date,
         )
 
     def _get_watchlist_codes(self):

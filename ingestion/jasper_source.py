@@ -1,7 +1,6 @@
 """智能新闻采集器 — 多维度覆盖宏观/行业/热点/跟踪个股"""
 import logging
 import hashlib
-import json
 import time
 from datetime import datetime, timedelta
 
@@ -141,11 +140,9 @@ class JasperSource(BaseSource):
                     continue
 
                 ext_id = self._make_external_id("cls", title, full_time)
-                saved = self.save_raw_item(
-                    external_id=ext_id, title=title, content=content,
-                    published_at=full_time, item_type="news",
-                    meta_json=json.dumps({"source": "财联社", "category": "全球快讯"},
-                                         ensure_ascii=False),
+                saved = self.save_source_doc(
+                    dedup_key=ext_id, title=title, extracted_text=content,
+                    doc_type="news", publish_date=pub_date,
                 )
                 if saved:
                     count += 1
@@ -175,7 +172,7 @@ class JasperSource(BaseSource):
                 if not self._matches_keywords(title + summary, keywords):
                     continue
 
-                ext_id = self._make_external_id("caixin", summary[:100])
+                dedup_key = url if url else self._make_external_id("caixin", summary[:100])
 
                 # 尝试抓取全文
                 content = summary
@@ -184,12 +181,9 @@ class JasperSource(BaseSource):
                     if full_text:
                         content = full_text
 
-                saved = self.save_raw_item(
-                    external_id=ext_id, title=title, content=content,
-                    url=url, published_at=datetime.now().strftime("%Y-%m-%d"),
-                    item_type="news",
-                    meta_json=json.dumps({"source": "财新", "category": tag},
-                                         ensure_ascii=False),
+                saved = self.save_source_doc(
+                    dedup_key=dedup_key, title=title, extracted_text=content,
+                    doc_type="news", publish_date=datetime.now().strftime("%Y-%m-%d"),
                 )
                 if saved:
                     count += 1
@@ -289,12 +283,9 @@ class JasperSource(BaseSource):
 
                 ext_id = self._make_external_id(
                     "cctv", title, datetime.now().strftime("%Y-%m-%d"))
-                saved = self.save_raw_item(
-                    external_id=ext_id, title=title, content=content,
-                    published_at=datetime.now().strftime("%Y-%m-%d"),
-                    item_type="news",
-                    meta_json=json.dumps({"source": "CCTV新闻联播", "category": "宏观政策"},
-                                         ensure_ascii=False),
+                saved = self.save_source_doc(
+                    dedup_key=ext_id, title=title, extracted_text=content,
+                    doc_type="news", publish_date=datetime.now().strftime("%Y-%m-%d"),
                 )
                 if saved:
                     count += 1
@@ -337,13 +328,10 @@ class JasperSource(BaseSource):
                     if full_text:
                         content = full_text
 
-                ext_id = self._make_external_id("em", title, pub_time)
-                saved = self.save_raw_item(
-                    external_id=ext_id, title=title, content=content,
-                    url=url, published_at=pub_time, item_type="news",
-                    meta_json=json.dumps(
-                        {"source": source_name, "stock": stock_code,
-                         "category": category}, ensure_ascii=False),
+                dedup_key = url if url else self._make_external_id("em", title, pub_time)
+                saved = self.save_source_doc(
+                    dedup_key=dedup_key, title=title, extracted_text=content,
+                    doc_type="news", publish_date=pub_time[:10] if pub_time else None,
                 )
                 if saved:
                     count += 1
