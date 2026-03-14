@@ -21,10 +21,10 @@
 /* 股票行 */
 .stock-row {
   display:grid;
-  grid-template-columns: 130px 70px 70px 100px 100px 80px 80px 80px;
+  grid-template-columns: 1fr 64px 64px 96px 84px 64px 64px 72px 56px;
   align-items:center; gap:0;
   padding:8px 16px; border-bottom:1px solid #1e2738;
-  transition:background .1s;
+  transition:background .1s; min-width:0;
 }
 .stock-row:last-child { border-bottom:none; }
 .stock-row:hover { background:#1e2738; }
@@ -32,11 +32,15 @@
 /* 表头 */
 .stock-header {
   display:grid;
-  grid-template-columns: 130px 70px 70px 100px 100px 80px 80px 80px;
+  grid-template-columns: 1fr 64px 64px 96px 84px 64px 64px 72px 56px;
   align-items:center; gap:0;
   padding:6px 16px;
   background:#0f1826; border-bottom:1px solid #2d3748;
 }
+
+/* Tag 标签 */
+.tag-leader { display:inline-block; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:700; background:rgba(234,179,8,.15); color:#ca8a04; border:1px solid rgba(234,179,8,.2); }
+.tag-news { display:inline-block; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:700; background:rgba(59,130,246,.15); color:#60a5fa; border:1px solid rgba(59,130,246,.2); }
 
 /* K线小图 */
 .kline-mini { display:flex; align-items:flex-end; gap:1px; height:28px; }
@@ -206,7 +210,7 @@ async function toggleTier(idx, codes) {
 function buildStockTable(stocks, tierIdx) {
   if (!stocks || stocks.length === 0) return '<div class="px-4 py-3 text-slate-600 text-xs">暂无股票数据</div>';
 
-  const headerCols = ['股票', '最新价', '今日涨跌', '月K（近6月）', '周K（近6周）', '1周涨幅', '1月涨幅', '3月涨幅'];
+  const headerCols = ['股票', '最新价', '今日', '月K（近6月）', '周K（近4周）', '1周', '1月', '3月', '标注'];
   const header = `<div class="stock-header">
     ${headerCols.map(h => `<span class="text-[10px] font-semibold text-slate-500 uppercase">${h}</span>`).join('')}
   </div>`;
@@ -220,23 +224,29 @@ function buildStockRow(s, tierIdx) {
   const pctClass = pct === null ? 'pct-zero' : pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
   const pctText = pct === null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
   const priceText = s.latest_price ? s.latest_price.toFixed(2) : '—';
+  const tagHtml = s.tag === 'leader'
+    ? `<span class="tag-leader">龙头</span>`
+    : s.tag === 'news'
+    ? `<span class="tag-news">News</span>`
+    : '—';
 
   return `<div class="stock-row" id="srow-${s.code}">
-    <div class="flex items-center gap-2">
-      <a href="/stock/${s.code}" class="text-xs font-bold text-blue-400 hover:underline">${s.name}</a>
-      <span class="text-[10px] text-slate-600">${s.code}</span>
+    <div class="flex items-center gap-1.5 min-w-0">
+      <a href="/stock/${s.code}" class="text-xs font-bold text-blue-400 hover:underline truncate">${s.name}</a>
+      <span class="text-[10px] text-slate-600 flex-shrink-0">${s.code}</span>
     </div>
     <span class="text-xs font-mono">${priceText}</span>
     <span class="text-xs ${pctClass}">${pctText}</span>
     <div class="kline-mini" id="monthly-${s.code}">
-      <div class="text-[9px] text-slate-700">—</div>
+      <div class="text-[9px] text-slate-700">…</div>
     </div>
     <div class="kline-mini" id="weekly-${s.code}">
-      <div class="text-[9px] text-slate-700">—</div>
+      <div class="text-[9px] text-slate-700">…</div>
     </div>
     <span class="text-xs" id="perf1w-${s.code}">—</span>
     <span class="text-xs" id="perf1m-${s.code}">—</span>
     <span class="text-xs" id="perf3m-${s.code}">—</span>
+    <span class="text-xs">${tagHtml}</span>
   </div>`;
 }
 

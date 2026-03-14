@@ -65,7 +65,6 @@ from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.search import router as search_router
 from routers.summary_review import router as summary_review_router
-from routers.robust_kline import router as robust_kline_router
 from routers.daily_intel import router as daily_intel_router
 from routers.chain import router as chain_router
 from routers.chain_intel import router as chain_intel_router
@@ -87,7 +86,6 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(search_router)
 app.include_router(summary_review_router)
-app.include_router(robust_kline_router)
 app.include_router(daily_intel_router)
 app.include_router(chain_router)
 app.include_router(chain_intel_router)

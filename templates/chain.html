@@ -136,10 +136,10 @@ function buildCard(c) {
     const x = i * (barW + 1);
     if (v >= 0) {
       const h = Math.max(2, Math.round((v / maxAbs) * (chartH / 2)));
-      bars += `<rect x="${x}" y="${chartH/2 - h}" width="${barW}" height="${h}" class="bar-pos" opacity=".85"/>`;
+      bars += `<rect x="${x}" y="${chartH/2 - h}" width="${barW}" height="${h}" fill="#ef4444" opacity=".85" rx="1"/>`;
     } else {
       const h = Math.max(2, Math.round((Math.abs(v) / maxAbs) * (chartH / 2)));
-      bars += `<rect x="${x}" y="${chartH/2}" width="${barW}" height="${h}" class="bar-neg" opacity=".85"/>`;
+      bars += `<rect x="${x}" y="${chartH/2}" width="${barW}" height="${h}" fill="#22c55e" opacity=".85" rx="1"/>`;
     }
   });
   const svg = flows.length > 0
@@ -149,13 +149,11 @@ function buildCard(c) {
        </svg>`
     : `<div class="h-10 flex items-center justify-center text-slate-600 text-xs">暂无资金数据</div>`;
 
-  // tier 标签（最多展示4个）
-  const tierPills = (c.tiers_summary || []).slice(0, 5).map(t =>
-    `<span class="tier-pill">${t.key}</span>`
-  ).join('');
-
-  const detailUrl = isWatchDetail(c) ? `/chain/api/watchlist/detail-v2?name=${encodeURIComponent(c.name)}`
-    : `/chain/${encodeURIComponent(c.name)}`;
+  // tier 标签（全部显示，key + label）
+  const tierPills = (c.tiers_summary || []).map(t => {
+    const label = t.label ? `<span class="text-slate-600 font-normal ml-1">${t.label}</span>` : '';
+    return `<div class="flex items-baseline gap-0.5 text-[11px]"><span class="font-semibold text-slate-300">${t.key}</span>${label}</div>`;
+  }).join('');
 
   return `
   <div class="chain-card p-5" onclick="window.location='/chain/${encodeURIComponent(c.name)}'">
@@ -176,10 +174,9 @@ function buildCard(c) {
       <span class="text-xs font-bold ${flowColor}">${flowSign}${totalFlow.toFixed(2)}亿</span>
     </div>
 
-    <!-- 产业链结构 -->
-    <div class="flex flex-wrap gap-1 border-t border-slate-700/50 pt-3">
+    <!-- 产业链结构（上/中/下游清单） -->
+    <div class="flex flex-col gap-1 border-t border-slate-700/50 pt-3">
       ${tierPills}
-      ${(c.tiers_summary||[]).length > 5 ? `<span class="tier-pill text-slate-600">+${(c.tiers_summary||[]).length-5}</span>` : ''}
     </div>
   </div>`;
 }
