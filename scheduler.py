@@ -383,6 +383,75 @@ def start_scheduler():
         name="问财行业指标采集",
     )
 
+    # 每天 07:00 + 17:00 — zsxq 采集 + daily intel scanner
+    def _run_zsxq_and_scanner(scan_date: str = None):
+        from datetime import date as _date
+        day = scan_date or str(_date.today())
+        try:
+            from ingestion.zsxq_source import fetch_zsxq_data
+            result = fetch_zsxq_data(start_date=day, end_date=day)
+            logger.info(f"[Scheduler] zsxq 采集完成 {day}: {result}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] zsxq 采集失败 {day}: {e}")
+        try:
+            from datetime import date as _date2
+            from daily_intel.scanner import run_daily_intel_pipeline
+            result = run_daily_intel_pipeline(_date2.fromisoformat(day))
+            logger.info(f"[Scheduler] daily intel scanner 完成 {day}: {result}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] daily intel scanner 失败 {day}: {e}")
+
+    scheduler.add_job(
+        _run_zsxq_and_scanner, CronTrigger(hour=7, minute=0),
+        id="zsxq_scanner_morning", replace_existing=True,
+        name="zsxq采集+daily intel scanner 早间",
+        misfire_grace_time=8 * 3600,  # 断线8小时内重连仍补跑
+    )
+    scheduler.add_job(
+        _run_zsxq_and_scanner, CronTrigger(hour=17, minute=0),
+        id="zsxq_scanner_afternoon", replace_existing=True,
+        name="zsxq采集+daily intel scanner 午后",
+        misfire_grace_time=8 * 3600,
+    )
+
+    # 启动时 backfill：补跑过去7天内 zsxq 有数据但 scanner 未执行的日期
+    def _backfill_missing_scanner_days():
+        try:
+            from datetime import date as _date, timedelta
+            from utils.db_utils import execute_cloud_query
+            today = _date.today()
+            check_days = [(today - timedelta(days=i)).isoformat() for i in range(1, 8)]
+
+            # 有 zsxq source_documents 的日期
+            rows = execute_cloud_query(
+                """SELECT DISTINCT DATE(publish_date) as day
+                   FROM source_documents
+                   WHERE source='zsxq' AND publish_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)""", []
+            ) or []
+            has_source = {str(r["day"]) for r in rows}
+
+            # 已有 daily_intel_stocks 的日期
+            rows2 = execute_cloud_query(
+                """SELECT DISTINCT scan_date as day
+                   FROM daily_intel_stocks
+                   WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)""", []
+            ) or []
+            has_scanner = {str(r["day"]) for r in rows2}
+
+            missing = sorted(has_source - has_scanner - {today.isoformat()})
+            if missing:
+                logger.info(f"[Scheduler] backfill 发现缺失日期: {missing}")
+                for day in missing:
+                    logger.info(f"[Scheduler] backfill 补跑 {day}")
+                    _run_zsxq_and_scanner(scan_date=day)
+            else:
+                logger.info("[Scheduler] backfill 无缺失日期")
+        except Exception as e:
+            logger.warning(f"[Scheduler] backfill 失败: {e}")
+
+    import threading
+    threading.Thread(target=_backfill_missing_scanner_days, daemon=True, name="backfill").start()
+
     # 每天 23:00 — chain_sync + theme_merger 夜间兜底
     def _run_daily_sync_nightly():
         try:
@@ -405,7 +474,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 06:00 + 20:00 KG自动构建, 18:30 宏观日度, 每月15日19:00 宏观月度, 每月5/15/25日20:30 市场数据同步, 06:00+16:00 Robust Kline, 21:00 问财行业指标")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():

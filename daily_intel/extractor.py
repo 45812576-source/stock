@@ -1,4 +1,4 @@
-"""daily_intel/extractor.py — DeepSeek 结构化提取
+"""daily_intel/extractor.py — Kimi k2.5 结构化提取（DashScope Anthropic 兼容接口）
 
 输入：文本 + 来源标题
 输出：[{stock_name, stock_code, industry, business_desc, event_type, event_summary}, ...]
@@ -10,48 +10,64 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-# ── DeepSeek 客户端（lazy singleton）────────────────────────────────
+# ── Kimi 客户端（lazy singleton）────────────────────────────────
 
-_deepseek_client = None
-_deepseek_lock = threading.Lock()
+_KIMI_BASE_URL = "https://coding.dashscope.aliyuncs.com/apps/anthropic"
+
+_kimi_client = None
+_kimi_lock = threading.Lock()
 
 
-def _get_deepseek():
-    global _deepseek_client
-    if _deepseek_client is None:
-        with _deepseek_lock:
-            if _deepseek_client is None:
-                from openai import OpenAI
+def _get_kimi():
+    global _kimi_client
+    if _kimi_client is None:
+        with _kimi_lock:
+            if _kimi_client is None:
+                from anthropic import Anthropic
                 from utils.db_utils import execute_cloud_query
                 rows = execute_cloud_query(
-                    "SELECT value FROM system_config WHERE config_key='deepseek_api_key'"
+                    "SELECT value FROM system_config WHERE config_key='kimi_api_key'"
                 )
                 if not rows:
-                    raise RuntimeError("system_config 中未找到 deepseek_api_key")
-                import httpx
-                _deepseek_client = OpenAI(
+                    raise RuntimeError("system_config 中未找到 kimi_api_key")
+                _kimi_client = Anthropic(
                     api_key=rows[0]["value"],
-                    base_url="https://api.deepseek.com/v1",
-                    http_client=httpx.Client(trust_env=False),
+                    base_url=_KIMI_BASE_URL,
                 )
-    return _deepseek_client
+    return _kimi_client
 
 
-def _call_deepseek(system_prompt: str, text: str, max_tokens: int = 3000) -> str:
+def _call_kimi(system_prompt: str, text: str, max_tokens: int = 3000) -> str:
     if len(text) > 12000:
         text = text[:12000] + "\n\n[文本已截断]"
-    client = _get_deepseek()
-    resp = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": text},
-        ],
-        max_tokens=max_tokens,
-        temperature=0.2,
+    from utils.db_utils import execute_cloud_query
+    import httpx, json as _json
+    rows = execute_cloud_query("SELECT value FROM system_config WHERE config_key='kimi_api_key'")
+    if not rows:
+        raise RuntimeError("system_config 中未找到 kimi_api_key")
+    api_key = rows[0]["value"]
+    payload = {
+        "model": "kimi-k2.5",
+        "max_tokens": max_tokens,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": text}],
+    }
+    resp = httpx.post(
+        "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages",
+        headers={
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+        },
+        json=payload,
         timeout=120,
     )
-    return resp.choices[0].message.content
+    resp.raise_for_status()
+    content_blocks = resp.json()["content"]
+    for block in content_blocks:
+        if block.get("type") == "text":
+            return block["text"]
+    return ""
 
 
 # ── 提取 Prompt ──────────────────────────────────────────────────────
@@ -102,11 +118,11 @@ def extract_stocks_from_text(text: str, source_title: str = "") -> list[dict]:
     input_text = f"来源标题：{source_title}\n\n{text}" if source_title else text
 
     try:
-        raw = _call_deepseek(_EXTRACT_PROMPT, input_text)
+        raw = _call_kimi(_EXTRACT_PROMPT, input_text)
         # 提取 JSON 数组（兼容 markdown 代码块）
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if not m:
-            logger.warning(f"[Extractor] DeepSeek 未返回有效 JSON: {raw[:200]}")
+            logger.warning(f"[Extractor] Kimi 未返回有效 JSON: {raw[:200]}")
             return []
         stocks = json.loads(m.group(0))
         if not isinstance(stocks, list):
@@ -134,5 +150,5 @@ def extract_stocks_from_text(text: str, source_title: str = "") -> list[dict]:
         logger.warning(f"[Extractor] JSON 解析失败: {e}")
         return []
     except Exception as e:
-        logger.error(f"[Extractor] DeepSeek 调用失败: {e}")
+        logger.error(f"[Extractor] Kimi 调用失败: {e}")
         return []

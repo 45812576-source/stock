@@ -19,6 +19,8 @@ CHAIN_ORDER = [
     "碳中和环保",
     "医药CRO",
     "稀土永磁",
+    "氢能",  # auto-added
+    "工程机械",  # auto-added
 ]
 
 CHAINS = {
@@ -42,11 +44,18 @@ CHAINS = {
             },
             "中游": {
                 "label": "动力电池 & 电机电控",
-                "stocks": ["宁德时代", "亿纬锂能", "国轩高科", "汇川技术", "卧龙电驱", "大洋电机"],
+                "stocks": ["宁德时代", "亿纬锂能", "国轩高科", "汇川技术", "卧龙电驱", "大洋电机",  # auto-added
+                    "朝阳科技"],
             },
             "下游": {
                 "label": "整车 & 零部件",
-                "stocks": ["比亚迪", "长安汽车", "长城汽车", "北汽蓝谷", "拓普集团", "均胜电子", "宁波华翔"],
+                "stocks": ["比亚迪", "长安汽车", "长城汽车", "北汽蓝谷", "拓普集团", "均胜电子", "宁波华翔",  # auto-added
+                    "胜宏科技",  # auto-added
+                    "世运电路",  # auto-added
+                    "奥士康",  # auto-added
+                    "极氪",  # auto-added
+                    "吉利汽车",  # auto-added
+                    "小鹏汽车"],
             },
             "设备": {
                 "label": "锂电设备",
@@ -77,7 +86,8 @@ CHAINS = {
             },
             "中游制造": {
                 "label": "晶圆代工 & 封测",
-                "stocks": ["中芯国际", "通富微电", "华天科技", "长电科技"],
+                "stocks": ["中芯国际", "通富微电", "华天科技", "长电科技",  # auto-added
+                    "华虹公司"],
             },
             "下游": {
                 "label": "PCB & 被动元件",
@@ -292,7 +302,8 @@ CHAINS = {
             },
             "下游-染料/精细化工": {
                 "label": "染料/精细化工",
-                "stocks": ["浙江龙盛", "亚邦股份"],
+                "stocks": ["浙江龙盛", "亚邦股份",  # auto-added
+                    "亚香股份"],
             },
         },
     },
@@ -373,6 +384,28 @@ CHAINS = {
             "下游": {
                 "label": "新能源车电机/工业电机/风电",
                 "stocks": ["汇川技术", "卧龙电驱", "金风科技"],
+            },
+        },
+    },
+
+    "氢能": {
+        "icon": "grain",
+        "color": "#10b981",
+        "tiers": {
+            "中游": {
+                "label": "绿氢制备与供应",
+                "stocks": ["复洁科技"],  # auto-added
+            },
+        },
+    },
+
+    "工程机械": {
+        "icon": "precision_manufacturing",
+        "color": "#f59e0b",
+        "tiers": {
+            "整机": {
+                "label": "工程机械整机制造",
+                "stocks": ["宏观"],  # auto-added
             },
         },
     },
@@ -645,4 +678,26 @@ STOCK_TAGS = {
     "汇川技术": "leader",
     "卧龙电驱": "leader",
     "金风科技": "leader",
+
+    "胜宏科技": "news",  # auto-added
+
+    "世运电路": "news",  # auto-added
+
+    "奥士康": "news",  # auto-added
+
+    "华虹公司": "news",  # auto-added
+
+    "朝阳科技": "news",  # auto-added
+
+    "极氪": "news",  # auto-added
+
+    "吉利汽车": "news",  # auto-added
+
+    "小鹏汽车": "news",  # auto-added
+
+    "亚香股份": "news",  # auto-added
+
+    "复洁科技": "news",  # auto-added
+
+    "宏观": "news",  # auto-added
 }

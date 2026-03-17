@@ -86,6 +86,7 @@ def schema_validate(dry_run: bool = False) -> dict:
     # 3. 组合合法性校验 (source_type, relation_type, target_type)
     all_rels = execute_query(
         """SELECT r.id, r.relation_type,
+                  r.source_entity_id, r.target_entity_id,
                   s.entity_type as src_type, s.entity_name as src_name,
                   t.entity_type as tgt_type, t.entity_name as tgt_name
            FROM kg_relationships r
@@ -93,16 +94,34 @@ def schema_validate(dry_run: bool = False) -> dict:
            JOIN kg_entities t ON r.target_entity_id = t.id"""
     )
     bad_combo_ids = []
+    flip_ops = []  # [(rel_id, new_src_id, new_tgt_id)]
     for rel in all_rels:
         combo = (rel["src_type"], rel["relation_type"], rel["tgt_type"])
         if combo not in VALID_COMBINATIONS:
-            result["invalid_combinations"] += 1
-            result["details"].append(
-                f"非法组合: {rel['src_name']}({rel['src_type']}) "
-                f"-[{rel['relation_type']}]-> "
-                f"{rel['tgt_name']}({rel['tgt_type']}) rel_id={rel['id']}"
+            # 先尝试翻转方向
+            reversed_combo = (rel["tgt_type"], rel["relation_type"], rel["src_type"])
+            if reversed_combo in VALID_COMBINATIONS:
+                result["details"].append(
+                    f"方向翻转: {rel['src_name']}({rel['src_type']}) "
+                    f"-[{rel['relation_type']}]-> "
+                    f"{rel['tgt_name']}({rel['tgt_type']}) rel_id={rel['id']} → 翻转"
+                )
+                flip_ops.append((rel["id"], rel["target_entity_id"], rel["source_entity_id"]))
+            else:
+                result["invalid_combinations"] += 1
+                result["details"].append(
+                    f"非法组合: {rel['src_name']}({rel['src_type']}) "
+                    f"-[{rel['relation_type']}]-> "
+                    f"{rel['tgt_name']}({rel['tgt_type']}) rel_id={rel['id']}"
+                )
+                bad_combo_ids.append(rel["id"])
+    if flip_ops and not dry_run:
+        for rel_id, new_src, new_tgt in flip_ops:
+            execute_insert(
+                "UPDATE kg_relationships SET source_entity_id=%s, target_entity_id=%s WHERE id=%s",
+                [new_src, new_tgt, rel_id],
             )
-            bad_combo_ids.append(rel["id"])
+        logger.info(f"Schema校验-方向翻转: {len(flip_ops)} 条")
     if bad_combo_ids and not dry_run:
         batch = 200
         for i in range(0, len(bad_combo_ids), batch):

@@ -79,29 +79,38 @@ def _call_claude_cli(model_name: str, system_prompt: str, user_message: str,
 def _call_anthropic(model_name: str, api_key: str, base_url: str,
                     system_prompt: str, user_message: str,
                     max_tokens: int, timeout: int, retries: int) -> str:
-    try:
-        from anthropic import Anthropic
-    except ImportError:
-        raise RuntimeError("anthropic 包未安装，请运行: pip install anthropic")
-
-    # 优先使用 api_key，如果为空则尝试环境变量
     if not api_key:
         import os
         api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
-    
     if not api_key:
-         raise RuntimeError("未配置 Anthropic API Key (环境变量 ANTHROPIC_API_KEY 或 system_config)")
+        raise RuntimeError("未配置 Anthropic API Key (环境变量 ANTHROPIC_API_KEY 或 system_config)")
 
-    client = Anthropic(api_key=api_key, base_url=base_url or None, timeout=timeout, max_retries=retries)
-    
+    # 使用 httpx 直连（兼容非标 Anthropic 兼容接口，如 DashScope）
+    import httpx
+    endpoint = (base_url.rstrip("/") + "/v1/messages") if base_url else "https://api.anthropic.com/v1/messages"
+    payload = {
+        "model": model_name,
+        "max_tokens": max_tokens,
+        "system": system_prompt,
+        "messages": [{"role": "user", "content": user_message}],
+    }
     try:
-        message = client.messages.create(
-            model=model_name,
-            max_tokens=max_tokens,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}]
+        resp = httpx.post(
+            endpoint,
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json=payload,
+            timeout=timeout,
         )
-        return message.content[0].text
+        resp.raise_for_status()
+        content_blocks = resp.json().get("content", [])
+        for block in content_blocks:
+            if block.get("type") == "text":
+                return block["text"]
+        return ""
     except Exception as e:
         raise RuntimeError(f"Anthropic API 调用失败: {e}")
 

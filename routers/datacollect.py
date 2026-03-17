@@ -2916,3 +2916,40 @@ def api_indicators_filters():
         }
     except Exception as e:
         return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@router.get("/api/zsxq-token-status", response_class=JSONResponse)
+def api_zsxq_token_status():
+    """检查 zsxq token 是否有效。
+    判断依据：当天 source_documents 中 zsxq 采集量 + daily_intel_stocks 中 zsxq 情报量。
+    若当天 zsxq 采集量为 0 且情报量为 0，且现在已过 09:30，则视为 token 可能失效。
+    """
+    from utils.db_utils import execute_cloud_query
+    from datetime import date, datetime
+    today = str(date.today())
+    now = datetime.now()
+    past_open = (now.hour > 9) or (now.hour == 9 and now.minute >= 30)
+
+    try:
+        zsxq_docs = (execute_cloud_query(
+            "SELECT COUNT(*) as cnt FROM source_documents WHERE source='zsxq' AND publish_date=%s",
+            [today]
+        ) or [{}])[0].get("cnt", 0)
+
+        intel_rows = (execute_cloud_query(
+            "SELECT COUNT(*) as cnt FROM daily_intel_stocks WHERE source_type='zsxq' AND scan_date=%s",
+            [today]
+        ) or [{}])[0].get("cnt", 0)
+    except Exception as e:
+        return {"ok": True, "warning": False, "error": str(e)}
+
+    token_warning = past_open and zsxq_docs == 0 and intel_rows == 0
+
+    return {
+        "ok": True,
+        "warning": token_warning,
+        "today": today,
+        "zsxq_docs_today": zsxq_docs,
+        "intel_rows_today": intel_rows,
+        "past_open": past_open,
+    }

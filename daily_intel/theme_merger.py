@@ -123,7 +123,7 @@ def _ai_merge_themes(summaries: list[dict], existing_names: list[str]) -> list[d
 ]"""
 
     try:
-        result = call_model_json("kg", system, user, max_tokens=4000, timeout=180)
+        result = call_model_json("hotspot", system, user, max_tokens=4000, timeout=180)
         if isinstance(result, list):
             return result
         for v in result.values():

@@ -697,7 +697,8 @@ def api_daily_intel_industry(days: int = 7):
         from datetime import datetime, timedelta
 
         rows = execute_cloud_query(
-            """SELECT stock_name, stock_code, DATE(scan_date) AS day, COUNT(DISTINCT source_id) AS cnt
+            """SELECT stock_name, stock_code, DATE(scan_date) AS day,
+                      GROUP_CONCAT(DISTINCT source_id) AS source_ids
                FROM daily_intel_stocks
                WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
                  AND stock_name IS NOT NULL AND stock_name != ''
@@ -715,22 +716,28 @@ def api_daily_intel_industry(days: int = 7):
                     if sname not in stock_to_industry:
                         stock_to_industry[sname] = label
 
-        # 按 (industry_label, day) 统计
+        # 按 (industry_label, day) 收集 DISTINCT source_id，再 len()
         today = datetime.now().date()
         dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
 
-        industry_day = {}
+        industry_day_sources = {}  # {label: {day: set(source_id)}}
         for r in rows:
             name = r["stock_name"]
             label = stock_to_industry.get(name)
             if not label:
                 continue
             day = str(r["day"])[:10]
-            cnt = int(r["cnt"] or 0)
-            if label not in industry_day:
-                industry_day[label] = {"daily": {}, "total": 0}
-            industry_day[label]["daily"][day] = industry_day[label]["daily"].get(day, 0) + cnt
-            industry_day[label]["total"] += cnt
+            ids = {s for s in (r.get("source_ids") or "").split(",") if s}
+            if label not in industry_day_sources:
+                industry_day_sources[label] = {}
+            if day not in industry_day_sources[label]:
+                industry_day_sources[label][day] = set()
+            industry_day_sources[label][day].update(ids)
+
+        industry_day = {}
+        for label, day_sources in industry_day_sources.items():
+            daily = {day: len(src_ids) for day, src_ids in day_sources.items()}
+            industry_day[label] = {"daily": daily, "total": sum(daily.values())}
 
         industries = sorted(
             [{"name": k, "total": v["total"], "daily": v["daily"], "ai_direction": "neutral"}

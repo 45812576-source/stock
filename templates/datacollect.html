@@ -39,6 +39,19 @@
   </a>
 </div>
 
+<!-- zsxq token 失效警告横幅 -->
+<div id="zsxq-token-banner" class="hidden mb-4 flex items-start gap-3 bg-amber-950/60 border border-amber-500/40 rounded-xl px-4 py-3">
+  <span class="material-icons-round text-amber-400 text-xl mt-0.5 flex-shrink-0">warning</span>
+  <div class="flex-1 min-w-0">
+    <p class="text-sm font-bold text-amber-300">知识星球 Token 可能已失效</p>
+    <p class="text-xs text-amber-400/80 mt-0.5" id="zsxq-token-banner-detail">今日未采集到任何 zsxq 数据，且每日情报为空。请检查并更新 Token。</p>
+  </div>
+  <a href="#zsxq-settings" class="flex-shrink-0 px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-lg transition">去更新 Token</a>
+  <button onclick="document.getElementById('zsxq-token-banner').classList.add('hidden')" class="flex-shrink-0 text-amber-500/60 hover:text-amber-300 ml-1">
+    <span class="material-icons-round text-base">close</span>
+  </button>
+</div>
+
 <div>
   <!-- 云端文档库概况 -->
   <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-6">
@@ -373,7 +386,7 @@
 </div>
 
 <!-- 知识星球认证配置 -->
-<div class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6">
+<div id="zsxq-settings" class="bg-slate-900 border border-slate-800 p-5 rounded-xl mb-6">
   <div class="flex items-center gap-3 mb-4">
     <span class="material-icons-round text-purple-400">vpn_key</span>
     <span class="text-sm font-semibold">知识星球认证配置</span>
@@ -676,6 +689,16 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('zsxqEndDate').max = _todayStr;
   document.getElementById('zsxqEndDate').addEventListener('change', zsxqUpdateHint);
   zsxqUpdateHint();
+
+  // 检查 zsxq token 状态
+  fetch('/data/api/zsxq-token-status').then(r => r.json()).then(data => {
+    if (data.warning) {
+      const banner = document.getElementById('zsxq-token-banner');
+      const detail = document.getElementById('zsxq-token-banner-detail');
+      detail.textContent = `今日（${data.today}）未采集到任何 zsxq 数据，每日情报也为空。请检查并更新 Token。`;
+      banner.classList.remove('hidden');
+    }
+  }).catch(() => {});
 
   // 并发加载两个接口，互不阻塞
   loadDocStats('');

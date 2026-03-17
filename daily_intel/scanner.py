@@ -288,6 +288,84 @@ def process_manual_items() -> dict:
     return {"processed": processed, "inserted": total_inserted, "errors": errors}
 
 
+def pull_reports_for_new_stocks(scan_date: date, days: int = 730,
+                                per_stock_limit: int = 50) -> dict:
+    """对本次 daily intel 中首次出现的 stock_code，补拉东方财富历史研报并推入管线。
+
+    "首次出现" = 在 daily_intel_stocks 中，scan_date 当天有记录，
+                  但在此之前（scan_date 以前）从未出现过，且 eastmoney_report
+                  里也没有该股票的研报（避免对已有大量研报的股票重复拉取）。
+
+    Args:
+        scan_date: 扫描日期
+        days: 回溯天数，默认 730（约两年）
+        per_stock_limit: 每只股票最多入库条数
+
+    Returns:
+        {"new_stocks": [...], "fetched": N, "pushed": M}
+    """
+    # 1. 取今日扫描到的所有 stock_code
+    today_rows = execute_cloud_query(
+        """SELECT DISTINCT stock_code FROM daily_intel_stocks
+           WHERE scan_date = %s AND stock_code IS NOT NULL AND stock_code != ''""",
+        [str(scan_date)],
+    ) or []
+    today_codes = {r["stock_code"] for r in today_rows}
+
+    if not today_codes:
+        return {"new_stocks": [], "fetched": 0, "pushed": 0}
+
+    # 2. 过滤：只保留在此之前 daily_intel_stocks 从未出现过的股票
+    placeholders = ",".join(["%s"] * len(today_codes))
+    prev_rows = execute_cloud_query(
+        f"""SELECT DISTINCT stock_code FROM daily_intel_stocks
+            WHERE scan_date < %s AND stock_code IN ({placeholders})""",
+        [str(scan_date)] + list(today_codes),
+    ) or []
+    prev_codes = {r["stock_code"] for r in prev_rows}
+    brand_new_codes = today_codes - prev_codes
+
+    if not brand_new_codes:
+        logger.info(f"[PullReports] {scan_date} 无首次出现的新股票，跳过研报补拉")
+        return {"new_stocks": [], "fetched": 0, "pushed": 0}
+
+    # 3. 再过滤：eastmoney_report 里已经有研报的股票也不重复拉
+    #    （判断标准：title 里包含该股票代码，或 extracted_text 里提到该代码）
+    #    用更精确的方法：查 extracted_text 包含 "({code})" 的记录
+    need_pull = []
+    for code in brand_new_codes:
+        existing = execute_cloud_query(
+            "SELECT id FROM source_documents WHERE source='eastmoney_report' "
+            "AND extracted_text LIKE %s LIMIT 1",
+            [f"%({code})%"],
+        )
+        if not existing:
+            need_pull.append(code)
+
+    if not need_pull:
+        logger.info(f"[PullReports] {scan_date} 首次出现股票均已有研报，跳过")
+        return {"new_stocks": list(brand_new_codes), "fetched": 0, "pushed": 0}
+
+    logger.info(
+        f"[PullReports] {scan_date} 发现 {len(need_pull)} 只新股票需补拉研报: {need_pull}"
+    )
+
+    # 4. 调采集器拉研报
+    try:
+        from ingestion.eastmoney_report_source import EastmoneyReportSource
+        src = EastmoneyReportSource()
+        result = src.fetch_by_stock_codes(need_pull, days=days, per_stock_limit=per_stock_limit)
+        logger.info(f"[PullReports] 补拉完成: {result}")
+        return {
+            "new_stocks": need_pull,
+            "fetched": result.get("fetched", 0),
+            "pushed": result.get("pushed", 0),
+        }
+    except Exception as e:
+        logger.exception(f"[PullReports] 补拉研报失败: {e}")
+        return {"new_stocks": need_pull, "fetched": 0, "pushed": 0, "error": str(e)}
+
+
 def run_daily_intel_pipeline(scan_date: date = None) -> dict:
     """全流程：扫描 zsxq + 处理手动录入 + 触发爸爸备选筛选
 
@@ -322,5 +400,12 @@ def run_daily_intel_pipeline(scan_date: date = None) -> dict:
     except Exception as e:
         logger.exception(f"[Pipeline] 爸爸备选筛选失败: {e}")
         result["filter"] = {"error": str(e)}
+
+    try:
+        result["pull_reports"] = pull_reports_for_new_stocks(scan_date)
+        logger.info(f"[Pipeline] 新股票研报补拉完成: {result['pull_reports']}")
+    except Exception as e:
+        logger.exception(f"[Pipeline] 新股票研报补拉失败: {e}")
+        result["pull_reports"] = {"error": str(e)}
 
     return result

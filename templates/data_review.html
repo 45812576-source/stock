@@ -1383,6 +1383,8 @@ async function approveCurrent() {
     showToast('请求失败', 'error');
     return;
   }
+  // 更新本地缓存，防止再次点击标题时触发重提取并覆写已审核内容
+  itemCache[item.id] = { ...item, extracted_text: editedText, extract_status: 'ready_to_pipe' };
   nextReview();
 }
 

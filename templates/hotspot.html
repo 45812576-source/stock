@@ -311,43 +311,36 @@ async function loadTrendChart(days) {
     const heatMap = data.heat_map || {};
     if (!tags.length) { el.innerHTML = '<p class="text-center text-slate-500 text-sm py-20">暂无数据</p>'; return; }
 
+    // 按合计热度排序（后端已排好），Y轴从低到高（Plotly y轴底部=第一行）
     const yLabels = tags.slice().reverse();
-    const zDaily = [], hoverDaily = [], zTotal = [], hoverTotal = [];
+    const zDaily = [], hoverDaily = [];
     for (const tag of yLabels) {
       const tagData = heatMap[tag] || {};
       const daily = tagData.daily || {};
+      const total = tagData.total || 0;
       const row = [], textRow = [];
       for (const d of dates) {
         const val = daily[d] || 0;
         row.push(val);
-        textRow.push(tag + '<br>' + d + '<br>提及: ' + val + '次');
+        textRow.push(tag + '<br>' + d + '<br>提及: ' + val + '次  合计: ' + total + '次');
       }
       zDaily.push(row);
       hoverDaily.push(textRow);
-      zTotal.push([tagData.total || 0]);
-      hoverTotal.push([tag + '<br>合计: ' + (tagData.total || 0) + '次']);
     }
 
     const traceDaily = {
       z: zDaily, x: dates.map(d => d.slice(5)), y: yLabels,
-      type: 'heatmap', xaxis: 'x',
+      type: 'heatmap',
       colorscale: [[0,'#1a2233'],[0.01,'#1e3a5f'],[0.15,'#135bec44'],[0.4,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
       hoverinfo: 'text', text: hoverDaily, showscale: true,
       colorbar: { title: { text: '次数', font: { size: 10, color: '#94a3b8' } }, thickness: 12, len: 0.5, tickfont: { size: 9, color: '#64748b' }, x: 1.02 },
     };
-    const traceTotal = {
-      z: zTotal, x: ['合计'], y: yLabels,
-      type: 'heatmap', xaxis: 'x2',
-      colorscale: [[0,'#1a2233'],[0.3,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
-      hoverinfo: 'text', text: hoverTotal, showscale: false,
-    };
-    const chartH = yLabels.length * 32 + 80;  // 每行32px，不截断
-    Plotly.newPlot('freq-chart', [traceDaily, traceTotal], {
-      margin: { t: 10, b: 40, l: 120, r: 60 },
+    const chartH = Math.max(400, yLabels.length * 36 + 80);
+    Plotly.newPlot('freq-chart', [traceDaily], {
+      margin: { t: 10, b: 50, l: 140, r: 70 },
       paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
       font: { color: '#94a3b8', size: 10 },
-      xaxis: { type: 'category', side: 'bottom', tickangle: -45, tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)', domain: [0, 0.88] },
-      xaxis2: { type: 'category', side: 'bottom', tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)', domain: [0.90, 1], anchor: 'y' },
+      xaxis: { type: 'category', side: 'bottom', tickangle: -45, tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)' },
       yaxis: { tickfont: { size: 10 }, gridcolor: 'rgba(100,116,139,0.08)', automargin: true },
       height: chartH,
     }, { displayModeBar: false, responsive: true });

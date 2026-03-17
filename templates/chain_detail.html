@@ -18,39 +18,58 @@
   border-radius:0 0 10px 10px; overflow:hidden;
 }
 
+/* 列定义（复用在行和表头） */
+.stock-cols {
+  grid-template-columns: minmax(160px,2.5fr) 88px 88px minmax(170px,2.2fr) minmax(130px,1.6fr) 80px 80px 80px 68px;
+}
+
 /* 股票行 */
 .stock-row {
   display:grid;
-  grid-template-columns: 1fr 64px 64px 96px 84px 64px 64px 72px 56px;
   align-items:center; gap:0;
-  padding:8px 16px; border-bottom:1px solid #1e2738;
-  transition:background .1s; min-width:0;
+  padding:14px 20px; border-bottom:1px solid #1a2234;
+  transition:background .15s; min-width:0;
 }
 .stock-row:last-child { border-bottom:none; }
-.stock-row:hover { background:#1e2738; }
+.stock-row:hover { background:rgba(30,39,56,.7); }
 
 /* 表头 */
 .stock-header {
   display:grid;
-  grid-template-columns: 1fr 64px 64px 96px 84px 64px 64px 72px 56px;
   align-items:center; gap:0;
-  padding:6px 16px;
-  background:#0f1826; border-bottom:1px solid #2d3748;
+  padding:9px 20px;
+  background:#0c1422; border-bottom:1px solid #2d3748;
+}
+.stock-header span {
+  font-size:10px; font-weight:600; letter-spacing:.04em;
+  color:#475569; text-transform:uppercase;
 }
 
+/* 股票名称区 */
+.stock-name-cell { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.stock-name-cell a { font-size:13px; font-weight:700; color:#93c5fd; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.stock-name-cell a:hover { color:#bfdbfe; text-decoration:underline; }
+.stock-name-cell .code { font-size:10px; color:#475569; letter-spacing:.03em; }
+
 /* Tag 标签 */
-.tag-leader { display:inline-block; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:700; background:rgba(234,179,8,.15); color:#ca8a04; border:1px solid rgba(234,179,8,.2); }
-.tag-news { display:inline-block; padding:1px 5px; border-radius:4px; font-size:9px; font-weight:700; background:rgba(59,130,246,.15); color:#60a5fa; border:1px solid rgba(59,130,246,.2); }
+.tag-leader { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; background:rgba(234,179,8,.12); color:#d97706; border:1px solid rgba(234,179,8,.25); }
+.tag-news   { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; background:rgba(59,130,246,.12); color:#60a5fa; border:1px solid rgba(59,130,246,.25); }
 
 /* K线小图 */
-.kline-mini { display:flex; align-items:flex-end; gap:1px; height:28px; }
-.kbar { width:6px; border-radius:1px; min-height:2px; }
+.kline-mini { display:flex; align-items:flex-end; gap:2px; height:44px; padding:2px 0; }
+.kbar { width:10px; border-radius:1px 1px 0 0; min-height:2px; }
 .kbar.yang { background:#ef4444; }
-.kbar.yin { background:#22c55e; }
+.kbar.yin  { background:#22c55e; }
 
-.pct-pos { color:#ef4444; font-weight:700; }
-.pct-neg { color:#22c55e; font-weight:700; }
-.pct-zero { color:#64748b; }
+/* 涨幅数字 */
+.pct-pos  { color:#f87171; font-weight:700; font-size:12px; }
+.pct-neg  { color:#4ade80; font-weight:700; font-size:12px; }
+.pct-zero { color:#475569; font-size:12px; }
+
+/* 价格 */
+.price-val { font-size:13px; font-weight:600; color:#e2e8f0; font-variant-numeric:tabular-nums; }
+/* 今日涨跌 */
+.today-pct { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
 
 /* 全链资金流图 */
 .flow-bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
@@ -103,6 +122,7 @@
 <script>
 const CHAIN_NAME = {{ chain_name | tojson }};
 const CHAIN_COLOR = {{ chain_color | tojson }};
+const COL_DEF = 'minmax(160px,2.5fr) 88px 88px minmax(170px,2.2fr) minmax(130px,1.6fr) 80px 80px 80px 68px';
 
 // 当前已展开的 tier
 const _expanded = new Set();
@@ -217,8 +237,8 @@ function buildStockTable(stocks, tierIdx) {
   if (!stocks || stocks.length === 0) return '<div class="px-4 py-3 text-slate-600 text-xs">暂无股票数据</div>';
 
   const headerCols = ['股票', '最新价', '今日', '月K（近6月）', '周K（近4周）', '1周', '1月', '3月', '标注'];
-  const header = `<div class="stock-header">
-    ${headerCols.map(h => `<span class="text-[10px] font-semibold text-slate-500 uppercase">${h}</span>`).join('')}
+  const header = `<div class="stock-header" style="grid-template-columns:${COL_DEF}">
+    ${headerCols.map(h => `<span>${h}</span>`).join('')}
   </div>`;
 
   const rows = stocks.map(s => buildStockRow(s, tierIdx)).join('');
@@ -234,25 +254,25 @@ function buildStockRow(s, tierIdx) {
     ? `<span class="tag-leader">龙头</span>`
     : s.tag === 'news'
     ? `<span class="tag-news">News</span>`
-    : '—';
+    : '<span class="text-slate-700">—</span>';
 
-  return `<div class="stock-row" id="srow-${s.code}">
-    <div class="flex items-center gap-1.5 min-w-0">
-      <a href="/stock/${s.code}" class="text-xs font-bold text-blue-400 hover:underline truncate">${s.name}</a>
-      <span class="text-[10px] text-slate-600 flex-shrink-0">${s.code}</span>
+  return `<div class="stock-row" id="srow-${s.code}" style="grid-template-columns:${COL_DEF}">
+    <div class="stock-name-cell">
+      <a href="/stock/${s.code}">${s.name}</a>
+      <span class="code">${s.code}</span>
     </div>
-    <span class="text-xs font-mono">${priceText}</span>
-    <span class="text-xs ${pctClass}">${pctText}</span>
+    <span class="price-val">${priceText}</span>
+    <span class="today-pct ${pctClass}">${pctText}</span>
     <div class="kline-mini" id="monthly-${s.code}">
-      <div class="text-[9px] text-slate-700">…</div>
+      <div style="font-size:9px;color:#334155">…</div>
     </div>
     <div class="kline-mini" id="weekly-${s.code}">
-      <div class="text-[9px] text-slate-700">…</div>
+      <div style="font-size:9px;color:#334155">…</div>
     </div>
-    <span class="text-xs" id="perf1w-${s.code}">—</span>
-    <span class="text-xs" id="perf1m-${s.code}">—</span>
-    <span class="text-xs" id="perf3m-${s.code}">—</span>
-    <span class="text-xs">${tagHtml}</span>
+    <span id="perf1w-${s.code}" class="pct-zero">—</span>
+    <span id="perf1m-${s.code}" class="pct-zero">—</span>
+    <span id="perf3m-${s.code}" class="pct-zero">—</span>
+    <span>${tagHtml}</span>
   </div>`;
 }
 
@@ -325,7 +345,7 @@ function fillMiniKline(elId, bars) {
   const el = document.getElementById(elId);
   if (!el || !bars || bars.length === 0) return;
 
-  const maxH = 28;
+  const maxH = 44;
   const highs = bars.map(b => b.high);
   const lows = bars.map(b => b.low);
   const gHigh = Math.max(...highs);
@@ -344,9 +364,9 @@ function fillMiniKline(elId, bars) {
 function fillPerf(elId, pct) {
   const el = document.getElementById(elId);
   if (!el) return;
-  if (pct === null || pct === undefined) { el.textContent = '—'; return; }
+  if (pct === null || pct === undefined) { el.className = 'pct-zero'; el.textContent = '—'; return; }
   const cls = pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
-  el.className = `text-xs ${cls}`;
+  el.className = cls;
   el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
 }
 

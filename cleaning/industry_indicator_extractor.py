@@ -7,7 +7,7 @@ import json
 import logging
 from typing import Optional
 
-from utils.db_utils import execute_cloud_query, upsert_industry_indicator
+from utils.db_utils import execute_cloud_query, execute_cloud_insert, upsert_industry_indicator
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +247,10 @@ def run_pipeline_d(extracted_text_id: int, full_text: str) -> int:
     indicators = _parse_indicators(raw)
     if not indicators:
         logger.info(f"[Pipeline D] id={extracted_text_id} 未抽取到指标")
+        execute_cloud_insert(
+            "UPDATE extracted_texts SET semantic_clean_status='d_done' WHERE id=%s",
+            [extracted_text_id],
+        )
         return 0
 
     count = 0
@@ -260,5 +264,9 @@ def run_pipeline_d(extracted_text_id: int, full_text: str) -> int:
         except Exception as e:
             logger.warning(f"[Pipeline D] 写入失败: {e} | {ind.get('metric_name')}")
 
+    execute_cloud_insert(
+        "UPDATE extracted_texts SET semantic_clean_status='d_done' WHERE id=%s",
+        [extracted_text_id],
+    )
     logger.info(f"[Pipeline D] id={extracted_text_id} 写入 {count} 条指标")
     return count

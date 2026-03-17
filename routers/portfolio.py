@@ -17,6 +17,24 @@ router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
+def _trigger_report_pull(stock_code: str):
+    """后台线程补拉东方财富研报（若该股票在库中无研报）"""
+    import threading
+    def _bg(code: str):
+        try:
+            existing = execute_query(
+                "SELECT id FROM source_documents WHERE source='eastmoney_report' AND content LIKE %s LIMIT 1",
+                [f"%({code})%"],
+            )
+            if not existing:
+                from ingestion.eastmoney_report_source import EastmoneyReportSource
+                EastmoneyReportSource().fetch_by_stock_codes([code], days=730, per_stock_limit=50)
+                logger.info(f"[Portfolio] 研报补拉完成: {code}")
+        except Exception as e:
+            logger.warning(f"[Portfolio] 研报补拉失败 {code}: {e}")
+    threading.Thread(target=_bg, args=(stock_code,), daemon=True).start()
+
+
 # ==================== 页面路由 ====================
 
 @router.get("", response_class=HTMLResponse)
@@ -95,9 +113,11 @@ async def api_add_stock(strategy_id: int, request: Request):
                ON DUPLICATE KEY UPDATE status='active', notes=VALUES(notes), stock_name=VALUES(stock_name)""",
             [strategy_id, stock_code, stock_name, notes],
         )
-        return {"ok": True}
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)[:200]}, status_code=500)
+
+    _trigger_report_pull(stock_code)
+    return {"ok": True}
 
 
 @router.post("/api/strategy/{strategy_id}/remove-stock", response_class=JSONResponse)
@@ -121,6 +141,7 @@ async def api_accept_stock(strategy_id: int, request: Request):
         "UPDATE strategy_stocks SET status='active' WHERE strategy_id=%s AND stock_code=%s",
         [strategy_id, stock_code],
     )
+    _trigger_report_pull(stock_code)
     return {"ok": True}
 
 
