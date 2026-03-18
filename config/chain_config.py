@@ -39,13 +39,19 @@ CHAINS = {
                     "璞泰来", "杉杉股份", "中科电气",               # 负极
                     "恩捷股份", "星源材质",                          # 隔膜
                     "天赐材料", "新宙邦",                            # 电解液
-                    "诺德股份", "嘉元科技",                          # 铜箔
-                ],
+                    "诺德股份", "嘉元科技",                          # 铜箔,  # auto-added
+                    "帝尔激光",  # auto-added
+                    "大族激光",  # auto-added
+                    "东威科技",  # auto-added
+                    "星宸科技"],
             },
             "中游": {
                 "label": "动力电池 & 电机电控",
                 "stocks": ["宁德时代", "亿纬锂能", "国轩高科", "汇川技术", "卧龙电驱", "大洋电机",  # auto-added
-                    "朝阳科技"],
+                    "朝阳科技",  # auto-added
+                    "中际旭创",  # auto-added
+                    "新易盛",  # auto-added
+                    "工业富联"],
             },
             "下游": {
                 "label": "整车 & 零部件",
@@ -55,11 +61,19 @@ CHAINS = {
                     "奥士康",  # auto-added
                     "极氪",  # auto-added
                     "吉利汽车",  # auto-added
-                    "小鹏汽车"],
+                    "小鹏汽车",  # auto-added
+                    "东方日升",  # auto-added
+                    "东威科技",  # auto-added
+                    "鼎泰高科",  # auto-added
+                    "京东方A",  # auto-added
+                    "银轮股份",  # auto-added
+                    "天润工业"],
             },
             "设备": {
                 "label": "锂电设备",
-                "stocks": ["先导智能", "杭可科技", "利元亨"],
+                "stocks": ["先导智能", "杭可科技", "利元亨",  # auto-added
+                    "奥特维",  # auto-added
+                    "海目星"],
             },
         },
     },
@@ -700,4 +714,32 @@ STOCK_TAGS = {
     "复洁科技": "news",  # auto-added
 
     "宏观": "news",  # auto-added
+
+    "奥特维": "news",  # auto-added
+
+    "东方日升": "news",  # auto-added
+
+    "东威科技": "news",  # auto-added
+
+    "鼎泰高科": "news",  # auto-added
+
+    "京东方A": "news",  # auto-added
+
+    "帝尔激光": "news",  # auto-added
+
+    "大族激光": "news",  # auto-added
+
+    "星宸科技": "news",  # auto-added
+
+    "海目星": "news",  # auto-added
+
+    "中际旭创": "news",  # auto-added
+
+    "新易盛": "news",  # auto-added
+
+    "工业富联": "news",  # auto-added
+
+    "银轮股份": "news",  # auto-added
+
+    "天润工业": "news",  # auto-added
 }

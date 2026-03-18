@@ -23,7 +23,7 @@ def _trigger_report_pull(stock_code: str):
     def _bg(code: str):
         try:
             existing = execute_query(
-                "SELECT id FROM source_documents WHERE source='eastmoney_report' AND content LIKE %s LIMIT 1",
+                "SELECT id FROM source_documents WHERE source='eastmoney_report' AND text_content LIKE %s LIMIT 1",
                 [f"%({code})%"],
             )
             if not existing:
