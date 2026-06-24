@@ -39,7 +39,7 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 
 # ── 简易内存缓存 ──────────────────────────────────────────────
 _cache = {}
-CACHE_TTL = 300  # 5 分钟
+CACHE_TTL = 600  # 10 分钟
 
 
 def _cached(key, fetcher, ttl=CACHE_TTL):

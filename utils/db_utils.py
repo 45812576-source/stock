@@ -1,9 +1,46 @@
-"""数据库工具函数 — MySQL via pymysql"""
+"""数据库工具函数 — MySQL via pymysql + DBUtils 连接池"""
 import re
+import threading
 import pymysql
 import pymysql.cursors
 from contextlib import contextmanager
 from config import MYSQL_HOST, MYSQL_PORT, MYSQL_USER, MYSQL_PASSWORD, MYSQL_DB
+
+# ---------- 本地连接池 ----------
+_pool = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool():
+    """懒初始化连接池（首次调用时创建，线程安全）"""
+    global _pool
+    if _pool is not None:
+        return _pool
+    with _pool_lock:
+        if _pool is not None:
+            return _pool
+        try:
+            from dbutils.pooled_db import PooledDB
+            _pool = PooledDB(
+                creator=pymysql,
+                mincached=2,       # 启动时预建 2 条连接
+                maxcached=10,      # 空闲连接最多保留 10 条
+                maxconnections=20, # 最大并发连接数
+                blocking=True,     # 超出上限时阻塞等待，而非抛出异常
+                host=MYSQL_HOST,
+                port=MYSQL_PORT,
+                user=MYSQL_USER,
+                password=MYSQL_PASSWORD,
+                database=MYSQL_DB,
+                charset="utf8mb4",
+                cursorclass=pymysql.cursors.DictCursor,
+                autocommit=False,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"连接池初始化失败，降级为裸连接: {e}")
+            _pool = None
+    return _pool
 
 
 # ---------- SQL 兼容层 ----------
@@ -108,7 +145,10 @@ class _ConnWrapper:
 # ---------- 公共 API ----------
 
 def _get_conn():
-    """创建原始 pymysql 连接"""
+    """从连接池取连接；池不可用时降级为裸连接"""
+    pool = _get_pool()
+    if pool is not None:
+        return pool.connection()
     return pymysql.connect(
         host=MYSQL_HOST,
         port=MYSQL_PORT,

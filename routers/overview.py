@@ -15,6 +15,11 @@ from utils.content_query import (
 )
 from routers.market import INDEX_LIST
 
+# ── 行业资金流内存缓存（TTL 10 分钟，避免每次页面加载都调 AKShare）──
+import time as _time_module
+_industry_heat_cache: dict = {"data": None, "ts": 0.0}
+_INDUSTRY_HEAT_TTL = 600  # 10 分钟
+
 router = APIRouter(prefix="/overview", tags=["overview"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
@@ -206,7 +211,7 @@ def _get_macro_news_for_stock(stock_code: str) -> list:
 
 
 def get_portfolio_holdings(date_str: str) -> list:
-    """从默认收藏组(id=1)取出股票，查询行情和三栏新闻"""
+    """从默认收藏组(id=1)取出股票，批量查询行情和三栏新闻"""
     try:
         stocks = execute_query(
             """SELECT DISTINCT wls.stock_code, wls.stock_name
@@ -215,12 +220,83 @@ def get_portfolio_holdings(date_str: str) -> list:
                 LIMIT 20""",
         ) or []
         stocks = [dict(r) for r in stocks]
+        if not stocks:
+            return []
+
+        codes = [s["stock_code"] for s in stocks]
+        ph = ",".join(["%s"] * len(codes))
+
+        # 批量查询最近10日行情
+        daily_rows = execute_query(
+            f"""SELECT stock_code, change_pct, close, volume, amount, trade_date
+                FROM stock_daily
+                WHERE stock_code IN ({ph})
+                ORDER BY stock_code, trade_date DESC""",
+            codes,
+        ) or []
+        from collections import defaultdict
+        daily_map = defaultdict(list)
+        for r in daily_rows:
+            daily_map[r["stock_code"]].append(r)
+        for v in daily_map.values():
+            v.sort(key=lambda x: x["trade_date"], reverse=True)
+
+        # 批量查询公司新闻（item_companies JOIN cleaned_items）
+        company_rows = execute_query(
+            f"""SELECT ic.stock_code, ci.id, ci.summary, ci.importance, ci.sentiment, ci.event_type,
+                       ci.structured_json, ci.cleaned_at as publish_time
+                FROM item_companies ic
+                JOIN cleaned_items ci ON ic.cleaned_item_id = ci.id
+                WHERE ic.stock_code IN ({ph})
+                  AND ci.event_type IN ('company_event','earnings','research_report')
+                  AND ci.cleaned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                ORDER BY ci.importance DESC, ci.cleaned_at DESC""",
+            codes,
+        ) or []
+        company_map = defaultdict(list)
+        for r in company_rows:
+            if len(company_map[r["stock_code"]]) < 5:
+                company_map[r["stock_code"]].append(r)
+
+        # 批量查询各股所属行业
+        ind_rows = execute_query(
+            f"SELECT stock_code, industry_l1, industry_l2 FROM stock_info WHERE stock_code IN ({ph})",
+            codes,
+        ) or []
+        ind_map = {r["stock_code"]: r for r in ind_rows}
+
+        # 收集所有行业名，一次性查行业新闻
+        all_ind_names = list({
+            name
+            for r in ind_rows
+            for name in [r.get("industry_l1"), r.get("industry_l2")]
+            if name
+        })
+        industry_news_map = defaultdict(list)
+        if all_ind_names:
+            ph2 = ",".join(["%s"] * len(all_ind_names))
+            ind_news_rows = execute_query(
+                f"""SELECT ii.industry_name, ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
+                    FROM item_industries ii JOIN cleaned_items ci ON ii.cleaned_item_id=ci.id
+                    WHERE ii.industry_name IN ({ph2}) AND ci.event_type='industry_news'
+                      AND ci.cleaned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    ORDER BY ci.importance DESC, ci.cleaned_at DESC""",
+                all_ind_names,
+            ) or []
+            for r in ind_news_rows:
+                industry_news_map[r["industry_name"]].append(r)
+
+        # 查一次宏观新闻，所有股票共享
+        macro_rows = execute_query("""
+            SELECT ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
+            FROM cleaned_items ci WHERE ci.event_type='macro_policy'
+            ORDER BY ci.cleaned_at DESC LIMIT 5
+        """) or []
+        macro_news_parsed = _parse_structured_items(macro_rows)
 
         for s in stocks:
-            daily = execute_query(
-                "SELECT change_pct, close, volume, amount, trade_date FROM stock_daily WHERE stock_code=%s ORDER BY trade_date DESC LIMIT 10",
-                [s["stock_code"]],
-            )
+            code = s["stock_code"]
+            daily = daily_map.get(code, [])[:10]
             if daily:
                 s["market"] = {k: v for k, v in daily[0].items() if k != 'trade_date'}
                 s["price_history"] = [float(d["close"]) for d in reversed(daily) if d.get("close") is not None]
@@ -228,9 +304,14 @@ def get_portfolio_holdings(date_str: str) -> list:
                 s["market"] = {}
                 s["price_history"] = []
 
-            s["company_news"] = _get_company_news(s["stock_code"])
-            s["industry_news"] = _get_industry_news(s["stock_code"])
-            s["macro_news"] = _get_macro_news_for_stock(s["stock_code"])
+            s["company_news"] = _flatten_cleaned_rows(company_map.get(code, []))
+            ind_info = ind_map.get(code, {})
+            ind_names = [v for v in [ind_info.get("industry_l1"), ind_info.get("industry_l2")] if v]
+            ind_news = []
+            for n in ind_names:
+                ind_news.extend(industry_news_map.get(n, []))
+            s["industry_news"] = _parse_structured_items(ind_news[:5])
+            s["macro_news"] = macro_news_parsed
 
         return stocks
     except Exception:
@@ -262,12 +343,80 @@ def get_watchlist_alerts(date_str: str) -> list:
             ) or []
             stocks = [dict(r) for r in rows]
 
+        if not stocks:
+            return []
+
+        codes = [s["stock_code"] for s in stocks]
+        ph = ",".join(["%s"] * len(codes))
+
+        # 批量查行情
+        daily_rows = execute_query(
+            f"""SELECT stock_code, change_pct, close, volume, amount, trade_date
+                FROM stock_daily WHERE stock_code IN ({ph})
+                ORDER BY stock_code, trade_date DESC""",
+            codes,
+        ) or []
+        from collections import defaultdict
+        daily_map = defaultdict(list)
+        for r in daily_rows:
+            daily_map[r["stock_code"]].append(r)
+
+        # 批量查行业
+        ind_rows = execute_query(
+            f"SELECT stock_code, industry_l1, industry_l2 FROM stock_info WHERE stock_code IN ({ph})",
+            codes,
+        ) or []
+        ind_map = {r["stock_code"]: r for r in ind_rows}
+        all_ind_names = list({
+            name for r in ind_rows
+            for name in [r.get("industry_l1"), r.get("industry_l2")] if name
+        })
+
+        # 批量查行业新闻
+        industry_news_map = defaultdict(list)
+        if all_ind_names:
+            ph2 = ",".join(["%s"] * len(all_ind_names))
+            ind_news_rows = execute_query(
+                f"""SELECT ii.industry_name, ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
+                    FROM item_industries ii JOIN cleaned_items ci ON ii.cleaned_item_id=ci.id
+                    WHERE ii.industry_name IN ({ph2}) AND ci.event_type='industry_news'
+                    ORDER BY ci.cleaned_at DESC""",
+                all_ind_names,
+            ) or []
+            for r in ind_news_rows:
+                industry_news_map[r["industry_name"]].append(r)
+
+        # 批量查公司新闻（content_summaries via stock_mentions）
+        all_mentions = query_stock_mentions_for_codes(codes, days=7)
+        ext_ids_by_code = defaultdict(set)
+        for m in (all_mentions or []):
+            if m.get("extracted_text_id") and m.get("stock_code") in codes:
+                ext_ids_by_code[m["stock_code"]].add(m["extracted_text_id"])
+        all_ext_ids = list({eid for ids in ext_ids_by_code.values() for eid in ids})
+        cs_by_ext_id = {}
+        if all_ext_ids:
+            ph3 = ",".join(["%s"] * len(all_ext_ids))
+            cs_rows_all = execute_query(
+                f"""SELECT id, extracted_text_id, doc_type, summary, fact_summary,
+                           opinion_summary, evidence_assessment, info_gaps, created_at
+                    FROM content_summaries WHERE extracted_text_id IN ({ph3})
+                    ORDER BY created_at DESC""",
+                all_ext_ids,
+            ) or []
+            for r in cs_rows_all:
+                cs_by_ext_id[r["extracted_text_id"]] = dict(r)
+
+        # 一次查宏观新闻
+        macro_rows = execute_query("""
+            SELECT ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
+            FROM cleaned_items ci WHERE ci.event_type='macro_policy'
+            ORDER BY ci.cleaned_at DESC LIMIT 3
+        """) or []
+        macro_news_parsed = _parse_structured_items(macro_rows)
+
         for s in stocks:
-            # 行情 + 10日价格历史
-            daily = execute_query(
-                "SELECT change_pct, close, volume, amount, trade_date FROM stock_daily WHERE stock_code=%s ORDER BY trade_date DESC LIMIT 10",
-                [s["stock_code"]],
-            )
+            code = s["stock_code"]
+            daily = daily_map.get(code, [])[:10]
             if daily:
                 s["market"] = {k: v for k, v in daily[0].items() if k != 'trade_date'}
                 s["price_history"] = [float(d["close"]) for d in reversed(daily) if d.get("close") is not None]
@@ -275,53 +424,16 @@ def get_watchlist_alerts(date_str: str) -> list:
                 s["market"] = {}
                 s["price_history"] = []
 
-            # 公司新闻 — 从 stock_mentions → content_summaries
-            mentions = query_stock_mentions_for_codes([s["stock_code"]], days=7)
-            if mentions:
-                ext_ids = list({m["extracted_text_id"] for m in mentions if m.get("extracted_text_id")})[:5]
-                if ext_ids:
-                    placeholders_m = ",".join(["%s"] * len(ext_ids))
-                    cs_rows = execute_query(
-                        f"""SELECT id, extracted_text_id, doc_type, summary, fact_summary,
-                                   opinion_summary, evidence_assessment, info_gaps, created_at
-                            FROM content_summaries
-                            WHERE extracted_text_id IN ({placeholders_m})
-                            ORDER BY created_at DESC LIMIT 3""",
-                        ext_ids,
-                    )
-                    s["company_news"] = [dict(r) for r in (cs_rows or [])]
-                else:
-                    s["company_news"] = []
-            else:
-                s["company_news"] = []
+            ext_ids = list(ext_ids_by_code.get(code, set()))[:5]
+            s["company_news"] = [cs_by_ext_id[eid] for eid in ext_ids if eid in cs_by_ext_id][:3]
 
-            # 行业新闻
-            industries = execute_query(
-                "SELECT industry_l1, industry_l2 FROM stock_info WHERE stock_code=%s", [s["stock_code"]]
-            )
-            if industries:
-                ind_names = [v for v in [industries[0].get("industry_l1"), industries[0].get("industry_l2")] if v]
-                if ind_names:
-                    placeholders2 = ",".join(["%s"] * len(ind_names))
-                    industry_news = execute_query(f"""
-                        SELECT ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
-                        FROM item_industries ii JOIN cleaned_items ci ON ii.cleaned_item_id=ci.id
-                        WHERE ii.industry_name IN ({placeholders2}) AND ci.event_type='industry_news'
-                        ORDER BY ci.cleaned_at DESC LIMIT 3
-                    """, ind_names)
-                    s["industry_news"] = _parse_structured_items(industry_news)
-                else:
-                    s["industry_news"] = []
-            else:
-                s["industry_news"] = []
-
-            # 宏观新闻
-            macro_news = execute_query("""
-                SELECT ci.summary, ci.structured_json, ci.sentiment, ci.importance, ci.impact_analysis
-                FROM cleaned_items ci WHERE ci.event_type='macro_policy'
-                ORDER BY ci.cleaned_at DESC LIMIT 3
-            """)
-            s["macro_news"] = _parse_structured_items(macro_news)
+            ind_info = ind_map.get(code, {})
+            ind_names = [v for v in [ind_info.get("industry_l1"), ind_info.get("industry_l2")] if v]
+            ind_news = []
+            for n in ind_names:
+                ind_news.extend(industry_news_map.get(n, []))
+            s["industry_news"] = _parse_structured_items(ind_news[:3])
+            s["macro_news"] = macro_news_parsed
 
         return stocks
     except Exception:
@@ -333,7 +445,12 @@ def get_industry_heat(date_str: str) -> dict:
 
     akshare 只提供当日单期快照，输出仍保持与热力图模板兼容的结构：
     dates 仅含今日一列，net/gross top5 基于今日数据，daily_data/daily_gross 含今日数据。
+    缓存 10 分钟，避免每次页面加载都触发外部 HTTP 请求。
     """
+    # 命中缓存则直接返回
+    if _industry_heat_cache["data"] is not None and             _time_module.time() - _industry_heat_cache["ts"] < _INDUSTRY_HEAT_TTL:
+        return _industry_heat_cache["data"]
+
     import time
     from config import AKSHARE_DELAY
     try:
@@ -443,7 +560,7 @@ def get_industry_heat(date_str: str) -> dict:
             for n, v in sorted_gout[:5] if v < 0
         ]
 
-        return {
+        result = {
             "dates": date_list,
             "net": {"inflow_top5": net_inflow_top5, "outflow_top5": net_outflow_top5},
             "gross": {"inflow_top5": gross_inflow_top5, "outflow_top5": gross_outflow_top5},
@@ -451,6 +568,9 @@ def get_industry_heat(date_str: str) -> dict:
             "daily_gross": daily_gross,
             "market_daily_net": market_daily_net,
         }
+        _industry_heat_cache["data"] = result
+        _industry_heat_cache["ts"] = _time_module.time()
+        return result
     except Exception:
         import traceback
         traceback.print_exc()
