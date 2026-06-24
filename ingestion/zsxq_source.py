@@ -263,9 +263,20 @@ class ZsxqSource:
                         context_text=text or "",
                     )
                 else:
-                    # PDF 等文件：URL 带七牛 token 约7天过期，立即提取
+                    # PDF / xlsx：URL 带七牛 token 约1小时过期，必须立即提取
                     if f_type == "pdf":
                         self._insert_and_extract_pdf(
+                            doc_id=f_doc_id,
+                            doc_type=f_doc_type,
+                            file_type=f_type,
+                            title=f"[ZSXQ:{topic_id}] {f_name}",
+                            author=author,
+                            publish_date=pub_date,
+                            oss_url=f_url,
+                            context_text=text or "",
+                        )
+                    elif f_type in ("xlsx", "xls"):
+                        self._insert_and_extract_xlsx(
                             doc_id=f_doc_id,
                             doc_type=f_doc_type,
                             file_type=f_type,
@@ -452,6 +463,67 @@ class ZsxqSource:
             logger.info(f"PDF 立即提取完成 doc_id={doc_id} title={title[:40]} ({len(cleaned)}字)")
         except Exception as e:
             logger.warning(f"PDF 立即提取失败 doc_id={doc_id}: {e}")
+
+    def _insert_and_extract_xlsx(self, doc_id, doc_type, file_type, title, author,
+                                  publish_date, oss_url, context_text=""):
+        """插入 xlsx/xls 并立即提取（URL 带七牛 token 约1小时过期，必须采集时处理）
+
+        已有提取记录时只刷新 oss_url，不重复提取。
+        """
+        existing = execute_cloud_query(
+            "SELECT id, extracted_text FROM source_documents WHERE id=%s LIMIT 1",
+            [doc_id],
+        )
+        if existing and existing[0].get("extracted_text") and len(existing[0]["extracted_text"]) > 50:
+            execute_cloud_insert(
+                "UPDATE source_documents SET oss_url=%s WHERE id=%s",
+                [oss_url, doc_id],
+            )
+            logger.info(f"xlsx 已有提取记录，刷新 oss_url doc_id={doc_id} title={title[:40]}")
+            return
+
+        try:
+            execute_cloud_insert(
+                """INSERT IGNORE INTO source_documents
+                   (id, doc_type, file_type, title, author, publish_date,
+                    source, oss_url, text_content, extract_status)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                [doc_id, doc_type, file_type, title, author, publish_date,
+                 "zsxq", oss_url, context_text, "pending"],
+            )
+        except Exception as e:
+            logger.warning(f"写入 xlsx source_documents 失败: {e}")
+            return
+
+        try:
+            from ingestion.source_extractor import _extract_xlsx
+            from config.doc_types import classify_doc_type
+            row = {
+                "id": doc_id, "file_type": file_type,
+                "text_content": context_text, "oss_url": oss_url,
+                "title": title,
+            }
+            extracted = _extract_xlsx(row)
+            if not extracted or len(extracted.strip()) < 20:
+                logger.warning(f"xlsx 提取内容过短 doc_id={doc_id}: {len(extracted or '')}字")
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status='failed' WHERE id=%s",
+                    [doc_id],
+                )
+                return
+
+            new_doc_type = classify_doc_type(title, extracted[:200]) or doc_type
+            execute_cloud_insert(
+                "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
+                [extracted, new_doc_type, doc_id],
+            )
+            logger.info(f"xlsx 立即提取完成 doc_id={doc_id} title={title[:40]} ({len(extracted)}字)")
+        except Exception as e:
+            logger.warning(f"xlsx 立即提取失败 doc_id={doc_id}: {e}")
+            execute_cloud_insert(
+                "UPDATE source_documents SET extract_status='failed' WHERE id=%s",
+                [doc_id],
+            )
 
     # ── 内容提取 ──
 

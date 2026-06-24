@@ -678,7 +678,12 @@ def _extract_xlsx(row: dict) -> str:
     if not oss_url:
         return row.get("text_content") or ""
 
-    data = _download_file(oss_url, timeout=60)
+    # 支持 file:// 本地路径（大文件缓存场景）
+    if oss_url.startswith("file://"):
+        with open(oss_url[7:], "rb") as f:
+            data = f.read()
+    else:
+        data = _download_file(oss_url, timeout=60)
 
     try:
         wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True, read_only=True)
@@ -744,7 +749,7 @@ def _summarize_xlsx_with_llm(title: str, preview_csv: str) -> str:
 
     try:
         from utils.model_router import call_model
-        return call_model("cleaning", prompt) or ""
+        return call_model("cleaning", "你是数据分析助手，擅长用简洁中文总结表格。", prompt) or ""
     except Exception as e:
         logger.warning(f"xlsx LLM 摘要失败: {e}")
         return ""
