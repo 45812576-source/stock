@@ -638,6 +638,309 @@ def api_daily_intel_trend(days: int = 7):
         return {"dates": [], "tags": [], "heat_map": {}}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# 综合热度趋势 V2：LLM 合并 + 去重文章计数 + 双维度 + 穿透
+# ══════════════════════════════════════════════════════════════════════════════
+
+_HEAT_TREND_SYSTEM_PROMPT = """\
+你是一个 A股行业与概念分类专家。你的任务是将一组自由格式的行业/主题标签进行标准化归并，输出两个维度的分类结果。
+
+## 两个分类维度
+
+### 维度一：行业板块（按产业链归并）
+- 仅合并"名称不同但指向同一细分赛道"的标签
+  - 合并：  "光模块" 和 "光通信模块" → "光模块"
+  - 合并：  "汽车零部件/热管理" 和 "汽车热管理" → "汽车热管理"
+  - 不合并："半导体设备" 和 "半导体材料" → 各自独立（虽同属半导体产业链，但细分赛道不同）
+  - 不合并："光模块" 和 "光伏" → 各自独立
+
+### 维度二：概念板块（按投资主题归并）
+- 将不同产业链但共享同一投资逻辑/驱动因素的标签，额外归入概念板块
+  - 例：铜、电力设备、算力芯片、液冷、光模块 → 同时属于概念板块 "AI基建"
+  - 例：军工电子、碳纤维、航空发动机 → 同时属于概念板块 "国防军工"
+  - 例：创新药、CXO、医疗AI → 同时属于概念板块 "医药创新"
+- 一个标签可以同时属于一个行业板块 + 多个概念板块
+
+## 规则
+
+1. **行业归并判断标准**：只有当两个标签描述的是完全相同的细分赛道（仅措辞/格式不同）时才合并。有实质性业务差异的保持独立。
+
+2. **概念板块判断标准**：存在共同的宏观驱动因素（政策、技术趋势、资金逻辑）的标签，归入同一概念板块。概念板块名应体现投资主题（如"AI基建"、"国产替代"、"出海"）。
+
+3. **命名规范**：
+   - 行业板块名用该细分赛道最常用的简称，≤6字
+   - 概念板块名用市场公认的主题投资名称，≤6字
+   - 不加"概念"、"板块"等后缀
+
+4. **特殊处理**：
+   - "宏观"、"宏观策略"、"宏观政策" → 归入行业板块 "宏观策略"
+   - 无法归类的保留原名作为独立行业板块
+   - 不强制设数量上限，有多少细分就保留多少
+
+## 输出格式
+
+严格返回 JSON，不要附加解释：
+{
+  "industry_mapping": {
+    "原始标签1": "行业板块名",
+    "原始标签2": "行业板块名"
+  },
+  "concept_groups": {
+    "概念板块名1": ["原始标签A", "原始标签B"],
+    "概念板块名2": ["原始标签C", "原始标签D"]
+  }
+}
+"""
+
+
+def _refresh_heat_trend_worker():
+    """后台线程：调用 LLM 合并行业标签 + 计算全部热力缓存"""
+    from utils.db_utils import execute_cloud_query, execute_query, execute_insert
+    from utils.model_router import call_model_json
+    from datetime import datetime as dt, timedelta
+
+    try:
+        # 1) 取近 30 天所有出现过的行业标签
+        rows = execute_cloud_query(
+            """SELECT DISTINCT industry FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                 AND industry IS NOT NULL AND industry != ''"""
+        ) or []
+        raw_industries = [r["industry"].strip() for r in rows if r["industry"].strip()]
+
+        if not raw_industries:
+            logger.warning("refresh-heat-trend: 近30天无行业数据")
+            return
+
+        # 2) 调用 LLM 合并
+        user_msg = f"以下是从研报/资讯中提取的行业标签列表（共 {len(raw_industries)} 个），请按规则归并：\n\n{json.dumps(raw_industries, ensure_ascii=False)}"
+        result = call_model_json("heat_merge", _HEAT_TREND_SYSTEM_PROMPT, user_msg,
+                                max_tokens=8192, timeout=120)
+
+        industry_mapping = result.get("industry_mapping", {})
+        concept_groups = result.get("concept_groups", {})
+
+        if not industry_mapping:
+            logger.warning("refresh-heat-trend: LLM 未返回有效 industry_mapping")
+            return
+
+        # 3) 写入 industry_merge_map（全量替换）
+        execute_query("DELETE FROM industry_merge_map")
+        for raw, sector in industry_mapping.items():
+            execute_insert(
+                "INSERT INTO industry_merge_map (raw_industry, sector_name) VALUES (%s, %s)",
+                [raw, sector],
+            )
+
+        # 4) 写入 concept_sector_map（全量替换）
+        execute_query("DELETE FROM concept_sector_map")
+        for concept, tags in concept_groups.items():
+            for tag in tags:
+                execute_insert(
+                    "INSERT INTO concept_sector_map (raw_industry, concept_name) VALUES (%s, %s)",
+                    [tag, concept],
+                )
+
+        # 5) 计算 7/15/30 天的热力缓存
+        for days in (7, 15, 30):
+            _compute_heat_cache(days, industry_mapping, concept_groups)
+
+        logger.info(f"refresh-heat-trend 完成: {len(industry_mapping)} 行业映射, {len(concept_groups)} 概念板块")
+
+    except Exception as e:
+        logger.error(f"refresh-heat-trend 失败: {e}", exc_info=True)
+
+
+def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict):
+    """计算并缓存指定天数的热力图数据（行业视角 + 概念视角）"""
+    from utils.db_utils import execute_cloud_query, execute_query, execute_insert
+    from datetime import datetime as dt, timedelta
+
+    today = dt.now().date()
+    dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+    # 从 daily_intel_stocks 取原始数据（source_id 去重）
+    rows = execute_cloud_query(
+        """SELECT industry, DATE(scan_date) as day, source_id
+           FROM daily_intel_stocks
+           WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+             AND industry IS NOT NULL AND industry != ''""",
+        [days],
+    ) or []
+
+    # ═══ 行业视角 ═══
+    sector_day_sources: dict = {}
+    for r in rows:
+        raw = r["industry"].strip()
+        sector = industry_mapping.get(raw, raw)
+        day = str(r["day"])[:10]
+        if sector not in sector_day_sources:
+            sector_day_sources[sector] = {}
+        if day not in sector_day_sources[sector]:
+            sector_day_sources[sector][day] = set()
+        sector_day_sources[sector][day].add(r["source_id"])
+
+    sector_heat = {}
+    for sector, day_srcs in sector_day_sources.items():
+        daily = {}
+        total = 0
+        for d in dates:
+            cnt = len(day_srcs.get(d, set()))
+            daily[d] = cnt
+            total += cnt
+        sector_heat[sector] = {"daily": daily, "total": total}
+
+    sorted_sectors = sorted(sector_heat.keys(), key=lambda s: sector_heat[s]["total"], reverse=True)
+    sector_result = {
+        "dates": dates,
+        "tags": sorted_sectors,
+        "heat_map": {s: sector_heat[s] for s in sorted_sectors},
+    }
+
+    # ═══ 概念视角 ═══
+    concept_day_sources: dict = {}
+    for r in rows:
+        raw = r["industry"].strip()
+        day = str(r["day"])[:10]
+        for concept, tags in concept_groups.items():
+            if raw in tags:
+                if concept not in concept_day_sources:
+                    concept_day_sources[concept] = {}
+                if day not in concept_day_sources[concept]:
+                    concept_day_sources[concept][day] = set()
+                concept_day_sources[concept][day].add(r["source_id"])
+
+    concept_heat = {}
+    for concept, day_srcs in concept_day_sources.items():
+        daily = {}
+        total = 0
+        for d in dates:
+            cnt = len(day_srcs.get(d, set()))
+            daily[d] = cnt
+            total += cnt
+        concept_heat[concept] = {"daily": daily, "total": total}
+
+    sorted_concepts = sorted(concept_heat.keys(), key=lambda c: concept_heat[c]["total"], reverse=True)
+    concept_result = {
+        "dates": dates,
+        "tags": sorted_concepts,
+        "heat_map": {c: concept_heat[c] for c in sorted_concepts},
+    }
+
+    # 写入缓存
+    for key, data in [(f"sector_{days}", sector_result), (f"concept_{days}", concept_result)]:
+        execute_query("DELETE FROM heat_trend_cache WHERE cache_key=%s", [key])
+        execute_insert(
+            "INSERT INTO heat_trend_cache (cache_key, cache_data, computed_at) VALUES (%s, %s, NOW())",
+            [key, json.dumps(data, ensure_ascii=False)],
+        )
+
+
+@router.post("/api/refresh-heat-trend", response_class=JSONResponse)
+def api_refresh_heat_trend(background_tasks: BackgroundTasks):
+    """刷新综合热度趋势：触发 LLM 合并 + 全粒度重算"""
+    background_tasks.add_task(_refresh_heat_trend_worker)
+    return {"ok": True, "msg": "刷新已触发，预计 10~20 秒完成"}
+
+
+@router.get("/api/heat-trend", response_class=JSONResponse)
+def api_heat_trend(days: int = 7, view: str = "sector"):
+    """获取热力图数据（行业视角 or 概念视角）"""
+    cache_key = f"{view}_{days}"
+    try:
+        rows = execute_query(
+            "SELECT cache_data, computed_at FROM heat_trend_cache WHERE cache_key=%s",
+            [cache_key],
+        )
+        if rows and rows[0]["cache_data"]:
+            data = rows[0]["cache_data"]
+            if isinstance(data, str):
+                data = json.loads(data)
+            return {"ok": True, "data": data, "computed_at": str(rows[0]["computed_at"])}
+        return {"ok": False, "msg": "暂无缓存，请点击刷新按钮生成数据", "data": None}
+    except Exception as e:
+        logger.warning(f"heat-trend 读取失败: {e}")
+        return {"ok": False, "msg": str(e), "data": None}
+
+
+@router.get("/api/heat-trend-stocks", response_class=JSONResponse)
+def api_heat_trend_stocks(sector: str = "", concept: str = "", days: int = 7):
+    """穿透：获取某板块/概念下的个股热力图"""
+    from utils.db_utils import execute_cloud_query
+    from datetime import datetime as dt, timedelta
+
+    try:
+        today = dt.now().date()
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+        # 确定要查的原始行业列表
+        if sector:
+            map_rows = execute_query(
+                "SELECT raw_industry FROM industry_merge_map WHERE sector_name=%s",
+                [sector],
+            )
+            raw_list = [r["raw_industry"] for r in map_rows] if map_rows else [sector]
+        elif concept:
+            map_rows = execute_query(
+                "SELECT raw_industry FROM concept_sector_map WHERE concept_name=%s",
+                [concept],
+            )
+            raw_list = [r["raw_industry"] for r in map_rows] if map_rows else []
+        else:
+            return {"ok": False, "msg": "请指定 sector 或 concept 参数"}
+
+        if not raw_list:
+            return {"ok": True, "data": {"dates": dates, "stocks": [], "heat_map": {}}}
+
+        # 查个股数据
+        placeholders = ",".join(["%s"] * len(raw_list))
+        rows = execute_cloud_query(
+            f"""SELECT stock_name, stock_code, DATE(scan_date) as day, source_id
+               FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND industry IN ({placeholders})
+                 AND stock_name IS NOT NULL AND stock_name != ''
+                 AND stock_name != '宏观'""",
+            [days] + raw_list,
+        ) or []
+
+        # 按个股统计（source_id 去重）
+        stock_day_sources: dict = {}
+        stock_codes: dict = {}
+        for r in rows:
+            name = r["stock_name"]
+            day = str(r["day"])[:10]
+            if name not in stock_day_sources:
+                stock_day_sources[name] = {}
+                stock_codes[name] = r["stock_code"]
+            if day not in stock_day_sources[name]:
+                stock_day_sources[name][day] = set()
+            stock_day_sources[name][day].add(r["source_id"])
+
+        stock_heat = {}
+        for name, day_srcs in stock_day_sources.items():
+            daily = {}
+            total = 0
+            for d in dates:
+                cnt = len(day_srcs.get(d, set()))
+                daily[d] = cnt
+                total += cnt
+            stock_heat[name] = {"daily": daily, "total": total, "code": stock_codes.get(name, "")}
+
+        sorted_stocks = sorted(stock_heat.keys(), key=lambda s: stock_heat[s]["total"], reverse=True)
+
+        result = {
+            "dates": dates,
+            "stocks": [{"name": s, "code": stock_heat[s]["code"]} for s in sorted_stocks],
+            "heat_map": {s: {"daily": stock_heat[s]["daily"], "total": stock_heat[s]["total"]} for s in sorted_stocks},
+        }
+        return {"ok": True, "data": result}
+
+    except Exception as e:
+        logger.warning(f"heat-trend-stocks 失败: {e}")
+        return {"ok": False, "msg": str(e)}
+
+
 @router.get("/api/daily-intel-baskets", response_class=JSONResponse)
 def api_daily_intel_baskets(days: int = 7):
     """走马灯：daily_intel_stocks 按产业链归组，返回篮子列表"""
