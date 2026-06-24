@@ -50,7 +50,7 @@ def _call_deepseek(system_prompt: str, text: str, max_tokens=4096, timeout=90) -
         text = text[:12000] + "\n\n[文本已截断]"
     client = _get_deepseek()
     resp = client.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-v4-pro",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},

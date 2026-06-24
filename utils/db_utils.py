@@ -657,7 +657,7 @@ def sync_stock_data_from_cloud(stock_code: str, days: int = 180) -> dict:
 
 
 def ensure_stock_data(stock_code: str, days: int = 180) -> dict:
-    """确保本地有股票数据，没有则从云端同步
+    """确保本地有股票数据，落后于云端 stock_db 时同步
 
     Args:
         stock_code: 股票代码
@@ -668,26 +668,43 @@ def ensure_stock_data(stock_code: str, days: int = 180) -> dict:
     """
     result = {'has_data': False, 'synced': False, 'kline': 0, 'capital': 0}
 
-    # 检查本地是否有数据
+    # 检查本地是否有数据，以及本地最新交易日是否落后于云端 stock_db。
     rows = execute_query(
-        """SELECT COUNT(*) as cnt FROM stock_daily
+        """SELECT COUNT(*) as cnt, MAX(trade_date) as latest_trade_date
+           FROM stock_daily
            WHERE stock_code = %s AND trade_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)""",
         [stock_code, days]
     )
     local_count = rows[0]['cnt'] if rows else 0
+    local_latest = str(rows[0].get('latest_trade_date')) if rows and rows[0].get('latest_trade_date') else None
 
-    if local_count > 0:
+    cloud_latest = None
+    try:
+        cloud_rows = cloud_stockdb_query(
+            "SELECT MAX(trade_date) as latest_trade_date FROM stock_data WHERE symbol=%s",
+            [stock_code],
+        )
+        if cloud_rows and cloud_rows[0].get('latest_trade_date'):
+            cloud_latest = str(cloud_rows[0]['latest_trade_date'])
+    except Exception as e:
+        result['error'] = str(e)
+
+    if local_count > 0 and (not cloud_latest or (local_latest and local_latest >= cloud_latest)):
         result['has_data'] = True
         result['kline'] = local_count
+        result['latest_trade_date'] = local_latest
+        result['cloud_latest_trade_date'] = cloud_latest
         return result
 
-    # 本地无数据，从云端同步
+    # 本地无数据，或本地最新交易日落后于云端，从云端同步。
     sync_result = sync_stock_data_from_cloud(stock_code, days)
     result['synced'] = True
     result['kline'] = sync_result.get('kline', 0)
     result['capital'] = sync_result.get('capital', 0)
     result['has_data'] = result['kline'] > 0
     result['error'] = sync_result.get('error')
+    result['latest_trade_date'] = local_latest
+    result['cloud_latest_trade_date'] = cloud_latest
 
     return result
 

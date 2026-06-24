@@ -33,8 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 # ── 模型调用（走 model_router）────────────────────────────────────────────────
-# 族2（深度FOE）用 cleaning_deep stage → deepseek-reasoner
-# 其他族用 cleaning stage → deepseek-chat
+# 族2（深度FOE）用 cleaning_deep stage → deepseek-v4-pro
+# 其他族用 cleaning stage → deepseek-v4-pro
 
 def _call_model(system_prompt: str, text: str, family: int, max_tokens: int = 2048) -> str:
     """调用模型，族2用 cleaning_deep（reasoner），其他用 cleaning（chat）"""
@@ -55,7 +55,7 @@ def _call_ds_fallback(system_prompt: str, text: str, max_tokens: int = 2048) -> 
         raise RuntimeError("system_config 中未找到 deepseek_api_key")
     client = OpenAI(api_key=rows[0]["value"], base_url="https://api.deepseek.com/v1")
     resp = client.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-v4-pro",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},

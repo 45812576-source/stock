@@ -1,4 +1,5 @@
 """认证依赖 - 用于保护需要登录的路由"""
+import os
 from typing import Optional
 from fastapi import Depends, HTTPException, Cookie, Request
 from jose import JWTError, jwt
@@ -8,12 +9,17 @@ from pydantic import BaseModel
 # JWT 配置（与 auth.py 保持一致）
 SECRET_KEY = "de0d5c7b8e4a9f2d6c8b1a4e7d9f3c5a8b2d6e4f7a9c3b5d8e2f6a4c7b9d1"
 ALGORITHM = "HS256"
+AUTH_DISABLED = os.getenv("DISABLE_AUTH", "true").lower() in {"1", "true", "yes", "on"}
+DEV_USER = None
 
 
 class TokenData(BaseModel):
     user_id: int
     username: str
     role: str
+
+
+DEV_USER = TokenData(user_id=1, username="dev_admin", role="super_admin")
 
 
 def decode_token(token: str) -> Optional[TokenData]:
@@ -31,6 +37,9 @@ def decode_token(token: str) -> Optional[TokenData]:
 
 def get_current_user(access_token: Optional[str] = Cookie(None)) -> TokenData:
     """获取当前登录用户 - 必须登录"""
+    if AUTH_DISABLED:
+        return DEV_USER
+
     if not access_token:
         raise HTTPException(status_code=401, detail="请先登录", headers={"Location": "/auth/login"})
 
@@ -43,6 +52,9 @@ def get_current_user(access_token: Optional[str] = Cookie(None)) -> TokenData:
 
 def get_optional_user(access_token: Optional[str] = Cookie(None)) -> Optional[TokenData]:
     """获取当前登录用户 - 可选（未登录返回 None）"""
+    if AUTH_DISABLED:
+        return DEV_USER
+
     if not access_token:
         return None
 

@@ -254,7 +254,7 @@ def llm_extract_indicators(text: str, item: dict) -> list[dict]:
             text = text[:8000] + "\n[文本已截断]"
 
         resp = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-pro",
             messages=[
                 {"role": "system", "content": "你是行业数据提取专家。严格按 JSON 格式输出，不要使用 markdown 代码块。"},
                 {"role": "user", "content": prompt},

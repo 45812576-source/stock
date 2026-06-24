@@ -247,7 +247,10 @@
     </div>`;
   }
 
+  let _globalTaskPollTimer = null;
+
   function _pollGlobalTasks() {
+    if (document.hidden) return;
     Promise.all([
       fetch('/stock/api/research-tasks').then(r => r.json()).catch(() => []),
       fetch('/hotspot/api/research-tasks').then(r => r.json()).catch(() => []),
@@ -282,8 +285,24 @@
       }
     });
   }
-  setInterval(_pollGlobalTasks, 3000);
-  _pollGlobalTasks();
+
+  function _startGlobalTaskPolling() {
+    if (_globalTaskPollTimer) return;
+    _pollGlobalTasks();
+    _globalTaskPollTimer = setInterval(_pollGlobalTasks, 15000);
+  }
+
+  function _stopGlobalTaskPolling() {
+    if (!_globalTaskPollTimer) return;
+    clearInterval(_globalTaskPollTimer);
+    _globalTaskPollTimer = null;
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) _stopGlobalTaskPolling();
+    else _startGlobalTaskPolling();
+  });
+  _startGlobalTaskPolling();
 
   // 全局 toast 提示
   // 加载用户信息

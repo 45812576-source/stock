@@ -1,7 +1,7 @@
 -- ============================================================
 -- migration_v4_summary_refactor.sql
 -- 摘要架构简化：content_summaries 加 type_fields；
--- model_configs 加 cleaning_deep (reasoner) + 更新 cleaning 到 deepseek-chat
+-- model_configs 加 cleaning_deep (reasoner) + 更新 cleaning 到 deepseek-v4-pro
 -- 执行: mysql -h <host> -P <port> -u <user> -p stock_analysis < db/migration_v4_summary_refactor.sql
 -- ============================================================
 
@@ -18,22 +18,22 @@ ALTER TABLE content_summaries
     ADD INDEX IF NOT EXISTS idx_cs_family (family);
 
 -- ── 2. model_configs 补充 cleaning 系列 stage ──────────────────────────────
--- cleaning: 族1/3/4 — deepseek-chat（快，成本低）
+-- cleaning: 族1/3/4 — deepseek-v4-pro（快，成本低）
 INSERT INTO model_configs (stage, provider, model_name, api_key_ref, base_url, enabled)
-VALUES ('cleaning', 'deepseek', 'deepseek-chat', 'deepseek_api_key', 'https://api.deepseek.com/v1', 1)
+VALUES ('cleaning', 'deepseek', 'deepseek-v4-pro', 'deepseek_api_key', 'https://api.deepseek.com/v1', 1)
 ON DUPLICATE KEY UPDATE
     provider = 'deepseek',
-    model_name = 'deepseek-chat',
+    model_name = 'deepseek-v4-pro',
     api_key_ref = 'deepseek_api_key',
     base_url = 'https://api.deepseek.com/v1',
     enabled = 1;
 
--- cleaning_deep: 族2（研报/策略/路演）— deepseek-reasoner
+-- cleaning_deep: 族2（研报/策略/路演）— deepseek-v4-pro
 INSERT INTO model_configs (stage, provider, model_name, api_key_ref, base_url, enabled)
-VALUES ('cleaning_deep', 'deepseek', 'deepseek-reasoner', 'deepseek_api_key', 'https://api.deepseek.com/v1', 1)
+VALUES ('cleaning_deep', 'deepseek', 'deepseek-v4-pro', 'deepseek_api_key', 'https://api.deepseek.com/v1', 1)
 ON DUPLICATE KEY UPDATE
     provider = 'deepseek',
-    model_name = 'deepseek-reasoner',
+    model_name = 'deepseek-v4-pro',
     api_key_ref = 'deepseek_api_key',
     base_url = 'https://api.deepseek.com/v1',
     enabled = 1;

@@ -123,7 +123,7 @@ def _retry_failed_stages(failed_stages: list, retry_prompt: str, indicators: dic
         ]
 
         resp = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-pro",
             messages=messages,
             max_tokens=2048,
         )

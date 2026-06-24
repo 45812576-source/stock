@@ -293,7 +293,7 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
 
     for round_num in range(MAX_TOOL_ROUNDS):
         resp = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-pro",
             messages=messages,
             tools=TOOL_SCHEMAS,
             tool_choice="auto",
@@ -349,7 +349,7 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
     try:
         messages.append({"role": "user", "content": "请立即停止工具调用，直接输出最终的JSON结果，不要有任何说明文字。"})
         resp = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-pro",
             messages=messages,
             max_tokens=4096,
             response_format={"type": "text"},

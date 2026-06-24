@@ -56,7 +56,7 @@ def get_deepseek_client():
     return OpenAI(api_key=api_key, base_url="https://api.deepseek.com/v1")
 
 
-def call_deepseek(client, system_prompt: str, user_text: str, max_tokens=4096, model="deepseek-chat") -> str:
+def call_deepseek(client, system_prompt: str, user_text: str, max_tokens=4096, model="deepseek-v4-pro") -> str:
     """调用 DeepSeek，返回原始文本响应"""
     # 截断超长文本
     if len(user_text) > 12000:
@@ -128,8 +128,8 @@ def select_samples() -> list:
 # ==================== 管线执行 ====================
 
 def run_pipeline_a(client, text: str) -> dict:
-    """Pipeline A: Summary — deepseek-chat"""
-    raw = call_deepseek(client, SUMMARY_SYSTEM_PROMPT, text, model="deepseek-chat")
+    """Pipeline A: Summary — deepseek-v4-pro"""
+    raw = call_deepseek(client, SUMMARY_SYSTEM_PROMPT, text, model="deepseek-v4-pro")
     result = parse_json_safe(raw)
     if isinstance(result, dict):
         return result
@@ -137,8 +137,8 @@ def run_pipeline_a(client, text: str) -> dict:
 
 
 def run_pipeline_b2(client, text: str) -> list:
-    """Pipeline B2: Stock Mentions — deepseek-chat"""
-    raw = call_deepseek(client, STOCK_MENTIONS_PROMPT, text, model="deepseek-chat")
+    """Pipeline B2: Stock Mentions — deepseek-v4-pro"""
+    raw = call_deepseek(client, STOCK_MENTIONS_PROMPT, text, model="deepseek-v4-pro")
     result = parse_json_safe(raw)
     if isinstance(result, list):
         return result
@@ -146,8 +146,8 @@ def run_pipeline_b2(client, text: str) -> list:
 
 
 def run_pipeline_c(client, text: str) -> dict:
-    """Pipeline C: KG Extraction — deepseek-chat，纯三元组输出"""
-    raw = call_deepseek(client, KG_EXTRACTION_PROMPT, text, max_tokens=4096, model="deepseek-chat")
+    """Pipeline C: KG Extraction — deepseek-v4-pro，纯三元组输出"""
+    raw = call_deepseek(client, KG_EXTRACTION_PROMPT, text, max_tokens=4096, model="deepseek-v4-pro")
     result = parse_json_safe(raw)
     # 新格式：直接是三元组数组
     if isinstance(result, list):

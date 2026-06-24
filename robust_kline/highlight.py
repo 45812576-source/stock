@@ -46,7 +46,7 @@ def _call_deepseek(context_text: str, stock_name: str) -> str:
         context_text = context_text[:3000] + "...[已截断]"
     client = _get_deepseek()
     resp = client.chat.completions.create(
-        model="deepseek-chat",
+        model="deepseek-v4-pro",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": context_text},

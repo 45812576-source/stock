@@ -1,6 +1,6 @@
 """Pipeline D — 行业指标结构化抽取
 
-研报/行业分析类：精细模式（deepseek-reasoner，通过 cleaning_deep stage）
+研报/行业分析类：精细模式（deepseek-v4-pro，通过 cleaning_deep stage）
 其他类型：轻量模式（由 Pipeline A prompt 顺带，不在此文件）
 """
 import json
@@ -74,7 +74,7 @@ def _guess_l1(l2: str) -> str:
 # ── LLM 调用（走 model_router cleaning_deep stage）────────────────────────────
 
 def _call_llm(full_text: str) -> str:
-    """调用 deepseek-reasoner（cleaning_deep stage）提取行业指标。
+    """调用 deepseek-v4-pro（cleaning_deep stage）提取行业指标。
 
     降级链：cleaning_deep → cleaning → 直接 DeepSeek chat fallback
     """
@@ -143,7 +143,7 @@ def _call_ds_fallback(user_message: str) -> str:
             max_retries=1,
         )
         resp = client.chat.completions.create(
-            model="deepseek-chat",
+            model="deepseek-v4-pro",
             messages=[
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
@@ -239,7 +239,7 @@ def run_pipeline_d(extracted_text_id: int, full_text: str) -> int:
         publish_date_str = ""
         source_doc_id = extracted_text_id
 
-    # Call LLM — cleaning_deep stage (deepseek-reasoner)
+    # Call LLM — cleaning_deep stage (deepseek-v4-pro)
     raw = _call_llm(full_text)
     if not raw:
         return 0

@@ -64,7 +64,7 @@ def _call_tool(tool_name: str, tool_args: dict) -> str:
 
 
 def run_agent(user_message: str, history: list = None,
-              model: str = "deepseek-chat",
+              model: str = "deepseek-v4-pro",
               extra_context: str = "") -> str:
     """
     运行 Agent，返回最终回答字符串。
@@ -156,7 +156,7 @@ def run_agent(user_message: str, history: list = None,
 
 
 def run_agent_stream(user_message: str, history: list = None,
-                     model: str = "deepseek-chat",
+                     model: str = "deepseek-v4-pro",
                      extra_context: str = "") -> Generator[str, None, None]:
     """
     流式版本的 Agent，工具调用阶段不流式，最终回答阶段流式输出。
