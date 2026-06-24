@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, BackgroundTasks, Query, Depends
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_query, execute_insert, execute_cloud_query, execute_cloud_insert
 from utils.auth_deps import get_current_user, require_annotator, require_super_admin
 from knowledge_graph.kg_manager import (
     get_kg_stats, get_all_entities, get_entity_by_id,
@@ -177,8 +177,8 @@ def api_graph_data(center_id: int = 0, depth: int = 2):
         raw_nodes = subgraph["nodes"]
         raw_edges = subgraph["edges"]
     else:
-        raw_nodes = execute_query("SELECT * FROM kg_entities LIMIT 200") or []
-        raw_edges = execute_query(
+        raw_nodes = execute_cloud_query("SELECT * FROM kg_entities LIMIT 200") or []
+        raw_edges = execute_cloud_query(
             """SELECT r.*, e1.entity_name as source_name, e2.entity_name as target_name
                FROM kg_relationships r
                JOIN kg_entities e1 ON r.source_entity_id=e1.id
@@ -393,14 +393,14 @@ def _run_inference_sync(rule_type="all", auto_accept=False):
                    "投资", "分析", "研究", "报告", "观点", "趋势", "机会", "风险"}
 
     # 预加载所有 industry 实体名，用于过滤混入 theme 的行业名
-    _ind_names = execute_query(
+    _ind_names = execute_cloud_query(
         "SELECT DISTINCT entity_name FROM kg_entities WHERE entity_type='industry'"
     ) or []
     INDUSTRY_NAMES = {r["entity_name"] for r in _ind_names}
 
     # ── 1) 链式推理：A→B→C，置信度 = min(两条边strength) × 0.8 ──
     if rule_type in ("all", "chain"):
-        rels = execute_query(
+        rels = execute_cloud_query(
             """SELECT r1.source_entity_id as a, r1.target_entity_id as b,
                       r2.target_entity_id as c, r1.relation_type as r1_type,
                       r2.relation_type as r2_type,
@@ -437,7 +437,7 @@ def _run_inference_sync(rule_type="all", auto_accept=False):
 
     # ── 2) 同行业竞争，置信度按行业粒度区分 ──
     if rule_type in ("all", "similarity"):
-        same_industry = execute_query(
+        same_industry = execute_cloud_query(
             """SELECT DISTINCT e1.id as id1, e1.entity_name as name1,
                       e2.id as id2, e2.entity_name as name2,
                       e3.entity_name as industry_name,
@@ -478,7 +478,7 @@ def _run_inference_sync(rule_type="all", auto_accept=False):
 
     # ── 4) 行业传导，置信度 = 行业→主题边的 strength × 0.7 ──
     if rule_type in ("all", "chain"):
-        ind_theme = execute_query(
+        ind_theme = execute_cloud_query(
             """SELECT DISTINCT c.id as comp_id, c.entity_name as comp_name,
                       t.id as theme_id, t.entity_name as theme_name,
                       ind.entity_name as ind_name,
@@ -618,7 +618,7 @@ def run_kg_inspect(background_tasks: BackgroundTasks,
                 "cross_complete": cross,
                 "inspected_at": datetime.now().isoformat(),
             }
-            execute_insert(
+            execute_cloud_insert(
                 "REPLACE INTO system_config (config_key, value) VALUES ('kg_last_inspect', %s)",
                 [datetime.now().isoformat()],
             )
@@ -645,9 +645,9 @@ def kg_inspect_status_kg(task_id: str):
 def kg_inspect_info_kg():
     """获取 KG 巡检基本信息（上次时间、实体/关系数）"""
     try:
-        last_inspect = execute_query("SELECT value FROM system_config WHERE config_key='kg_last_inspect'")
-        entity_count = execute_query("SELECT COUNT(*) as cnt FROM kg_entities")
-        rel_count = execute_query("SELECT COUNT(*) as cnt FROM kg_relationships")
+        last_inspect = execute_cloud_query("SELECT value FROM system_config WHERE config_key='kg_last_inspect'")
+        entity_count = execute_cloud_query("SELECT COUNT(*) as cnt FROM kg_entities")
+        rel_count = execute_cloud_query("SELECT COUNT(*) as cnt FROM kg_relationships")
         return {
             "last_inspect": last_inspect[0]["value"] if last_inspect else None,
             "entity_count": entity_count[0]["cnt"] if entity_count else 0,
@@ -939,7 +939,7 @@ def api_review_detail(target_type: str, target_id: int, user: dict = Depends(req
         detail: dict = {}
 
         if target_type == "entity":
-            rows = execute_query(
+            rows = execute_cloud_query(
                 """SELECT id, entity_name, entity_type, review_status, review_note,
                           reviewed_by, reviewed_at, approved_by, approved_at,
                           description, properties_json, investment_logic, created_at
@@ -954,7 +954,7 @@ def api_review_detail(target_type: str, target_id: int, user: dict = Depends(req
                 detail['item'] = d
             detail['chunks'] = [_serialize_row(r) for r in get_entity_chunks(target_id)]
             # 关联关系
-            rels = execute_query("""
+            rels = execute_cloud_query("""
                 SELECT r.id, r.relation_type, r.review_status,
                        e1.entity_name AS src_name, e2.entity_name AS tgt_name
                 FROM kg_relationships r
@@ -965,7 +965,7 @@ def api_review_detail(target_type: str, target_id: int, user: dict = Depends(req
             """, [target_id, target_id])
             detail['relations'] = [dict(r) for r in (rels or [])]
         else:
-            rows = execute_query(
+            rows = execute_cloud_query(
                 """SELECT r.id, r.relation_type, r.review_status, r.review_note,
                           r.strength, r.confidence, r.direction, r.evidence,
                           r.reviewed_by, r.reviewed_at, r.approved_by, r.approved_at,

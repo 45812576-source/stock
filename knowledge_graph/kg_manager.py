@@ -1,7 +1,7 @@
 """知识图谱CRUD操作 — 完整版：增删改查 + 变更日志 + 统计"""
 import json
 import logging
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_cloud_query as execute_query, execute_cloud_insert as execute_insert
 
 logger = logging.getLogger(__name__)
 

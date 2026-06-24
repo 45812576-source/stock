@@ -314,6 +314,30 @@ def run_wencai_indicators():
 
 # ── Robust Kline 日扫描 ──────────────────────────────────────
 
+
+def run_akshare_daily():
+    """每天 19:00：AKShare 行情数据采集（写云端） + 增量同步到本地"""
+    logger.info("[Scheduler] AKShare 日度采集开始")
+    try:
+        from ingestion.akshare_source import fetch_all_daily_data
+        fetch_result = fetch_all_daily_data()
+        logger.info(f"[Scheduler] AKShare 采集完成: {fetch_result}")
+    except Exception as e:
+        logger.exception(f"[Scheduler] AKShare 采集失败: {e}")
+        fetch_result = {"error": str(e)}
+
+    # 采集完成后同步到本地
+    try:
+        from utils.db_utils import sync_akshare_to_local
+        sync_result = sync_akshare_to_local()
+        logger.info(f"[Scheduler] AKShare 同步到本地完成: {sync_result}")
+    except Exception as e:
+        logger.exception(f"[Scheduler] AKShare 同步到本地失败: {e}")
+        sync_result = {"error": str(e)}
+
+    return {"fetch": fetch_result, "sync": sync_result}
+
+
 def _run_robust_kline_daily():
     """每天16:00：扫描报告提及 → 月K线过滤 → 亮点填充"""
     logger.info("[Scheduler] Robust Kline 日扫描开始")
@@ -364,6 +388,12 @@ def start_scheduler():
         run_market_data_monthly, CronTrigger(day="5,15,25", hour=20, minute=30),
         id="market_data_monthly", replace_existing=True,
         name="市场增量数据月度同步",
+    )
+    # 每天 19:00 — AKShare 行情数据采集 + 同步
+    scheduler.add_job(
+        run_akshare_daily, CronTrigger(hour=19, minute=0),
+        id="akshare_daily", replace_existing=True,
+        name="AKShare行情日度采集+同步",
     )
     # 每天 06:00 + 16:00 — Robust Kline 扫描
     scheduler.add_job(

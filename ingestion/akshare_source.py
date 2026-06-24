@@ -5,7 +5,7 @@ import logging
 import akshare as ak
 import pandas as pd
 from datetime import datetime
-from utils.db_utils import get_db, execute_query
+from utils.db_utils import execute_cloud_insert, execute_cloud_query, execute_query
 from config import AKSHARE_RETRY, AKSHARE_DELAY
 
 logger = logging.getLogger(__name__)
@@ -30,14 +30,12 @@ def fetch_stock_info():
     if df is None or df.empty:
         return 0
     count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            conn.execute(
-                """INSERT OR REPLACE INTO stock_info (stock_code, stock_name)
-                   VALUES (?, ?)""",
-                [row["code"], row["name"]],
-            )
-            count += 1
+    for _, row in df.iterrows():
+        execute_cloud_insert(
+            "REPLACE INTO stock_info (stock_code, stock_name) VALUES (%s, %s)",
+            [row["code"], row["name"]],
+        )
+        count += 1
     logger.info(f"更新股票基础信息: {count}条")
     return count
 
@@ -58,19 +56,18 @@ def fetch_stock_daily(stock_code, start_date="20240101", end_date=None):
     if df is None or df.empty:
         return 0
     count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            trade_date = str(row["日期"])[:10]
-            conn.execute(
-                """INSERT OR REPLACE INTO stock_daily
-                   (stock_code, trade_date, open, high, low, close, volume, amount,
-                    turnover_rate, amplitude, change_pct, change_amount)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                [stock_code, trade_date, row["开盘"], row["最高"], row["最低"],
-                 row["收盘"], row["成交量"], row["成交额"], row.get("换手率"),
-                 row.get("振幅"), row.get("涨跌幅"), row.get("涨跌额")],
-            )
-            count += 1
+    for _, row in df.iterrows():
+        trade_date = str(row["日期"])[:10]
+        execute_cloud_insert(
+            """REPLACE INTO stock_daily
+               (stock_code, trade_date, open, high, low, close, volume, amount,
+                turnover_rate, amplitude, change_pct, change_amount)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+            [stock_code, trade_date, row["开盘"], row["最高"], row["最低"],
+             row["收盘"], row["成交量"], row["成交额"], row.get("换手率"),
+             row.get("振幅"), row.get("涨跌幅"), row.get("涨跌额")],
+        )
+        count += 1
     logger.info(f"{stock_code} 日线数据: {count}条")
     return count
 
@@ -88,20 +85,19 @@ def fetch_capital_flow(stock_code):
     if df is None or df.empty:
         return 0
     count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            trade_date = str(row["日期"])[:10]
-            conn.execute(
-                """INSERT OR REPLACE INTO capital_flow
-                   (stock_code, trade_date, main_net_inflow, super_large_net,
-                    large_net, medium_net, small_net, main_net_ratio)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                [stock_code, trade_date, row.get("主力净流入-净额"),
-                 row.get("超大单净流入-净额"), row.get("大单净流入-净额"),
-                 row.get("中单净流入-净额"), row.get("小单净流入-净额"),
-                 row.get("主力净流入-净占比")],
-            )
-            count += 1
+    for _, row in df.iterrows():
+        trade_date = str(row["日期"])[:10]
+        execute_cloud_insert(
+            """REPLACE INTO capital_flow
+               (stock_code, trade_date, main_net_inflow, super_large_net,
+                large_net, medium_net, small_net, main_net_ratio)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            [stock_code, trade_date, row.get("主力净流入-净额"),
+             row.get("超大单净流入-净额"), row.get("大单净流入-净额"),
+             row.get("中单净流入-净额"), row.get("小单净流入-净额"),
+             row.get("主力净流入-净占比")],
+        )
+        count += 1
     logger.info(f"{stock_code} 资金流向: {count}条")
     return count
 
@@ -117,18 +113,17 @@ def fetch_industry_capital_flow():
         return 0
     today = datetime.now().strftime("%Y-%m-%d")
     count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            conn.execute(
-                """INSERT OR REPLACE INTO industry_capital_flow
-                   (industry_name, trade_date, net_inflow, change_pct, leading_stock)
-                   VALUES (?, ?, ?, ?, ?)""",
-                [row.get("名称"), today,
-                 row.get("今日主力净流入-净额", row.get("主力净流入-净额")),
-                 row.get("今日涨跌幅", row.get("涨跌幅")),
-                 row.get("今日主力净流入最大股", row.get("领涨股"))],
-            )
-            count += 1
+    for _, row in df.iterrows():
+        execute_cloud_insert(
+            """REPLACE INTO industry_capital_flow
+               (industry_name, trade_date, net_inflow, change_pct, leading_stock)
+               VALUES (%s, %s, %s, %s, %s)""",
+            [row.get("名称"), today,
+             row.get("今日主力净流入-净额", row.get("主力净流入-净额")),
+             row.get("今日涨跌幅", row.get("涨跌幅")),
+             row.get("今日主力净流入最大股", row.get("领涨股"))],
+        )
+        count += 1
     logger.info(f"行业资金流向: {count}条")
     return count
 
@@ -192,28 +187,27 @@ def fetch_financial_data(stock_code):
     if df is None or df.empty:
         return 0
     count = 0
-    with get_db() as conn:
-        for _, row in df.iterrows():
-            period = str(row.get("报告期", ""))[:10]
-            if not period:
-                continue
-            revenue = _parse_amount(row.get("营业总收入"))
-            net_profit = _parse_amount(row.get("净利润"))
-            revenue_yoy = _parse_pct(row.get("营业总收入同比增长率"))
-            profit_yoy = _parse_pct(row.get("净利润同比增长率"))
-            eps_raw = row.get("基本每股收益")
-            eps = float(eps_raw) if eps_raw and eps_raw != 'False' else None
-            roe = _parse_pct(row.get("净资产收益率"))
+    for _, row in df.iterrows():
+        period = str(row.get("报告期", ""))[:10]
+        if not period:
+            continue
+        revenue = _parse_amount(row.get("营业总收入"))
+        net_profit = _parse_amount(row.get("净利润"))
+        revenue_yoy = _parse_pct(row.get("营业总收入同比增长率"))
+        profit_yoy = _parse_pct(row.get("净利润同比增长率"))
+        eps_raw = row.get("基本每股收益")
+        eps = float(eps_raw) if eps_raw and eps_raw != 'False' else None
+        roe = _parse_pct(row.get("净资产收益率"))
 
-            conn.execute(
-                """INSERT OR REPLACE INTO financial_reports
-                   (stock_code, report_period, revenue, net_profit,
-                    revenue_yoy, profit_yoy, eps, roe)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                [stock_code, period, revenue, net_profit,
-                 revenue_yoy, profit_yoy, eps, roe],
-            )
-            count += 1
+        execute_cloud_insert(
+            """REPLACE INTO financial_reports
+               (stock_code, report_period, revenue, net_profit,
+                revenue_yoy, profit_yoy, eps, roe)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            [stock_code, period, revenue, net_profit,
+             revenue_yoy, profit_yoy, eps, roe],
+        )
+        count += 1
     logger.info(f"{stock_code} 财务数据: {count}条")
     return count
 
@@ -239,13 +233,12 @@ def fetch_stock_detail(stock_code):
     float_shares = info.get("流通股")
     list_date = str(info.get("上市时间", ""))
 
-    with get_db() as conn:
-        conn.execute(
-            """UPDATE stock_info SET
-                industry_l1=?, market_cap=?, total_shares=?,
-                float_shares=?, list_date=?, updated_at=CURRENT_TIMESTAMP
-               WHERE stock_code=?""",
-            [industry, market_cap, total_shares, float_shares, list_date, stock_code],
-        )
+    execute_cloud_insert(
+        """UPDATE stock_info SET
+            industry_l1=%s, market_cap=%s, total_shares=%s,
+            float_shares=%s, list_date=%s, updated_at=CURRENT_TIMESTAMP
+           WHERE stock_code=%s""",
+        [industry, market_cap, total_shares, float_shares, list_date, stock_code],
+    )
     logger.info(f"{stock_code} 详细信息已更新: 行业={industry} 市值={market_cap}亿")
     return True

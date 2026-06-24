@@ -574,6 +574,126 @@ def sync_new_pipeline_records(batch_size: int = 500) -> dict:
     return result
 
 
+
+
+def sync_akshare_to_local(batch_size=2000) -> dict:
+    """增量同步 AKShare 行情数据从云端 stock_analysis 到本地。
+    同步表: stock_info / stock_daily / capital_flow / industry_capital_flow / financial_reports
+    模式: 按 id 或 unique key 增量同步，只同步本地尚未存在的记录。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    result = {'stock_info': 0, 'stock_daily': 0, 'capital_flow': 0,
+              'industry_capital_flow': 0, 'financial_reports': 0}
+
+    cloud = _get_cloud_conn()
+    local = _get_conn()
+    try:
+        with cloud.cursor() as cc, local.cursor() as lc:
+            # 1. stock_info (PK = stock_code)
+            lc.execute("SELECT stock_code FROM stock_info")
+            local_codes = {r['stock_code'] for r in lc.fetchall()}
+            cc.execute("SELECT * FROM stock_info")
+            for r in cc.fetchall():
+                if r['stock_code'] not in local_codes:
+                    lc.execute(
+                        """REPLACE INTO stock_info
+                           (stock_code, stock_name, industry_l1, industry_l2, market,
+                            list_date, total_shares, float_shares, market_cap,
+                            main_business, business_scope, company_intro)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        [r['stock_code'], r['stock_name'], r.get('industry_l1'),
+                         r.get('industry_l2'), r.get('market'), r.get('list_date'),
+                         r.get('total_shares'), r.get('float_shares'), r.get('market_cap'),
+                         r.get('main_business'), r.get('business_scope'), r.get('company_intro')]
+                    )
+                    result['stock_info'] += 1
+
+            # 2. stock_daily (PK = id, UK = stock_code+trade_date)
+            lc.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM stock_daily")
+            local_max = lc.fetchone()['max_id']
+            cc.execute("SELECT * FROM stock_daily WHERE id > %s ORDER BY id LIMIT %s",
+                       [local_max, batch_size])
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """REPLACE INTO stock_daily
+                       (id, stock_code, trade_date, open, high, low, close,
+                        volume, amount, turnover_rate, amplitude, change_pct, change_amount)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r['trade_date'], r['open'], r['high'],
+                     r['low'], r['close'], r['volume'], r['amount'],
+                     r.get('turnover_rate'), r.get('amplitude'),
+                     r.get('change_pct'), r.get('change_amount')]
+                )
+            result['stock_daily'] = len(rows)
+
+            # 3. capital_flow (PK = id, UK = stock_code+trade_date)
+            lc.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM capital_flow")
+            local_max = lc.fetchone()['max_id']
+            cc.execute("SELECT * FROM capital_flow WHERE id > %s ORDER BY id LIMIT %s",
+                       [local_max, batch_size])
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """REPLACE INTO capital_flow
+                       (id, stock_code, trade_date, main_net_inflow, super_large_net,
+                        large_net, medium_net, small_net, main_net_ratio)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r['trade_date'], r.get('main_net_inflow'),
+                     r.get('super_large_net'), r.get('large_net'),
+                     r.get('medium_net'), r.get('small_net'), r.get('main_net_ratio')]
+                )
+            result['capital_flow'] = len(rows)
+
+            # 4. industry_capital_flow (PK = id, UK = industry_name+trade_date)
+            lc.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM industry_capital_flow")
+            local_max = lc.fetchone()['max_id']
+            cc.execute("SELECT * FROM industry_capital_flow WHERE id > %s ORDER BY id LIMIT %s",
+                       [local_max, batch_size])
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """REPLACE INTO industry_capital_flow
+                       (id, industry_name, trade_date, net_inflow, change_pct, leading_stock)
+                       VALUES (%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['industry_name'], r['trade_date'],
+                     r.get('net_inflow'), r.get('change_pct'), r.get('leading_stock')]
+                )
+            result['industry_capital_flow'] = len(rows)
+
+            # 5. financial_reports (PK = id, UK = stock_code+report_period)
+            lc.execute("SELECT COALESCE(MAX(id), 0) as max_id FROM financial_reports")
+            local_max = lc.fetchone()['max_id']
+            cc.execute("SELECT * FROM financial_reports WHERE id > %s ORDER BY id LIMIT %s",
+                       [local_max, batch_size])
+            rows = cc.fetchall()
+            for r in rows:
+                lc.execute(
+                    """REPLACE INTO financial_reports
+                       (id, stock_code, report_period, revenue, net_profit,
+                        revenue_yoy, profit_yoy, eps, roe, beat_expectation,
+                        consensus_profit, actual_vs_consensus, report_date)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                    [r['id'], r['stock_code'], r['report_period'], r.get('revenue'),
+                     r.get('net_profit'), r.get('revenue_yoy'), r.get('profit_yoy'),
+                     r.get('eps'), r.get('roe'), r.get('beat_expectation'),
+                     r.get('consensus_profit'), r.get('actual_vs_consensus'),
+                     r.get('report_date')]
+                )
+            result['financial_reports'] = len(rows)
+
+        local.commit()
+        logger.info(f"AKShare增量同步完成: {result}")
+    except Exception as e:
+        logger.error(f"AKShare增量同步失败: {e}")
+        result['error'] = str(e)
+    finally:
+        cloud.close()
+        local.close()
+
+    return result
+
 # ---------- 云端行情数据同步 ----------
 
 def _get_cloud_stockdb_conn():

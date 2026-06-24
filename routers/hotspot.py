@@ -695,7 +695,7 @@ _HEAT_TREND_SYSTEM_PROMPT = """\
 
 def _refresh_heat_trend_worker():
     """后台线程：调用 LLM 合并行业标签 + 计算全部热力缓存"""
-    from utils.db_utils import execute_cloud_query, execute_query, execute_insert
+    from utils.db_utils import execute_cloud_query, execute_cloud_insert, execute_query, execute_insert
     from utils.model_router import call_model_json
     from datetime import datetime as dt, timedelta
 
@@ -724,19 +724,19 @@ def _refresh_heat_trend_worker():
             logger.warning("refresh-heat-trend: LLM 未返回有效 industry_mapping")
             return
 
-        # 3) 写入 industry_merge_map（全量替换）
-        execute_query("DELETE FROM industry_merge_map")
+        # 3) 写入 industry_merge_map（全量替换，云端）
+        execute_cloud_insert("DELETE FROM industry_merge_map")
         for raw, sector in industry_mapping.items():
-            execute_insert(
+            execute_cloud_insert(
                 "INSERT INTO industry_merge_map (raw_industry, sector_name) VALUES (%s, %s)",
                 [raw, sector],
             )
 
-        # 4) 写入 concept_sector_map（全量替换）
-        execute_query("DELETE FROM concept_sector_map")
+        # 4) 写入 concept_sector_map（全量替换，云端）
+        execute_cloud_insert("DELETE FROM concept_sector_map")
         for concept, tags in concept_groups.items():
             for tag in tags:
-                execute_insert(
+                execute_cloud_insert(
                     "INSERT INTO concept_sector_map (raw_industry, concept_name) VALUES (%s, %s)",
                     [tag, concept],
                 )
@@ -873,15 +873,15 @@ def api_heat_trend_stocks(sector: str = "", concept: str = "", days: int = 7):
         today = dt.now().date()
         dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
 
-        # 确定要查的原始行业列表
+        # 确定要查的原始行业列表（从云端 mapping 表读取）
         if sector:
-            map_rows = execute_query(
+            map_rows = execute_cloud_query(
                 "SELECT raw_industry FROM industry_merge_map WHERE sector_name=%s",
                 [sector],
             )
             raw_list = [r["raw_industry"] for r in map_rows] if map_rows else [sector]
         elif concept:
-            map_rows = execute_query(
+            map_rows = execute_cloud_query(
                 "SELECT raw_industry FROM concept_sector_map WHERE concept_name=%s",
                 [concept],
             )
