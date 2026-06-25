@@ -853,6 +853,8 @@ def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict)
             total += cnt
         sector_heat[sector] = {"daily": daily, "total": total}
 
+    # 排除"宏观策略"（不在热力图展示）
+    sector_heat.pop("宏观策略", None)
     sorted_sectors = sorted(sector_heat.keys(), key=lambda s: sector_heat[s]["total"], reverse=True)
     sector_result = {
         "dates": dates,

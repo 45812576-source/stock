@@ -37,33 +37,6 @@
     <nav class="text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1">股票分析系统 / 机会发现</nav>
     <h1 class="text-3xl font-extrabold tracking-tight">机会发现</h1>
   </div>
-  <div class="flex items-center gap-4">
-    <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50">
-      {% for d in [7, 14, 30] %}
-      <a href="/hotspot?days={{ d }}"
-         class="px-3 py-1 text-xs font-bold rounded-md {{ 'bg-slate-600 shadow-sm text-white' if days == d and not custom_range else 'text-slate-500 hover:text-slate-300' }}">
-        近{{ d }}天
-      </a>
-      {% endfor %}
-      <span class="w-px bg-slate-700 mx-1"></span>
-      <button onclick="document.getElementById('date-range').classList.toggle('hidden')"
-              class="px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 {{ 'bg-slate-600 shadow-sm text-white' if custom_range else 'text-slate-500 hover:text-slate-300' }}">
-        <span class="material-icons-round text-sm">calendar_today</span>
-      </button>
-    </div>
-    <!-- 自定义日期范围 -->
-    <form id="date-range" class="{{ 'flex' if custom_range else 'hidden' }} items-center gap-2" action="/hotspot" method="get">
-      <input type="date" name="start" value="{{ start_date }}"
-             class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:border-primary focus:outline-none">
-      <span class="text-slate-600 text-xs">至</span>
-      <input type="date" name="end" value="{{ end_date }}"
-             class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:border-primary focus:outline-none">
-      <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1 text-xs font-bold transition-colors">
-        查询
-      </button>
-    </form>
-
-  </div>
 </header>
 
 <!-- 待研究池 -->
@@ -173,7 +146,34 @@
       <span class="material-icons-round text-primary">auto_awesome</span>
       AI 投资主题挖掘
     </h2>
-    <button id="recommend-btn"
+    <div class="flex items-center gap-3">
+      <!-- 日期筛选 -->
+      <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50">
+        {% for d in [7, 14, 30] %}
+        <a href="/hotspot?days={{ d }}"
+           class="px-3 py-1 text-xs font-bold rounded-md {{ 'bg-slate-600 shadow-sm text-white' if days == d and not custom_range else 'text-slate-500 hover:text-slate-300' }}">
+          近{{ d }}天
+        </a>
+        {% endfor %}
+        <span class="w-px bg-slate-700 mx-1"></span>
+        <button onclick="document.getElementById('date-range').classList.toggle('hidden')"
+                class="px-3 py-1 text-xs font-bold rounded-md flex items-center gap-1 {{ 'bg-slate-600 shadow-sm text-white' if custom_range else 'text-slate-500 hover:text-slate-300' }}">
+          <span class="material-icons-round text-sm">calendar_today</span>
+        </button>
+      </div>
+      <!-- 自定义日期范围 -->
+      <form id="date-range" class="{{ 'flex' if custom_range else 'hidden' }} items-center gap-2" action="/hotspot" method="get">
+        <input type="date" name="start" value="{{ start_date }}"
+               class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:border-primary focus:outline-none">
+        <span class="text-slate-600 text-xs">至</span>
+        <input type="date" name="end" value="{{ end_date }}"
+               class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-200 focus:border-primary focus:outline-none">
+        <button type="submit" class="bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1 text-xs font-bold transition-colors">
+          查询
+        </button>
+      </form>
+      <!-- AI 挖掘按钮 -->
+      <button id="recommend-btn"
             {% if access_denied %}
             disabled
             onclick="alert('热点发现功能仅对订阅用户开放'); return false;"
@@ -188,6 +188,7 @@
       <span id="scraper-spin" class="material-icons-round text-sm htmx-indicator animate-spin">refresh</span>
       <span id="rec-label">AI 投资主题挖掘</span>
     </button>
+    </div><!-- end flex items-center gap-3 -->
   </div>
   {% if clusters %}
   {% if recommend_error %}

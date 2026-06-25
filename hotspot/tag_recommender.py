@@ -495,10 +495,9 @@ MERGE_GROUPS_PROMPT = """你是A股投资策略分析师。以下是若干已验
 def merge_and_filter_groups(groups, days=7):
     """相似合并 + 综合评分筛选 → Top 10
 
-    评分维度:
-    1. 提及频次（DISTINCT source_id 去重，与热力图一致）
-    2. 研报密度（相关 source_documents 数量）
-    3. 投资逻辑清晰度（逻辑详细度 + 宏观/行业利好确认）
+    评分权重:
+    A. 资金因素 50%：净流入金额(25%) + 净流入天数(25%)
+    B. 内容因素 50%：提及频次(20%) + 研报密度(15%) + 逻辑清晰度(15%)
     """
     if not groups:
         return []
@@ -511,7 +510,7 @@ def merge_and_filter_groups(groups, days=7):
     for g in merged:
         tags = g.get("tags", [])
 
-        # 龙头资金信息（用于卡片展示，不再作为硬筛条件）
+        # 龙头资金信息
         leader_info = _check_leader_capital(tags, days)
         if leader_info:
             g["leader_stock"] = leader_info["stock_name"]
@@ -532,10 +531,16 @@ def merge_and_filter_groups(groups, days=7):
             g["daily_inflow"] = []
             g["kg_stock_groups"] = []
 
+        # ═══ 资金因素 (50%) ═══
+        total_inflow = g["group_total_inflow"]               # 净流入金额
+        daily = g["daily_inflow"]                             # 每日流入序列
+        inflow_days = sum(1 for v in daily if v > 0)          # 净流入天数
+
+        # ═══ 内容因素 (50%) ═══
         # 维度1: 提及频次（DISTINCT source_id 去重）
         mention_count = _count_distinct_mentions(tags, days)
 
-        # 维度2: 研报密度（source_documents 覆盖量）
+        # 维度2: 研报密度
         research_count = _count_research_density(tags, days)
 
         # 维度3: 投资逻辑清晰度
@@ -544,12 +549,13 @@ def merge_and_filter_groups(groups, days=7):
         g["macro_positive"] = macro_ok
         g["industry_positive"] = industry_ok
         logic_text = g.get("group_logic", "") or ""
-        logic_detail = min(len(logic_text) / 80.0, 2.0)  # 详细度 0~2
-        logic_confirm = int(macro_ok) + int(industry_ok)  # 确认度 0~2
-        logic_score = logic_detail + logic_confirm  # 0~4
+        logic_detail = min(len(logic_text) / 80.0, 2.0)
+        logic_confirm = int(macro_ok) + int(industry_ok)
+        logic_score = logic_detail + logic_confirm
 
-        # 综合分 = 提及频次 * 0.4 + 研报密度 * 0.3 + 逻辑清晰度 * 0.3
-        # 归一化: 先记录原始值，排序时再算
+        # 记录原始值，待归一化
+        g["_total_inflow"] = total_inflow
+        g["_inflow_days"] = inflow_days
         g["_mention_count"] = mention_count
         g["_research_count"] = research_count
         g["_logic_score"] = logic_score
@@ -558,16 +564,39 @@ def merge_and_filter_groups(groups, days=7):
     if not scored:
         return []
 
-    # 归一化后加权
+    # ═══ 资金因素：按统计值降序排名打分，每名差 5 分 ═══
+    # 净流入金额排名
+    sorted_by_inflow = sorted(scored, key=lambda x: x["_total_inflow"], reverse=True)
+    for rank, g in enumerate(sorted_by_inflow):
+        g["_inflow_rank_score"] = max(len(scored) * 5 - rank * 5, 0)
+    # 净流入天数排名
+    sorted_by_days = sorted(scored, key=lambda x: x["_inflow_days"], reverse=True)
+    for rank, g in enumerate(sorted_by_days):
+        g["_days_rank_score"] = max(len(scored) * 5 - rank * 5, 0)
+
+    # ═══ 内容因素：归一化 ═══
     max_mention = max(g["_mention_count"] for g in scored) or 1
     max_research = max(g["_research_count"] for g in scored) or 1
     max_logic = max(g["_logic_score"] for g in scored) or 1
 
+    # 资金排名分的最大值（用于归一化到同一尺度）
+    max_rank = len(scored) * 5 or 1
+
     for g in scored:
+        # 资金因素 50%（排名分归一化）
+        inflow_norm = g["_inflow_rank_score"] / max_rank
+        days_norm = g["_days_rank_score"] / max_rank
+        # 内容因素 50%
+        mention_norm = g["_mention_count"] / max_mention
+        research_norm = g["_research_count"] / max_research
+        logic_norm = g["_logic_score"] / max_logic
+
         g["_composite_score"] = (
-            (g["_mention_count"] / max_mention) * 0.4 +
-            (g["_research_count"] / max_research) * 0.3 +
-            (g["_logic_score"] / max_logic) * 0.3
+            inflow_norm * 0.25 +    # 净流入金额排名 25%
+            days_norm * 0.25 +      # 净流入天数排名 25%
+            mention_norm * 0.20 +   # 提及频次       20%
+            research_norm * 0.15 +  # 研报密度       15%
+            logic_norm * 0.15       # 逻辑清晰度     15%
         )
 
     # ── 3. 按综合分降序，取 Top 10 ──
