@@ -684,14 +684,34 @@ _HEAT_TREND_SYSTEM_PROMPT = """\
 严格返回 JSON，不要附加解释：
 {
   "industry_mapping": {
-    "原始标签1": "行业板块名",
-    "原始标签2": "行业板块名"
+    "原始标签1": {​"sector": "产业链板块名", "sub": "细分赛道名"},
+    "原始标签2": {"sector": "产业链板块名", "sub": "细分赛道名"}
   },
   "concept_groups": {
     "概念板块名1": ["原始标签A", "原始标签B"],
     "概念板块名2": ["原始标签C", "原始标签D"]
   }
 }
+
+其中 industry_mapping 每个条目包含：
+- sector: 产业链级板块名（粗粒度，如"半导体"、"光通信"、"汽车零部件"）
+- sub: 细分赛道名（中粒度，每个产业链下不超过 5~8 个细分）
+
+sub 命名规则：
+- 用市场公认的中粒度赛道名，≤4字
+- **每个产业链下的 sub 数量严格不超过 6 个**，需要足够粗粒度的合并
+- 半导体（最多6个sub）："设备"、"材料"、"制造"、"设计"、"封测"、"芯片"等
+  - "半导体/检测设备"、"半导体/直写光刻"、"半导体/洁净室" → 全部归入 sub="设备"
+  - "半导体/散热材料"、"半导体/光模块材料"、"电子化学品" → 归入 sub="材料"
+  - "半导体制造"、"半导体代工" → 归入 sub="制造"
+  - "AI芯片"、"自动驾驶芯片"、"国产算力" → 归入 sub="芯片设计"
+  - "半导体/射频前端"、"半导体/射频材料" → 归入 sub="射频"
+- 电子（最多6个sub）："PCB"、"元器件"、"材料"、"制造"、"散热"、"连接器"等
+- 计算机（最多6个sub）："算力"、"AI应用"、"软件"、"云计算"、"安全"、"大模型"等
+- 机械设备（最多6个sub）："机器人"、"油气装备"、"自动化"、"高端装备"、"热管理"、"通用设备"等
+- 其他产业链同理，核心原则：宁可合并过多也不要太细
+- 如果某个原始标签本身就是产业链级的概括性标签（如"半导体"、"光通信"），sub 可以为一个通用名如"综合"或等同于 sector 名
+- **关键：用样本信息判断复合标签的真实归属**。例如"船舶/家居"如果样本显示是家居产业出海，则 sector="轻工制造", sub="家居"；如果是船舶内装则 sector="交运", sub="船舶"
 """
 
 
@@ -702,7 +722,7 @@ def _refresh_heat_trend_worker():
     from datetime import datetime as dt, timedelta
 
     try:
-        # 1) 取近 30 天所有出现过的行业标签
+        # 1) 取近 30 天所有出现过的行业标签，附带 source 样本帮助 LLM 归类
         rows = execute_cloud_query(
             """SELECT DISTINCT industry FROM daily_intel_stocks
                WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
@@ -714,10 +734,38 @@ def _refresh_heat_trend_worker():
             logger.warning("refresh-heat-trend: 近30天无行业数据")
             return
 
+        # 获取每个标签的样本 stock + event 信息，帮助 LLM 判断归属
+        sample_rows = execute_cloud_query(
+            """SELECT industry, stock_name, event_summary
+               FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                 AND industry IS NOT NULL AND industry != ''
+               ORDER BY scan_date DESC"""
+        ) or []
+        # 每个标签取最多 3 条样本
+        tag_samples = {}
+        for sr in sample_rows:
+            tag = sr["industry"].strip()
+            if tag not in tag_samples:
+                tag_samples[tag] = []
+            if len(tag_samples[tag]) < 3:
+                stock = sr.get("stock_name", "")
+                event = (sr.get("event_summary", "") or "")[:60]
+                tag_samples[tag].append(f"{stock}: {event}")
+
+        # 构建带 source 上下文的标签列表
+        tag_list_with_context = []
+        for tag in raw_industries:
+            samples = tag_samples.get(tag, [])
+            if samples:
+                tag_list_with_context.append(f"{tag} (样本: {'; '.join(samples)})")
+            else:
+                tag_list_with_context.append(tag)
+
         # 2) 调用 LLM 合并
-        user_msg = f"以下是从研报/资讯中提取的行业标签列表（共 {len(raw_industries)} 个），请按规则归并：\n\n{json.dumps(raw_industries, ensure_ascii=False)}"
+        user_msg = f"以下是从研报/资讯中提取的行业标签列表（共 {len(raw_industries)} 个），请按规则归并。每个标签后附带了部分样本信息供你参考归类：\n\n{json.dumps(tag_list_with_context, ensure_ascii=False)}"
         result = call_model_json("heat_merge", _HEAT_TREND_SYSTEM_PROMPT, user_msg,
-                                max_tokens=8192, timeout=120)
+                                max_tokens=8192, timeout=180)
 
         industry_mapping = result.get("industry_mapping", {})
         concept_groups = result.get("concept_groups", {})
@@ -726,12 +774,24 @@ def _refresh_heat_trend_worker():
             logger.warning("refresh-heat-trend: LLM 未返回有效 industry_mapping")
             return
 
+        # 解析新格式：每个值可能是 {"sector": ..., "sub": ...} 或旧格式的字符串
+        sector_map = {}   # raw -> sector_name
+        sub_map = {}      # raw -> sub_sector_name
+        for raw, val in industry_mapping.items():
+            if isinstance(val, dict):
+                sector_map[raw] = val.get("sector", val.get("sub", raw))
+                sub_map[raw] = val.get("sub", sector_map[raw])
+            else:
+                # 兼容旧格式（纯字符串）
+                sector_map[raw] = val
+                sub_map[raw] = val
+
         # 3) 写入 industry_merge_map（全量替换，云端）
         execute_cloud_insert("DELETE FROM industry_merge_map")
-        for raw, sector in industry_mapping.items():
+        for raw in sector_map:
             execute_cloud_insert(
-                "INSERT INTO industry_merge_map (raw_industry, sector_name) VALUES (%s, %s)",
-                [raw, sector],
+                "INSERT INTO industry_merge_map (raw_industry, sector_name, sub_sector_name) VALUES (%s, %s, %s)",
+                [raw, sector_map[raw], sub_map[raw]],
             )
 
         # 4) 写入 concept_sector_map（全量替换，云端）
@@ -739,15 +799,15 @@ def _refresh_heat_trend_worker():
         for concept, tags in concept_groups.items():
             for tag in tags:
                 execute_cloud_insert(
-                    "INSERT INTO concept_sector_map (raw_industry, concept_name) VALUES (%s, %s)",
+                    "INSERT IGNORE INTO concept_sector_map (raw_industry, concept_name) VALUES (%s, %s)",
                     [tag, concept],
                 )
 
         # 5) 计算 7/15/30 天的热力缓存
         for days in (7, 15, 30):
-            _compute_heat_cache(days, industry_mapping, concept_groups)
+            _compute_heat_cache(days, sector_map, concept_groups)
 
-        logger.info(f"refresh-heat-trend 完成: {len(industry_mapping)} 行业映射, {len(concept_groups)} 概念板块")
+        logger.info(f"refresh-heat-trend 完成: {len(sector_map)} 行业映射, {len(concept_groups)} 概念板块")
 
     except Exception as e:
         logger.error(f"refresh-heat-trend 失败: {e}", exc_info=True)
@@ -1079,14 +1139,20 @@ def api_daily_intel_industry(days: int = 7, sector: str = ""):
         start_date = (today - timedelta(days=days - 1)).strftime("%Y-%m-%d")
         dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
 
-        # 如果指定了 sector，查其对应的 raw_industry 列表
+        # 如果指定了 sector，查其对应的 raw_industry 列表及其 sub_sector 映射
         raw_filter = None
+        sub_sector_lookup = {}  # raw_industry -> sub_sector_name
         if sector:
             map_rows = execute_cloud_query(
-                "SELECT raw_industry FROM industry_merge_map WHERE sector_name=%s",
+                "SELECT raw_industry, sub_sector_name FROM industry_merge_map WHERE sector_name=%s",
                 [sector],
             )
-            raw_filter = set(r["raw_industry"] for r in map_rows) if map_rows else {sector}
+            if map_rows:
+                raw_filter = set(r["raw_industry"] for r in map_rows)
+                for r in map_rows:
+                    sub_sector_lookup[r["raw_industry"]] = r["sub_sector_name"] or r["raw_industry"]
+            else:
+                raw_filter = {sector}
 
         rows = execute_cloud_query(
             """SELECT stock_name, stock_code, industry, DATE(scan_date) AS day,
@@ -1111,14 +1177,19 @@ def api_daily_intel_industry(days: int = 7, sector: str = ""):
                     if sname not in stock_to_industry:
                         stock_to_industry[sname] = label
 
-        # 按 (industry_label, day) 收集 DISTINCT source_id
+        # 按 (sub_sector/industry_label, day) 收集 DISTINCT source_id
         industry_day_sources = {}  # {label: {day: set(source_id)}}
         for r in rows:
-            name = r["stock_name"]
-            label = stock_to_industry.get(name)
-            if not label:
-                # 如果没有 chain 映射，用原始 industry 字段作为细分标签
-                label = r.get("industry", "").strip() or "其他"
+            raw_ind = r.get("industry", "").strip()
+            # 优先用 sub_sector_lookup 合并细分标签
+            if sub_sector_lookup and raw_ind in sub_sector_lookup:
+                label = sub_sector_lookup[raw_ind]
+            else:
+                # 退化到 chain-tier 映射
+                name = r["stock_name"]
+                label = stock_to_industry.get(name)
+                if not label:
+                    label = raw_ind or "其他"
             day = str(r["day"])[:10]
             if label not in industry_day_sources:
                 industry_day_sources[label] = {}
