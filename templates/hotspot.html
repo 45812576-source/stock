@@ -62,21 +62,7 @@
         查询
       </button>
     </form>
-    <button id="recommend-btn"
-            {% if access_denied %}
-            disabled
-            onclick="alert('热点发现功能仅对订阅用户开放'); return false;"
-            class="bg-slate-600 text-slate-400 rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 cursor-not-allowed opacity-50"
-            {% else %}
-            hx-post="/hotspot/recommend?days={{ days }}{% if custom_range %}&start={{ start_date }}&end={{ end_date }}{% endif %}" hx-target="body" hx-swap="innerHTML"
-            hx-indicator="#scraper-spin"
-            onclick="this.querySelector('#rec-label').textContent='AI 分析中，请耐心等待...'; this.disabled=true; this.classList.add('opacity-70','cursor-wait');"
-            class="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 transition-all"
-            {% endif %}
->
-      <span id="scraper-spin" class="material-icons-round text-sm htmx-indicator animate-spin">refresh</span>
-      <span id="rec-label">AI 投资主题挖掘</span>
-    </button>
+
   </div>
 </header>
 
@@ -182,10 +168,27 @@
 
 <!-- Recommended Tag Clusters -->
 <div class="mb-10">
-  <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
-    <span class="material-icons-round text-primary">auto_awesome</span>
-    AI 投资主题挖掘
-  </h2>
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold flex items-center gap-2">
+      <span class="material-icons-round text-primary">auto_awesome</span>
+      AI 投资主题挖掘
+    </h2>
+    <button id="recommend-btn"
+            {% if access_denied %}
+            disabled
+            onclick="alert('热点发现功能仅对订阅用户开放'); return false;"
+            class="bg-slate-600 text-slate-400 rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 cursor-not-allowed opacity-50"
+            {% else %}
+            hx-post="/hotspot/recommend?days={{ days }}{% if custom_range %}&start={{ start_date }}&end={{ end_date }}{% endif %}" hx-target="body" hx-swap="innerHTML"
+            hx-indicator="#scraper-spin"
+            onclick="this.querySelector('#rec-label').textContent='AI 分析中，请耐心等待...'; this.disabled=true; this.classList.add('opacity-70','cursor-wait');"
+            class="bg-primary hover:bg-primary/90 text-white rounded-lg px-4 py-2 text-sm font-semibold flex items-center gap-2 transition-all"
+            {% endif %}
+    >
+      <span id="scraper-spin" class="material-icons-round text-sm htmx-indicator animate-spin">refresh</span>
+      <span id="rec-label">AI 投资主题挖掘</span>
+    </button>
+  </div>
   {% if clusters %}
   {% if recommend_error %}
   <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-400">{{ recommend_error }}</div>

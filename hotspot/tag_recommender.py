@@ -493,41 +493,86 @@ MERGE_GROUPS_PROMPT = """你是A股投资策略分析师。以下是若干已验
 
 
 def merge_and_filter_groups(groups, days=7):
-    """相似合并 + 条件评分筛选 → Top 12"""
+    """相似合并 + 综合评分筛选 → Top 10
+
+    评分维度:
+    1. 提及频次（DISTINCT source_id 去重，与热力图一致）
+    2. 研报密度（相关 source_documents 数量）
+    3. 投资逻辑清晰度（逻辑详细度 + 宏观/行业利好确认）
+    """
     if not groups:
         return []
 
     # ── 1. Claude 相似合并 ──
     merged = _merge_similar_groups(groups)
 
-    # ── 2. 条件评分：龙头资金为必要条件，宏观/行业利好加分 ──
+    # ── 2. 综合评分 ──
     scored = []
     for g in merged:
         tags = g.get("tags", [])
-        leader_info = _check_leader_capital(tags, days)
-        if not leader_info:
-            continue  # 无龙头资金数据则跳过
 
+        # 龙头资金信息（用于卡片展示，不再作为硬筛条件）
+        leader_info = _check_leader_capital(tags, days)
+        if leader_info:
+            g["leader_stock"] = leader_info["stock_name"]
+            g["leader_code"] = leader_info["stock_code"]
+            g["leader_net_inflow"] = leader_info["net_inflow"]
+            g["group_total_inflow"] = leader_info.get("group_total_inflow", 0)
+            g["group_total_cap"] = leader_info.get("group_total_cap", 0)
+            g["group_stock_count"] = leader_info.get("group_stock_count", 0)
+            g["daily_inflow"] = leader_info.get("daily_inflow", [])
+            g["kg_stock_groups"] = leader_info.get("kg_stock_groups", [])
+        else:
+            g["leader_stock"] = ""
+            g["leader_code"] = ""
+            g["leader_net_inflow"] = 0
+            g["group_total_inflow"] = 0
+            g["group_total_cap"] = 0
+            g["group_stock_count"] = 0
+            g["daily_inflow"] = []
+            g["kg_stock_groups"] = []
+
+        # 维度1: 提及频次（DISTINCT source_id 去重）
+        mention_count = _count_distinct_mentions(tags, days)
+
+        # 维度2: 研报密度（source_documents 覆盖量）
+        research_count = _count_research_density(tags, days)
+
+        # 维度3: 投资逻辑清晰度
         macro_ok = _check_macro_positive(tags, days)
         industry_ok = _check_industry_positive(tags, days)
-
         g["macro_positive"] = macro_ok
         g["industry_positive"] = industry_ok
-        g["leader_stock"] = leader_info["stock_name"]
-        g["leader_code"] = leader_info["stock_code"]
-        g["leader_net_inflow"] = leader_info["net_inflow"]
-        g["group_total_inflow"] = leader_info.get("group_total_inflow", 0)
-        g["group_total_cap"] = leader_info.get("group_total_cap", 0)
-        g["group_stock_count"] = leader_info.get("group_stock_count", 0)
-        g["daily_inflow"] = leader_info.get("daily_inflow", [])
-        g["kg_stock_groups"] = leader_info.get("kg_stock_groups", [])
-        # 评分：宏观+行业各1分，龙头净流入作为排序权重
-        g["_filter_score"] = int(macro_ok) + int(industry_ok)
+        logic_text = g.get("group_logic", "") or ""
+        logic_detail = min(len(logic_text) / 80.0, 2.0)  # 详细度 0~2
+        logic_confirm = int(macro_ok) + int(industry_ok)  # 确认度 0~2
+        logic_score = logic_detail + logic_confirm  # 0~4
+
+        # 综合分 = 提及频次 * 0.4 + 研报密度 * 0.3 + 逻辑清晰度 * 0.3
+        # 归一化: 先记录原始值，排序时再算
+        g["_mention_count"] = mention_count
+        g["_research_count"] = research_count
+        g["_logic_score"] = logic_score
         scored.append(g)
 
-    # ── 3. 按评分降序 → 同分按龙头净流入降序，取 Top 12 ──
-    scored.sort(key=lambda x: (x["_filter_score"], x.get("leader_net_inflow", 0)), reverse=True)
-    return scored[:12]
+    if not scored:
+        return []
+
+    # 归一化后加权
+    max_mention = max(g["_mention_count"] for g in scored) or 1
+    max_research = max(g["_research_count"] for g in scored) or 1
+    max_logic = max(g["_logic_score"] for g in scored) or 1
+
+    for g in scored:
+        g["_composite_score"] = (
+            (g["_mention_count"] / max_mention) * 0.4 +
+            (g["_research_count"] / max_research) * 0.3 +
+            (g["_logic_score"] / max_logic) * 0.3
+        )
+
+    # ── 3. 按综合分降序，取 Top 10 ──
+    scored.sort(key=lambda x: x["_composite_score"], reverse=True)
+    return scored[:10]
 
 
 def _merge_similar_groups(groups):
@@ -582,6 +627,42 @@ def _merge_similar_groups(groups):
         })
     return merged if merged else groups
 
+
+def _count_distinct_mentions(tags, days):
+    """统计标签在给定时间段内被多少篇不同的 source 提及（DISTINCT source_id 去重，与热力图一致）"""
+    from utils.db_utils import execute_cloud_query
+    if not tags:
+        return 0
+    all_source_ids = set()
+    for tag in tags:
+        rows = execute_cloud_query(
+            """SELECT DISTINCT source_id FROM daily_intel_stocks
+               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND industry LIKE %s
+                 AND source_id IS NOT NULL""",
+            [days, f"%{tag}%"],
+        ) or []
+        for r in rows:
+            all_source_ids.add(r["source_id"])
+    return len(all_source_ids)
+
+
+def _count_research_density(tags, days):
+    """统计标签在给定时间段内关联的研报/资讯数量（source_documents 中标题包含标签的文档数）"""
+    from utils.db_utils import execute_cloud_query
+    if not tags:
+        return 0
+    all_doc_ids = set()
+    for tag in tags:
+        rows = execute_cloud_query(
+            """SELECT DISTINCT id FROM source_documents
+               WHERE publish_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+                 AND title LIKE %s""",
+            [days, f"%{tag}%"],
+        ) or []
+        for r in rows:
+            all_doc_ids.add(r["id"])
+    return len(all_doc_ids)
 
 def _check_macro_positive(tags, days):
     """检查标签是否出现在近N天宏观利好新闻中"""

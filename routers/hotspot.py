@@ -318,7 +318,7 @@ def get_tag_clusters(days: int = 7) -> list:
             g["has_research"] = bool(history)
             if history:
                 g["last_research_date"] = str(history[0].get("created_at", ""))[:10]
-        return groups[:12]
+        return groups[:10]
     except Exception:
         return []
 
