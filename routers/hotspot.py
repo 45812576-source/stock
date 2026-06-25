@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_query, execute_insert, execute_cloud_query, execute_cloud_insert
 from utils.auth_deps import get_current_user, get_optional_user, TokenData
 from utils.quota_service import check_quota, consume_quota
 from hotspot.chat_handler import get_chat_history, submit_chat_message, get_pending_reply, ensure_chat_greeting
@@ -647,12 +647,14 @@ _HEAT_TREND_SYSTEM_PROMPT = """\
 
 ## 两个分类维度
 
-### 维度一：行业板块（按产业链归并）
-- 仅合并"名称不同但指向同一细分赛道"的标签
-  - 合并：  "光模块" 和 "光通信模块" → "光模块"
-  - 合并：  "汽车零部件/热管理" 和 "汽车热管理" → "汽车热管理"
-  - 不合并："半导体设备" 和 "半导体材料" → 各自独立（虽同属半导体产业链，但细分赛道不同）
-  - 不合并："光模块" 和 "光伏" → 各自独立
+### 维度一：行业板块（按产业链级别归并）
+- 将同属一条产业链的所有细分赛道标签合并到统一的产业链级板块名下
+  - 合并："半导体设备"、"半导体材料"、"半导体代工"、"半导体封测"、"芯片设计" → 统一归入 "半导体"
+  - 合并："光模块"、"光通信模块"、"光纤光缆" → 统一归入 "光通信"
+  - 合并："汽车零部件"、"汽车热管理"、"汽车电子" → 统一归入 "汽车零部件"
+  - 合并："锂电池"、"正极材料"、"电解液"、"隔膜" → 统一归入 "锂电池"
+  - 不合并："光通信" 和 "光伏" → 各自独立（不同产业链）
+  - 不合并："半导体" 和 "消费电子" → 各自独立
 
 ### 维度二：概念板块（按投资主题归并）
 - 将不同产业链但共享同一投资逻辑/驱动因素的标签，额外归入概念板块
@@ -663,19 +665,19 @@ _HEAT_TREND_SYSTEM_PROMPT = """\
 
 ## 规则
 
-1. **行业归并判断标准**：只有当两个标签描述的是完全相同的细分赛道（仅措辞/格式不同）时才合并。有实质性业务差异的保持独立。
+1. **行业归并判断标准**：属于同一产业链的标签统一合并。判断标准是是否在同一条供应链/价值链上。产业链内部的细分差异（如上游材料 vs 中游制造 vs 下游应用）在此维度不做区分，全部归入产业链级名称。
 
 2. **概念板块判断标准**：存在共同的宏观驱动因素（政策、技术趋势、资金逻辑）的标签，归入同一概念板块。概念板块名应体现投资主题（如"AI基建"、"国产替代"、"出海"）。
 
 3. **命名规范**：
-   - 行业板块名用该细分赛道最常用的简称，≤6字
+   - 行业板块名用该产业链最常用的简称，≤6字
    - 概念板块名用市场公认的主题投资名称，≤6字
    - 不加"概念"、"板块"等后缀
 
 4. **特殊处理**：
    - "宏观"、"宏观策略"、"宏观政策" → 归入行业板块 "宏观策略"
    - 无法归类的保留原名作为独立行业板块
-   - 不强制设数量上限，有多少细分就保留多少
+   - 产业链级板块数量一般不超过 30 个（合并粒度要足够粗）
 
 ## 输出格式
 
@@ -753,19 +755,20 @@ def _refresh_heat_trend_worker():
 
 def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict):
     """计算并缓存指定天数的热力图数据（行业视角 + 概念视角）"""
-    from utils.db_utils import execute_cloud_query, execute_query, execute_insert
+    from utils.db_utils import execute_cloud_query, execute_cloud_insert
     from datetime import datetime as dt, timedelta
 
     today = dt.now().date()
     dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+    start_date = dates[0]  # 与展示范围对齐
 
     # 从 daily_intel_stocks 取原始数据（source_id 去重）
     rows = execute_cloud_query(
         """SELECT industry, DATE(scan_date) as day, source_id
            FROM daily_intel_stocks
-           WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+           WHERE scan_date >= %s
              AND industry IS NOT NULL AND industry != ''""",
-        [days],
+        [start_date],
     ) or []
 
     # ═══ 行业视角 ═══
@@ -827,10 +830,10 @@ def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict)
         "heat_map": {c: concept_heat[c] for c in sorted_concepts},
     }
 
-    # 写入缓存
+    # 写入缓存（云端）
     for key, data in [(f"sector_{days}", sector_result), (f"concept_{days}", concept_result)]:
-        execute_query("DELETE FROM heat_trend_cache WHERE cache_key=%s", [key])
-        execute_insert(
+        execute_cloud_insert("DELETE FROM heat_trend_cache WHERE cache_key=%s", [key])
+        execute_cloud_insert(
             "INSERT INTO heat_trend_cache (cache_key, cache_data, computed_at) VALUES (%s, %s, NOW())",
             [key, json.dumps(data, ensure_ascii=False)],
         )
@@ -848,7 +851,7 @@ def api_heat_trend(days: int = 7, view: str = "sector"):
     """获取热力图数据（行业视角 or 概念视角）"""
     cache_key = f"{view}_{days}"
     try:
-        rows = execute_query(
+        rows = execute_cloud_query(
             "SELECT cache_data, computed_at FROM heat_trend_cache WHERE cache_key=%s",
             [cache_key],
         )
@@ -872,6 +875,7 @@ def api_heat_trend_stocks(sector: str = "", concept: str = "", days: int = 7):
     try:
         today = dt.now().date()
         dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+        start_date = dates[0]  # 与展示范围对齐
 
         # 确定要查的原始行业列表（从云端 mapping 表读取）
         if sector:
@@ -897,11 +901,11 @@ def api_heat_trend_stocks(sector: str = "", concept: str = "", days: int = 7):
         rows = execute_cloud_query(
             f"""SELECT stock_name, stock_code, DATE(scan_date) as day, source_id
                FROM daily_intel_stocks
-               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+               WHERE scan_date >= %s
                  AND industry IN ({placeholders})
                  AND stock_name IS NOT NULL AND stock_name != ''
                  AND stock_name != '宏观'""",
-            [days] + raw_list,
+            [start_date] + raw_list,
         ) or []
 
         # 按个股统计（source_id 去重）
@@ -938,6 +942,78 @@ def api_heat_trend_stocks(sector: str = "", concept: str = "", days: int = 7):
 
     except Exception as e:
         logger.warning(f"heat-trend-stocks 失败: {e}")
+        return {"ok": False, "msg": str(e)}
+
+
+@router.get("/api/heat-trend-stock-detail", response_class=JSONResponse)
+def api_heat_trend_stock_detail(stock_name: str, stock_code: str = "", days: int = 7):
+    """个股穿透：返回个股概况 + 关联原文摘要列表"""
+    from utils.db_utils import execute_cloud_query
+    from datetime import datetime as dt, timedelta
+
+    try:
+        # 1) 从 daily_intel_stocks 获取该股近 N 天的所有记录
+        today = dt.now().date()
+        start_date = (today - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+        rows = execute_cloud_query(
+            """SELECT stock_name, stock_code, industry, business_desc,
+                      event_type, event_summary, source_id, scan_date
+               FROM daily_intel_stocks
+               WHERE stock_name = %s
+                 AND scan_date >= %s
+               ORDER BY scan_date DESC""",
+            [stock_name, start_date],
+        ) or []
+
+        if not rows:
+            return {"ok": False, "msg": "暂无该个股数据"}
+
+        # 2) 汇总个股概况（取最新一条的 business_desc）
+        profile = {
+            "name": stock_name,
+            "code": rows[0].get("stock_code") or stock_code,
+            "industry": rows[0].get("industry") or "",
+            "business_desc": rows[0].get("business_desc") or "",
+        }
+
+        # 3) 收集所有 source_id 去重
+        source_ids = list({r["source_id"] for r in rows if r.get("source_id")})
+
+        # 4) 查原文标题 + 摘要前 500 字
+        sources = []
+        if source_ids:
+            placeholders = ",".join(["%s"] * len(source_ids))
+            src_rows = execute_cloud_query(
+                f"""SELECT id, title, doc_type, LEFT(extracted_text, 500) as preview,
+                           publish_date
+                    FROM source_documents
+                    WHERE id IN ({placeholders})
+                    ORDER BY publish_date DESC""",
+                source_ids,
+            ) or []
+            for sr in src_rows:
+                sources.append({
+                    "source_id": sr["id"],
+                    "title": sr.get("title") or "",
+                    "doc_type": sr.get("doc_type") or "",
+                    "preview": sr.get("preview") or "",
+                    "publish_date": str(sr["publish_date"])[:10] if sr.get("publish_date") else "",
+                })
+
+        # 5) 事件列表（每条 intel 记录）
+        events = []
+        for r in rows:
+            events.append({
+                "event_type": r.get("event_type") or "",
+                "event_summary": r.get("event_summary") or "",
+                "source_id": r.get("source_id"),
+                "scan_date": str(r["scan_date"])[:10] if r.get("scan_date") else "",
+            })
+
+        return {"ok": True, "data": {"profile": profile, "events": events, "sources": sources}}
+
+    except Exception as e:
+        logger.warning(f"heat-trend-stock-detail 失败: {e}")
         return {"ok": False, "msg": str(e)}
 
 
@@ -992,55 +1068,74 @@ def api_daily_intel_baskets(days: int = 7):
 
 
 @router.get("/api/daily-intel-industry", response_class=JSONResponse)
-def api_daily_intel_industry(days: int = 7):
-    """细分行业热度：daily_intel_stocks.industry 按天统计，格式[一级-二级]"""
+def api_daily_intel_industry(days: int = 7, sector: str = ""):
+    """细分行业热度：daily_intel_stocks.industry 按天统计，格式[一级-二级]。支持 sector 参数过滤合并行业下的细分"""
     try:
         from config.chain_config import CHAINS, CHAIN_ORDER
         from utils.db_utils import execute_cloud_query
         from datetime import datetime, timedelta
 
+        today = datetime.now().date()
+        start_date = (today - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
+
+        # 如果指定了 sector，查其对应的 raw_industry 列表
+        raw_filter = None
+        if sector:
+            map_rows = execute_cloud_query(
+                "SELECT raw_industry FROM industry_merge_map WHERE sector_name=%s",
+                [sector],
+            )
+            raw_filter = set(r["raw_industry"] for r in map_rows) if map_rows else {sector}
+
         rows = execute_cloud_query(
-            """SELECT stock_name, stock_code, DATE(scan_date) AS day,
-                      GROUP_CONCAT(DISTINCT source_id) AS source_ids
+            """SELECT stock_name, stock_code, industry, DATE(scan_date) AS day,
+                      source_id
                FROM daily_intel_stocks
-               WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-                 AND stock_name IS NOT NULL AND stock_name != ''
-               GROUP BY stock_name, stock_code, DATE(scan_date)""",
-            [days],
+               WHERE scan_date >= %s
+                 AND stock_name IS NOT NULL AND stock_name != ''""",
+            [start_date],
         ) or []
+
+        # 如果有 raw_filter，只保留匹配的行
+        if raw_filter:
+            rows = [r for r in rows if r.get("industry", "").strip() in raw_filter]
 
         # 构建 stock_name -> chain-tier 映射
         stock_to_industry = {}
         for chain_name in CHAIN_ORDER:
             chain = CHAINS.get(chain_name, {})
             for tier_key, tier in chain.get("tiers", {}).items():
-                label = tier.get("label", tier_key)  # 直接用细分产业链描述
+                label = tier.get("label", tier_key)
                 for sname in tier.get("stocks", []):
                     if sname not in stock_to_industry:
                         stock_to_industry[sname] = label
 
-        # 按 (industry_label, day) 收集 DISTINCT source_id，再 len()
-        today = datetime.now().date()
-        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days - 1, -1, -1)]
-
+        # 按 (industry_label, day) 收集 DISTINCT source_id
         industry_day_sources = {}  # {label: {day: set(source_id)}}
         for r in rows:
             name = r["stock_name"]
             label = stock_to_industry.get(name)
             if not label:
-                continue
+                # 如果没有 chain 映射，用原始 industry 字段作为细分标签
+                label = r.get("industry", "").strip() or "其他"
             day = str(r["day"])[:10]
-            ids = {s for s in (r.get("source_ids") or "").split(",") if s}
             if label not in industry_day_sources:
                 industry_day_sources[label] = {}
             if day not in industry_day_sources[label]:
                 industry_day_sources[label][day] = set()
-            industry_day_sources[label][day].update(ids)
+            industry_day_sources[label][day].add(r["source_id"])
 
         industry_day = {}
         for label, day_sources in industry_day_sources.items():
-            daily = {day: len(src_ids) for day, src_ids in day_sources.items()}
-            industry_day[label] = {"daily": daily, "total": sum(daily.values())}
+            daily = {}
+            total = 0
+            for d in dates:
+                cnt = len(day_sources.get(d, set()))
+                daily[d] = cnt
+                total += cnt
+            if total > 0:
+                industry_day[label] = {"daily": daily, "total": total}
 
         industries = sorted(
             [{"name": k, "total": v["total"], "daily": v["daily"], "ai_direction": "neutral"}

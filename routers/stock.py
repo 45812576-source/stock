@@ -738,6 +738,53 @@ async def api_run_research_step(request: Request, stock_code: str,
                          "message": f"正在重跑 {step} 板块"})
 
 
+@router.post("/{stock_code}/api/save-vc-layout")
+async def api_save_vc_layout(request: Request, stock_code: str):
+    """保存产业链画布的节点位置布局
+
+    Body JSON: {"report_id": 43, "layout": {"vc-up-0": {"x": 12, "y": 12}, ...}}
+    位置写入 deep_research.report_json 的 report.value_chain.node_layout
+    """
+    body = await request.json()
+    report_id = body.get("report_id")
+    layout = body.get("layout")
+
+    if not report_id or not isinstance(layout, dict):
+        return JSONResponse({"error": "缺少 report_id 或 layout"}, status_code=400)
+
+    # 校验坐标，避免写入异常数据
+    clean = {}
+    for nid, pos in layout.items():
+        if isinstance(pos, dict) and isinstance(pos.get("x"), (int, float)) \
+                and isinstance(pos.get("y"), (int, float)):
+            clean[str(nid)] = {"x": round(float(pos["x"]), 1),
+                               "y": round(float(pos["y"]), 1)}
+
+    rows = execute_query(
+        "SELECT report_json FROM deep_research WHERE id=? AND target=?",
+        [report_id, stock_code],
+    )
+    if not rows or not rows[0].get("report_json"):
+        return JSONResponse({"error": "报告不存在"}, status_code=404)
+
+    try:
+        data = json.loads(rows[0]["report_json"])
+    except Exception:
+        return JSONResponse({"error": "报告数据损坏"}, status_code=500)
+
+    body_data = data.get("report", data) if isinstance(data, dict) else {}
+    vc = body_data.get("value_chain")
+    if not isinstance(vc, dict):
+        return JSONResponse({"error": "报告无产业链数据"}, status_code=400)
+    vc["node_layout"] = clean
+
+    execute_insert(
+        "UPDATE deep_research SET report_json=? WHERE id=?",
+        [json.dumps(data, ensure_ascii=False), report_id],
+    )
+    return JSONResponse({"ok": True, "count": len(clean)})
+
+
 
     """触发深度研究（后台执行）"""
     from research.deep_researcher import deep_research_stock

@@ -108,7 +108,7 @@
 
 <!-- 综合热度趋势 V2 -->
 <div class="mb-8">
-  <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50 relative overflow-hidden">
+  <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50 relative">
     <div class="flex justify-between items-center mb-4">
       <div>
         <h2 class="font-bold flex items-center gap-2">
@@ -159,31 +159,26 @@
   </div>
 </div>
 
-<!-- 细分行业热度 -->
-<div class="mb-8" id="industry-heatmap-section">
-  <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50">
-    <div class="flex justify-between items-center mb-4">
-      <div>
-        <h2 class="font-bold flex items-center gap-2">
-          <span class="material-icons-round text-teal-400">view_comfy</span>
-          细分行业热度
-        </h2>
-        <p class="text-xs text-slate-500">产业链-分层 × 天 · Daily Intel 提及次数</p>
-      </div>
-      <div class="flex items-center gap-3">
-        <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50" id="industry-days-tab">
-          <button onclick="loadIndustryHeatmap(7)" data-days="7" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white">近7天</button>
-          <button onclick="loadIndustryHeatmap(15)" data-days="15" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近15天</button>
-          <button onclick="loadIndustryHeatmap(30)" data-days="30" class="industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300">近30天</button>
-        </div>
-        <div id="industry-heatmap-loading" class="text-xs text-slate-500 flex items-center gap-1 hidden">
-          <span class="material-icons-round text-sm animate-spin">refresh</span>
-        </div>
-      </div>
+<!-- 穿透弹窗：个股详情 -->
+<div id="stock-detail-modal" class="fixed inset-0 z-[60] hidden">
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeStockDetail()"></div>
+  <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-3xl max-h-[85vh] bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+    <div class="flex justify-between items-center p-4 border-b border-slate-700/50">
+      <h3 class="font-bold text-sm flex items-center gap-2">
+        <span class="material-icons-round text-green-400 text-lg">analytics</span>
+        <span id="stock-detail-title">个股详情</span>
+      </h3>
+      <button onclick="closeStockDetail()" class="text-slate-500 hover:text-white transition-colors">
+        <span class="material-icons-round">close</span>
+      </button>
     </div>
-    <div id="industry-heatmap-chart"></div>
+    <div class="flex-1 overflow-auto p-4 space-y-4" id="stock-detail-content">
+      <div class="flex items-center justify-center text-slate-500 text-sm py-20">加载中...</div>
+    </div>
   </div>
 </div>
+
+<!-- 细分行业热度已移入综合热度趋势的行业穿透弹窗中 -->
 
 <!-- Recommended Tag Clusters -->
 <div class="mb-10">
@@ -348,8 +343,13 @@ async function loadHeatTrend(days) {
       : 'trend-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300';
   });
   const el = document.getElementById('freq-chart');
+  if (!el) return;
   el.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
   try {
+    if (typeof Plotly === 'undefined') {
+      el.innerHTML = '<p class="text-center text-red-400 text-sm py-20">Plotly 未加载，请刷新页面</p>';
+      return;
+    }
     const resp = await fetch(`/hotspot/api/heat-trend?days=${days}&view=${_heatView}`).then(r => r.json());
     if (!resp.ok || !resp.data) {
       el.innerHTML = `<p class="text-center text-slate-500 text-sm py-20">${resp.msg || '暂无数据，请点击刷新按钮'}</p>`;
@@ -358,7 +358,13 @@ async function loadHeatTrend(days) {
     const { dates, tags, heat_map: heatMap } = resp.data;
     if (!tags || !tags.length) { el.innerHTML = '<p class="text-center text-slate-500 text-sm py-20">暂无数据，请点击刷新按钮</p>'; return; }
 
-    const yLabels = tags.slice().reverse();
+    // 按合计降序取 Top 20
+    const sorted = tags.slice().sort((a, b) => ((heatMap[b]||{}).total||0) - ((heatMap[a]||{}).total||0)).slice(0, 20);
+    const yLabels = sorted.slice().reverse(); // 热力图从下到上：最高在上
+
+    // 横轴：日期 + 合计列
+    const xLabels = dates.map(d => d.slice(5)).concat(['合计']);
+
     const zDaily = [], hoverDaily = [];
     for (const tag of yLabels) {
       const tagData = heatMap[tag] || {};
@@ -370,12 +376,15 @@ async function loadHeatTrend(days) {
         row.push(val);
         textRow.push(tag + '<br>' + d + '<br>文章数: ' + val + '篇  合计: ' + total + '篇');
       }
+      // 追加合计列
+      row.push(total);
+      textRow.push(tag + '<br>合计: ' + total + '篇');
       zDaily.push(row);
       hoverDaily.push(textRow);
     }
 
     const traceDaily = {
-      z: zDaily, x: dates.map(d => d.slice(5)), y: yLabels,
+      z: zDaily, x: xLabels, y: yLabels,
       type: 'heatmap',
       colorscale: [[0,'#1a2233'],[0.01,'#1e3a5f'],[0.15,'#135bec44'],[0.4,'#135bec'],[0.7,'#f97316'],[1,'#ef4444']],
       hoverinfo: 'text', text: hoverDaily, showscale: true,
@@ -391,15 +400,19 @@ async function loadHeatTrend(days) {
       height: chartH,
     }, { displayModeBar: false, responsive: true });
 
-    // 点击 Y 轴标签穿透
+    // 点击穿透：行业视图→细分行业，概念视图→个股
     document.getElementById('freq-chart').on('plotly_click', function(eventData) {
       if (eventData.points && eventData.points[0]) {
         const clickedTag = eventData.points[0].y;
-        openStockDrill(clickedTag);
+        if (_heatView === 'sector') {
+          openSubIndustryDrill(clickedTag);
+        } else {
+          openStockDrill(clickedTag);
+        }
       }
     });
 
-  } catch(e) { el.innerHTML = '<p class="text-center text-red-400 text-sm py-20">加载失败</p>'; console.error(e); }
+  } catch(e) { el.innerHTML = `<p class="text-center text-red-400 text-sm py-20">加载失败: ${e.message || e}</p>`; console.error('loadHeatTrend error:', e); }
 }
 
 async function refreshHeatTrend() {
@@ -411,13 +424,13 @@ async function refreshHeatTrend() {
   try {
     const resp = await fetch('/hotspot/api/refresh-heat-trend', { method: 'POST' }).then(r => r.json());
     showToast(resp.msg || '刷新已触发');
-    // 轮询等待结果
+    // 轮询等待结果后自动渲染
     setTimeout(async () => {
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 15; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const check = await fetch(`/hotspot/api/heat-trend?days=${_heatDays}&view=${_heatView}`).then(r => r.json());
         if (check.ok && check.data && check.data.tags && check.data.tags.length) {
-          loadHeatTrend(_heatDays);
+          await loadHeatTrend(_heatDays);
           showToast('热度数据已更新');
           break;
         }
@@ -425,12 +438,83 @@ async function refreshHeatTrend() {
       btn.disabled = false;
       icon.classList.remove('animate-spin');
       btn.classList.remove('opacity-50');
-    }, 3000);
+    }, 2000);
   } catch(e) {
     showToast('刷新失败: ' + e.message, true);
     btn.disabled = false;
     icon.classList.remove('animate-spin');
     btn.classList.remove('opacity-50');
+  }
+}
+
+async function openSubIndustryDrill(sectorName) {
+  const modal = document.getElementById('stock-drill-modal');
+  const container = document.getElementById('drill-chart-container');
+  const title = document.getElementById('drill-title');
+  modal.classList.remove('hidden');
+  title.textContent = sectorName + ' · 细分行业热度';
+  container.innerHTML = '<div class="flex items-center justify-center text-slate-500 text-sm py-20"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
+
+  try {
+    const resp = await fetch(`/hotspot/api/daily-intel-industry?days=${_heatDays}&sector=${encodeURIComponent(sectorName)}`).then(r => r.json());
+    const industries = resp.industries || [];
+    const dates = resp.dates || [];
+    if (!industries.length || !dates.length) {
+      container.innerHTML = '<p class="text-center text-slate-500 text-sm py-20">该板块下暂无细分行业数据</p>';
+      return;
+    }
+
+    // 按合计降序
+    industries.sort((a, b) => (b.total || 0) - (a.total || 0));
+    const yLabels = industries.map(ind => ind.name).reverse();
+    const xLabels = dates.map(d => d.slice(5)).concat(['合计']);
+
+    const zMatrix = [], hoverMatrix = [];
+    for (let yi = industries.length - 1; yi >= 0; yi--) {
+      const ind = industries[yi];
+      const row = [], hoverRow = [];
+      let total = 0;
+      for (const d of dates) {
+        const cnt = (ind.daily || {})[d] || 0;
+        row.push(cnt);
+        total += cnt;
+        hoverRow.push(`${ind.name}<br>${d}<br>chunk数: ${cnt}  合计: ${ind.total || total}`);
+      }
+      row.push(ind.total || total);
+      hoverRow.push(`${ind.name}<br>合计: ${ind.total || total}`);
+      zMatrix.push(row);
+      hoverMatrix.push(hoverRow);
+    }
+
+    const trace = {
+      z: zMatrix, x: xLabels, y: yLabels,
+      type: 'heatmap',
+      colorscale: [[0,'#1a2233'],[0.01,'#1e3a5f'],[0.2,'#135bec44'],[0.5,'#135bec'],[0.8,'#f97316'],[1,'#ef4444']],
+      hoverinfo: 'text', text: hoverMatrix, showscale: true,
+      colorbar: { title: { text: 'chunk数', font: { size: 10, color: '#94a3b8' } }, thickness: 10, len: 0.5, tickfont: { size: 9, color: '#64748b' }, x: 1.01 },
+    };
+    const chartH = Math.max(300, yLabels.length * 30 + 80);
+    Plotly.newPlot('drill-chart-container', [trace], {
+      margin: { t: 10, b: 40, l: 200, r: 60 },
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+      font: { color: '#94a3b8', size: 10 },
+      xaxis: { type: 'category', side: 'bottom', tickangle: -45, tickfont: { size: 9 }, gridcolor: 'rgba(100,116,139,0.08)' },
+      yaxis: { tickfont: { size: 10 }, gridcolor: 'rgba(100,116,139,0.08)', automargin: true },
+      height: chartH,
+    }, { displayModeBar: false, responsive: true });
+
+    // 点击细分行业穿透到个股
+    container.on('plotly_click', function(eventData) {
+      if (eventData.points && eventData.points[0]) {
+        const subIndustry = eventData.points[0].y;
+        closeStockDrill();
+        openStockDrill(subIndustry);
+      }
+    });
+
+  } catch(e) {
+    container.innerHTML = '<p class="text-center text-red-400 text-sm py-20">加载失败</p>';
+    console.error(e);
   }
 }
 
@@ -450,9 +534,14 @@ async function openStockDrill(tagName) {
       return;
     }
     const { dates, stocks, heat_map: heatMap } = resp.data;
-    const yLabels = stocks.map(s => s.name).reverse();
+    // 按合计降序
+    const sorted = stocks.slice().sort((a, b) => ((heatMap[b.name]||{}).total||0) - ((heatMap[a.name]||{}).total||0));
+    const yLabels = sorted.map(s => s.name).reverse(); // 热力图从下到上
     const stockCodes = {};
-    stocks.forEach(s => { stockCodes[s.name] = s.code; });
+    sorted.forEach(s => { stockCodes[s.name] = s.code; });
+
+    // 横轴：日期 + 合计列
+    const xLabels = dates.map(d => d.slice(5)).concat(['合计']);
 
     const zMatrix = [], hoverMatrix = [];
     for (const name of yLabels) {
@@ -464,12 +553,15 @@ async function openStockDrill(tagName) {
         row.push(val);
         hoverRow.push(`${name}(${stockCodes[name]})<br>${d}<br>文章数: ${val}篇  合计: ${total}篇`);
       }
+      // 追加合计列
+      row.push(total);
+      hoverRow.push(`${name}(${stockCodes[name]})<br>合计: ${total}篇`);
       zMatrix.push(row);
       hoverMatrix.push(hoverRow);
     }
 
     const trace = {
-      z: zMatrix, x: dates.map(d => d.slice(5)), y: yLabels,
+      z: zMatrix, x: xLabels, y: yLabels,
       type: 'heatmap',
       colorscale: [[0,'#1a2233'],[0.01,'#1e3a5f'],[0.2,'#135bec44'],[0.5,'#135bec'],[0.8,'#f97316'],[1,'#ef4444']],
       hoverinfo: 'text', text: hoverMatrix, showscale: true,
@@ -485,12 +577,12 @@ async function openStockDrill(tagName) {
       height: chartH,
     }, { displayModeBar: false, responsive: true });
 
-    // 点击个股跳转详情
+    // 点击个股穿透到详情
     container.on('plotly_click', function(eventData) {
       if (eventData.points && eventData.points[0]) {
         const stockName = eventData.points[0].y;
         const code = stockCodes[stockName];
-        if (code) window.location.href = `/stock/${code}`;
+        openStockDetail(stockName, code);
       }
     });
 
@@ -504,7 +596,85 @@ function closeStockDrill() {
   document.getElementById('stock-drill-modal').classList.add('hidden');
 }
 
-loadHeatTrend(7);
+function closeStockDetail() {
+  document.getElementById('stock-detail-modal').classList.add('hidden');
+}
+
+async function openStockDetail(stockName, stockCode) {
+  const modal = document.getElementById('stock-detail-modal');
+  const title = document.getElementById('stock-detail-title');
+  const content = document.getElementById('stock-detail-content');
+  modal.classList.remove('hidden');
+  title.textContent = `${stockName}${stockCode ? '(' + stockCode + ')' : ''} · 详情`;
+  content.innerHTML = '<div class="flex items-center justify-center text-slate-500 text-sm py-20"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
+
+  try {
+    const resp = await fetch(`/hotspot/api/heat-trend-stock-detail?stock_name=${encodeURIComponent(stockName)}&stock_code=${encodeURIComponent(stockCode||'')}&days=${_heatDays}`).then(r => r.json());
+    if (!resp.ok || !resp.data) {
+      content.innerHTML = `<p class="text-center text-slate-500 text-sm py-20">${resp.msg || '暂无数据'}</p>`;
+      return;
+    }
+    const { profile, events, sources } = resp.data;
+
+    let html = '';
+    // 个股概况卡片
+    html += `<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">`;
+    html += `<div class="flex items-center gap-3 mb-2">`;
+    html += `<span class="text-base font-bold text-white">${profile.name}</span>`;
+    html += `<span class="text-xs text-slate-400">${profile.code}</span>`;
+    html += `<span class="text-xs px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded">${profile.industry}</span>`;
+    html += `</div>`;
+    if (profile.business_desc) {
+      html += `<p class="text-sm text-slate-300">${profile.business_desc}</p>`;
+    }
+    html += `</div>`;
+
+    // 事件列表
+    if (events.length) {
+      html += `<div><h4 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-1"><span class="material-icons-round text-orange-400 text-sm">event_note</span>事件摘要 (${events.length})</h4>`;
+      html += `<div class="space-y-2">`;
+      for (const ev of events) {
+        html += `<div class="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">`;
+        html += `<div class="flex items-center gap-2 mb-1">`;
+        html += `<span class="text-xs px-1.5 py-0.5 bg-orange-500/20 text-orange-300 rounded">${ev.event_type || '未分类'}</span>`;
+        html += `<span class="text-xs text-slate-500">${ev.scan_date}</span>`;
+        html += `</div>`;
+        html += `<p class="text-xs text-slate-300 leading-relaxed">${ev.event_summary || ''}</p>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    // 原文摘要
+    if (sources.length) {
+      html += `<div><h4 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-1"><span class="material-icons-round text-green-400 text-sm">description</span>关联原文 (${sources.length})</h4>`;
+      html += `<div class="space-y-2">`;
+      for (const src of sources) {
+        html += `<div class="bg-slate-800/30 rounded-lg p-3 border border-slate-700/30">`;
+        html += `<div class="flex items-center gap-2 mb-1">`;
+        html += `<span class="text-xs px-1.5 py-0.5 bg-green-500/20 text-green-300 rounded">${src.doc_type || 'doc'}</span>`;
+        html += `<span class="text-xs text-slate-400 truncate flex-1" title="${src.title}">${src.title}</span>`;
+        html += `<span class="text-xs text-slate-500">${src.publish_date}</span>`;
+        html += `</div>`;
+        html += `<p class="text-xs text-slate-400 leading-relaxed whitespace-pre-wrap">${src.preview || '暂无预览'}</p>`;
+        html += `</div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    content.innerHTML = html;
+  } catch(e) {
+    content.innerHTML = '<p class="text-center text-red-400 text-sm py-20">加载失败</p>';
+    console.error(e);
+  }
+}
+
+// 确保 DOM 和 Plotly 完全就绪后再初始化热力图
+if (document.readyState === 'complete') {
+  loadHeatTrend(7);
+} else {
+  window.addEventListener('load', () => loadHeatTrend(7));
+}
 // ── 走马灯（产业链篮子）─────────────────────────────────────────
 async function loadMentionBaskets() {
   try {
@@ -594,96 +764,5 @@ async function removeFromPool(poolId, btn) {
 loadDiscoveryPool();
 
 // ── 细分行业热力图（Daily Intel）──────────────────────────────
-async function loadIndustryHeatmap(days) {
-  days = days || 7;
-  document.querySelectorAll('.industry-tab-btn').forEach(b => {
-    b.className = b.dataset.days == days
-      ? 'industry-tab-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white'
-      : 'industry-tab-btn px-3 py-1 text-xs font-bold rounded-md text-slate-500 hover:text-slate-300';
-  });
-  const loadingEl = document.getElementById('industry-heatmap-loading');
-  if (loadingEl) loadingEl.classList.remove('hidden');
-  try {
-    const data = await fetch('/hotspot/api/daily-intel-industry?days=' + days).then(r => r.json());
-    if (loadingEl) loadingEl.classList.add('hidden');
-    const industries = data.industries || [];
-    const dates = data.dates || [];
-    if (!industries.length || !dates.length) {
-      document.getElementById('industry-heatmap-chart').innerHTML =
-        '<p class="text-xs text-slate-600 py-8 text-center">暂无细分行业数据</p>';
-      return;
-    }
-
-    // 颜色：按 ai_direction 区分基础色调
-    const dirColor = { positive: '#ef4444', negative: '#10b981', neutral: '#135bec' };
-
-    // 构建 heatmap z 矩阵（Y=行业，X=日期）
-    const yLabels = industries.map(ind => ind.name).reverse();
-    const zMatrix = [];
-    const hoverMatrix = [];
-
-    for (let yi = industries.length - 1; yi >= 0; yi--) {
-      const ind = industries[yi];
-      const row = [], hoverRow = [];
-      for (const d of dates) {
-        const cnt = (ind.daily || {})[d] || 0;
-        row.push(cnt);
-        hoverRow.push(`${ind.name}<br>${d}<br>chunk数: ${cnt}`);
-      }
-      zMatrix.push(row);
-      hoverMatrix.push(hoverRow);
-    }
-
-    const traceHeatmap = {
-      z: zMatrix,
-      x: dates.map(d => d.slice(5)),
-      y: yLabels,
-      type: 'heatmap',
-      colorscale: [
-        [0, '#1a2233'],
-        [0.01, '#1e3a5f'],
-        [0.2, '#135bec44'],
-        [0.5, '#135bec'],
-        [0.8, '#f97316'],
-        [1, '#ef4444']
-      ],
-      hoverinfo: 'text',
-      text: hoverMatrix,
-      showscale: true,
-      colorbar: {
-        title: { text: 'chunk数', font: { size: 10, color: '#94a3b8' } },
-        thickness: 10,
-        len: 0.5,
-        tickfont: { size: 9, color: '#64748b' },
-        x: 1.01,
-      },
-    };
-
-    const chartH = industries.length * 30 + 80;  // 每行30px，不截断
-    Plotly.newPlot('industry-heatmap-chart', [traceHeatmap], {
-      margin: { t: 10, b: 40, l: 200, r: 60 },  // 左边距加宽，容纳完整产业链名称
-      paper_bgcolor: 'rgba(0,0,0,0)',
-      plot_bgcolor: 'rgba(0,0,0,0)',
-      font: { color: '#94a3b8', size: 10 },
-      xaxis: {
-        type: 'category',
-        side: 'bottom',
-        tickangle: -45,
-        tickfont: { size: 9 },
-        gridcolor: 'rgba(100,116,139,0.08)',
-      },
-      yaxis: {
-        tickfont: { size: 10 },
-        gridcolor: 'rgba(100,116,139,0.08)',
-        automargin: true,
-      },
-      height: chartH,
-    }, { displayModeBar: false, responsive: true });
-  } catch(e) {
-    if (loadingEl) loadingEl.innerHTML = '<span class="text-red-400">加载失败</span>';
-    console.error('行业热力图加载失败:', e);
-  }
-}
-loadIndustryHeatmap(7);
 </script>
 {% endblock %}

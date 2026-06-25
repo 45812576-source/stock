@@ -46,6 +46,14 @@
 .chain-node .node-label { font-size: 0.7rem; color: #64748b; margin-bottom: 4px; font-weight: 600; }
 .chain-node .node-players { font-size: 0.72rem; color: #94a3b8; font-weight: 600; margin-bottom: 2px; }
 .chain-node .node-desc { font-size: 0.7rem; color: #64748b; line-height: 1.4; }
+.chain-node.chain-down { text-align: right; }
+.chain-node.chain-down.active::after { right: auto; left: 8px; }
+.chain-node.vc-floating { position: absolute; width: 210px; box-sizing: border-box; padding-left: 26px; transition: box-shadow .15s; }
+.chain-node.chain-down.vc-floating { padding-left: 10px; padding-right: 26px; }
+.chain-node.vc-floating.vc-dragging { box-shadow: 0 8px 24px rgba(0,0,0,0.45); opacity: 0.92; z-index: 50; }
+.chain-node .vc-grip { position: absolute; top: 8px; left: 8px; color: #475569; font-size: 0.85rem; cursor: grab; user-select: none; line-height: 1; }
+.chain-node.chain-down .vc-grip { left: auto; right: 8px; }
+.chain-node .vc-grip:active { cursor: grabbing; }
 /* metrics */
 .metric-card { padding: 10px 12px; border-radius: 10px; background: rgba(100,116,139,0.06); }
 .metric-card .m-label { font-size: 0.65rem; color: #64748b; }
@@ -461,18 +469,30 @@
   {# 回退：无 segment_positions 时用旧的 company_position 整列高亮 #}
   {% set pos = vc.company_position or '' %}
 
-  {# (1) 产业链画布 — 按节点粒度高亮 #}
-  <div class="text-xs text-slate-500 font-semibold mb-2">产业链结构</div>
-  <div style="display:grid;grid-template-columns:1fr 24px 1fr 24px 1fr;gap:6px;align-items:start;margin-bottom:1rem">
-    {# 上游 #}
-    <div>
-      {% set upstream_list = vc.upstream if vc.upstream is iterable and vc.upstream is not mapping else ([vc.upstream] if vc.upstream else []) %}
-      {% for node in upstream_list %}
-      {% set nlbl = node.label or '上游' %}
+  {# (1) 产业链画布 — 自由拖动 + 层级联动 #}
+  {% set upstream_list = vc.upstream if vc.upstream is iterable and vc.upstream is not mapping else ([vc.upstream] if vc.upstream else []) %}
+  {% set midstream_list = vc.midstream if vc.midstream is iterable and vc.midstream is not mapping else ([vc.midstream] if vc.midstream else []) %}
+  {% set downstream_list = vc.downstream if vc.downstream is iterable and vc.downstream is not mapping else ([vc.downstream] if vc.downstream else []) %}
+  <div class="text-xs text-slate-500 font-semibold mb-2 flex items-center gap-2">
+    <span>产业链结构</span>
+    <span style="font-weight:400;color:#475569;font-size:0.6rem">拖动 ⠿ 移动节点 · 下游随上游联动</span>
+    <button type="button" id="vc-reset-layout" style="margin-left:auto;font-weight:400;font-size:0.6rem;color:#64748b;border:1px solid rgba(100,116,139,0.25);border-radius:5px;padding:1px 8px;background:transparent;cursor:pointer">重置布局</button>
+  </div>
+  <div id="vc-canvas" data-report-id="{{ report.id }}" data-stock="{{ stock_code }}"
+       data-layout='{{ (vc.node_layout or {}) | tojson }}'
+       style="position:relative;width:100%;min-height:440px;border:1px dashed rgba(100,116,139,0.15);border-radius:12px;margin-bottom:1rem;overflow:hidden">
+    {% set tiers = [('up', 0, '上游', upstream_list, '', 'upstream'),
+                    ('mid', 1, '中游', midstream_list, '', 'midstream'),
+                    ('down', 2, '下游', downstream_list, 'chain-down', 'downstream')] %}
+    {% for tkey, tidx, tcn, tlist, tcls, tpos in tiers %}
+      {% for node in tlist %}
+      {% set nlbl = node.label or tcn %}
       {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
-      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'upstream') %}
-      <div class="chain-node {{ 'active' if node_active }} mb-2"
-           draggable="true" data-chat-context="上游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
+      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == tpos) %}
+      <div class="chain-node vc-floating {{ tcls }} {{ 'active' if node_active }}"
+           data-node-id="vc-{{ tkey }}-{{ loop.index0 }}" data-tier="{{ tidx }}"
+           draggable="true" data-chat-context="{{ tcn }}-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
+        <span class="vc-grip" title="拖动移动节点">⠿</span>
         <div class="node-label">{{ nlbl }}</div>
         {% if node_segs %}
         <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
@@ -483,61 +503,13 @@
         <div class="node-desc">{{ node.description or '' }}</div>
       </div>
       {% else %}
-      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'upstream') }}">
-        <div class="node-label">上游</div>
+      <div class="chain-node vc-floating {{ tcls }} {{ 'active' if (not seg_positions and pos == tpos) }}"
+           data-node-id="vc-{{ tkey }}-0" data-tier="{{ tidx }}">
+        <span class="vc-grip" title="拖动移动节点">⠿</span>
+        <div class="node-label">{{ tcn }}</div>
       </div>
       {% endfor %}
-    </div>
-    <div class="chain-arrow" style="padding-top:20px">→</div>
-    {# 中游 #}
-    <div>
-      {% set midstream_list = vc.midstream if vc.midstream is iterable and vc.midstream is not mapping else ([vc.midstream] if vc.midstream else []) %}
-      {% for node in midstream_list %}
-      {% set nlbl = node.label or '中游' %}
-      {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
-      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'midstream') %}
-      <div class="chain-node {{ 'active' if node_active }} mb-2"
-           draggable="true" data-chat-context="中游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
-        <div class="node-label">{{ nlbl }}</div>
-        {% if node_segs %}
-        <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
-          {% for sn in node_segs %}★ {{ sn }}{% if not loop.last %} · {% endif %}{% endfor %}
-        </div>
-        {% endif %}
-        <div class="node-players">{{ node.players or '' }}</div>
-        <div class="node-desc">{{ node.description or '' }}</div>
-      </div>
-      {% else %}
-      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'midstream') }}">
-        <div class="node-label">中游</div>
-      </div>
-      {% endfor %}
-    </div>
-    <div class="chain-arrow" style="padding-top:20px">→</div>
-    {# 下游 #}
-    <div>
-      {% set downstream_list = vc.downstream if vc.downstream is iterable and vc.downstream is not mapping else ([vc.downstream] if vc.downstream else []) %}
-      {% for node in downstream_list %}
-      {% set nlbl = node.label or '下游' %}
-      {% set node_segs = seg_positions | selectattr('chain_node_label', 'equalto', nlbl) | map(attribute='segment_name') | list %}
-      {% set node_active = (node_segs | length > 0) or node.has_company_business or (not seg_positions and pos == 'downstream') %}
-      <div class="chain-node {{ 'active' if node_active }} mb-2"
-           draggable="true" data-chat-context="下游-{{ nlbl }}: {{ node.players or '' }} — {{ node.description or '' }}">
-        <div class="node-label">{{ nlbl }}</div>
-        {% if node_segs %}
-        <div style="font-size:0.65rem;color:#a78bfa;margin-top:2px">
-          {% for sn in node_segs %}★ {{ sn }}{% if not loop.last %} · {% endif %}{% endfor %}
-        </div>
-        {% endif %}
-        <div class="node-players">{{ node.players or '' }}</div>
-        <div class="node-desc">{{ node.description or '' }}</div>
-      </div>
-      {% else %}
-      <div class="chain-node {{ 'active' if (not seg_positions and pos == 'downstream') }}">
-        <div class="node-label">下游</div>
-      </div>
-      {% endfor %}
-    </div>
+    {% endfor %}
   </div>
   {% if vc.position_detail %}<p class="text-xs text-indigo-300 mb-3">{{ vc.position_detail }}</p>{% endif %}
 
@@ -2556,6 +2528,115 @@ const darkLayout = { paper_bgcolor: 'transparent', plot_bgcolor: 'transparent', 
 })();
 {% endif %}
 
+/* ── 产业链画布：自由拖动 + 层级联动 ── */
+let _vcInited = false;
+function initVcCanvas() {
+  const canvas = document.getElementById('vc-canvas');
+  if (!canvas || _vcInited) return;
+  _vcInited = true;
+
+  const nodes = Array.from(canvas.querySelectorAll('.vc-floating'));
+  if (!nodes.length) return;
+  const COL_W = 230, ROW_H = 150, PAD = 12;
+
+  // 已保存的布局（按 node-id 存绝对坐标）
+  let saved = {};
+  try { saved = JSON.parse(canvas.dataset.layout || '{}') || {}; } catch (e) { saved = {}; }
+
+  // 默认布局：按 tier 分三列，列内纵向排列
+  function defaultPos(node, idxInTier) {
+    const tier = parseInt(node.dataset.tier, 10) || 0;
+    return { x: PAD + tier * COL_W, y: PAD + idxInTier * ROW_H };
+  }
+
+  function resizeCanvas() {
+    let maxBottom = 0;
+    nodes.forEach(n => { maxBottom = Math.max(maxBottom, n.offsetTop + n.offsetHeight); });
+    canvas.style.minHeight = Math.max(440, maxBottom + PAD) + 'px';
+  }
+
+  const tierCounters = {};
+  nodes.forEach(node => {
+    const tier = node.dataset.tier;
+    tierCounters[tier] = (tierCounters[tier] || 0);
+    const id = node.dataset.nodeId;
+    const p = (saved[id] && typeof saved[id].x === 'number')
+      ? saved[id] : defaultPos(node, tierCounters[tier]);
+    tierCounters[tier]++;
+    node.style.left = p.x + 'px';
+    node.style.top = p.y + 'px';
+  });
+  resizeCanvas();
+
+  function currentLayout() {
+    const out = {};
+    nodes.forEach(n => { out[n.dataset.nodeId] = { x: n.offsetLeft, y: n.offsetTop }; });
+    return out;
+  }
+
+  let saveTimer = null;
+  function persist() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const reportId = canvas.dataset.reportId, stock = canvas.dataset.stock;
+      if (!reportId || !stock) return;
+      fetch('/stock/' + stock + '/api/save-vc-layout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ report_id: parseInt(reportId, 10), layout: currentLayout() })
+      }).catch(() => {});
+    }, 500);
+  }
+
+  // 拖动：抓 grip，按 tier 联动下游（同级及更下游一起移动）
+  let drag = null;
+  nodes.forEach(node => {
+    const grip = node.querySelector('.vc-grip');
+    if (!grip) return;
+    grip.addEventListener('mousedown', e => {
+      e.preventDefault();
+      const tier = parseInt(node.dataset.tier, 10) || 0;
+      const followers = nodes.filter(n => (parseInt(n.dataset.tier, 10) || 0) >= tier);
+      drag = {
+        startX: e.clientX, startY: e.clientY,
+        items: followers.map(n => ({ el: n, left: n.offsetLeft, top: n.offsetTop }))
+      };
+      followers.forEach(n => n.classList.add('vc-dragging'));
+      document.body.style.userSelect = 'none';
+    });
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+    drag.items.forEach(it => {
+      it.el.style.left = Math.max(0, it.left + dx) + 'px';
+      it.el.style.top = Math.max(0, it.top + dy) + 'px';
+    });
+  });
+  document.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag.items.forEach(it => it.el.classList.remove('vc-dragging'));
+    document.body.style.userSelect = '';
+    drag = null;
+    resizeCanvas();
+    persist();
+  });
+
+  // 重置布局
+  const resetBtn = document.getElementById('vc-reset-layout');
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    const counters = {};
+    nodes.forEach(node => {
+      const tier = node.dataset.tier;
+      counters[tier] = (counters[tier] || 0);
+      const p = defaultPos(node, counters[tier]); counters[tier]++;
+      node.style.left = p.x + 'px';
+      node.style.top = p.y + 'px';
+    });
+    resizeCanvas();
+    persist();
+  });
+}
+
 /* Tab switching */
 let currentReportTab = 'bm';
 function switchTab(key) {
@@ -2567,7 +2648,7 @@ function switchTab(key) {
   if (key === 'fin') { setTimeout(() => { const el = document.getElementById('revenue-chart'); if (el) Plotly.Plots.resize(el); }, 50); }
   if (key === 'bm') { setTimeout(() => { ['rev-pie-cur','rev-pie-prev','cust-pie','cost-pie-cur','cost-pie-prev'].forEach(id => { const el = document.getElementById(id); if (el) Plotly.Plots.resize(el); }); initKgGraph(); }, 50); }
   if (key === 'val') { setTimeout(() => { const el = document.getElementById('val-bar'); if (el) Plotly.Plots.resize(el); }, 50); }
-  if (key === 'vc') { setTimeout(renderPorterRadar, 50); }
+  if (key === 'vc') { setTimeout(() => { renderPorterRadar(); initVcCanvas(); }, 50); }
   if (key === 'sh') { setTimeout(renderSectorHeatCharts, 50); }
 }
 
@@ -2677,6 +2758,8 @@ function renderSectorHeatCharts() {
 
 /* 拖拽到Chatbot — 事件委托，覆盖动态渲染的元素 */
 document.addEventListener('dragstart', function(e) {
+  // 从 grip 起拖是「移动节点」，不触发拖入对话
+  if (e.target.closest('.vc-grip')) { e.preventDefault(); return; }
   const el = e.target.closest('[draggable="true"][data-chat-context]');
   if (!el) return;
   const ctx = el.dataset.chatContext || el.textContent.trim().slice(0, 200);
@@ -2702,7 +2785,7 @@ async function initKgGraph() {
   if (!window.d3) {
     await new Promise((res, rej) => {
       const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js';
+      s.src = '/static/vendor/d3/d3-v7.min.js';
       s.onload = res; s.onerror = rej;
       document.head.appendChild(s);
     });

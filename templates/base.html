@@ -5,14 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}个人股票分析系统{% endblock %}</title>
   <script src="/static/tailwind.min.js"></script>
-  <script src="/static/htmx.min.js"></script>
-  <script src="/static/plotly.min.js"></script>
-  <link rel="stylesheet" href="/static/flatpickr.min.css">
-  <script src="/static/flatpickr.min.js"></script>
-  <script src="/static/flatpickr-zh.js"></script>
-  <link href="/static/manrope.css" rel="stylesheet">
-  <link href="/static/material-icons-round.css" rel="stylesheet">
-  <link href="/static/material-symbols-outlined.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/vendor/flatpickr/flatpickr.min.css">
+  <link href="/static/vendor/fonts/manrope/google-manrope.css" rel="stylesheet">
+  <link href="/static/vendor/fonts/material-icons-round/google-material-icons-round.css" rel="stylesheet">
+  <link href="/static/vendor/fonts/material-symbols-outlined/google-material-symbols-outlined.css" rel="stylesheet">
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -161,6 +157,11 @@
     </main>
   </div>
 
+  <script src="/static/vendor/htmx/htmx-2.0.4.min.js"></script>
+  <script src="/static/vendor/plotly/plotly-2.35.0.min.js"></script>
+  <script src="/static/vendor/flatpickr/flatpickr.min.js"></script>
+  <script src="/static/vendor/flatpickr/l10n/zh.js"></script>
+
   {% block scripts %}{% endblock %}
 
   <script>
@@ -248,9 +249,12 @@
   }
 
   let _globalTaskPollTimer = null;
+  function _scheduleGlobalTaskPoll(delayMs) {
+    clearTimeout(_globalTaskPollTimer);
+    _globalTaskPollTimer = setTimeout(_pollGlobalTasks, delayMs);
+  }
 
   function _pollGlobalTasks() {
-    if (document.hidden) return;
     Promise.all([
       fetch('/stock/api/research-tasks').then(r => r.json()).catch(() => []),
       fetch('/hotspot/api/research-tasks').then(r => r.json()).catch(() => []),
@@ -283,26 +287,14 @@
           document.getElementById('dtw-list').innerHTML = dTasks.map(_renderDataTask).join('');
         }
       }
+      const hasRunning = [...allTasks, ...dTasks].some(t => t.status === 'running' || t.status === 'pending');
+      const hasVisibleTasks = allTasks.length > 0 || dTasks.length > 0;
+      _scheduleGlobalTaskPoll(hasRunning ? 3000 : (hasVisibleTasks ? 15000 : 30000));
+    }).catch(() => {
+      _scheduleGlobalTaskPoll(30000);
     });
   }
-
-  function _startGlobalTaskPolling() {
-    if (_globalTaskPollTimer) return;
-    _pollGlobalTasks();
-    _globalTaskPollTimer = setInterval(_pollGlobalTasks, 15000);
-  }
-
-  function _stopGlobalTaskPolling() {
-    if (!_globalTaskPollTimer) return;
-    clearInterval(_globalTaskPollTimer);
-    _globalTaskPollTimer = null;
-  }
-
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) _stopGlobalTaskPolling();
-    else _startGlobalTaskPolling();
-  });
-  _startGlobalTaskPolling();
+  window.addEventListener('load', () => _scheduleGlobalTaskPoll(1500));
 
   // 全局 toast 提示
   // 加载用户信息
