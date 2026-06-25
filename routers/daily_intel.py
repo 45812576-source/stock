@@ -328,13 +328,23 @@ def _process_manual_bg():
 # ── API: 扫描触发 / 状态 ──────────────────────────────────────────
 
 @router.post("/api/scan")
-async def api_scan(background_tasks: BackgroundTasks):
-    """手动触发全流程扫描（后台执行）"""
+async def api_scan(background_tasks: BackgroundTasks, request: Request):
+    """手动触发全流程扫描（后台执行，支持指定 scan_date）"""
     with _scan_lock:
         if _scan_status["running"]:
             return JSONResponse({"ok": False, "msg": "扫描正在进行中，请稍后"})
-    background_tasks.add_task(run_daily_intel_scan)
-    return JSONResponse({"ok": True, "msg": "扫描已启动，请稍后刷新查看结果"})
+    # 从请求体中读取 scan_date
+    scan_date_obj = None
+    try:
+        body = await request.json()
+        sd = body.get("scan_date", "")
+        if sd:
+            scan_date_obj = date.fromisoformat(sd)
+    except Exception:
+        pass
+    background_tasks.add_task(run_daily_intel_scan, scan_date_obj)
+    msg = f"扫描已启动({scan_date_obj or date.today()})，请稍后刷新查看结果"
+    return JSONResponse({"ok": True, "msg": msg})
 
 
 @router.get("/api/scan-status")

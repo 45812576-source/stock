@@ -463,7 +463,12 @@ async function triggerScan() {
   icon.classList.add('scan-badge');
   label.textContent = '扫描中...';
   try {
-    const r = await fetch('/daily-intel/api/scan', { method: 'POST' }).then(r => r.json());
+    const scanDate = document.getElementById('date-picker').value;
+    const r = await fetch('/daily-intel/api/scan', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({scan_date: scanDate})
+    }).then(r => r.json());
     if (r.ok) {
       label.textContent = '进行中';
       pollScanStatus();

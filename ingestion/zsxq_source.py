@@ -86,7 +86,7 @@ class ZsxqSource:
     # ── 主采集入口 ──
 
     def fetch(self, max_pages=50, hours=None, start_date=None, end_date=None,
-              progress_callback=None):
+              progress_callback=None, skip_heavy_types=False):
         """采集帖子并存入 source_documents
 
         Args:
@@ -143,7 +143,7 @@ class ZsxqSource:
                     logger.info("已到达时间窗口边界，停止翻页")
                     return _result(total_fetched, saved, skipped)
 
-                ok = self._save_topic(topic)
+                ok = self._save_topic(topic, skip_heavy_types=skip_heavy_types)
                 if ok:
                     saved += 1
                 else:
@@ -163,8 +163,10 @@ class ZsxqSource:
 
     # ── 单条保存到 source_documents ──
 
-    def _save_topic(self, topic):
-        """解析帖子，按内容类型存入 source_documents"""
+    def _save_topic(self, topic, skip_heavy_types=False):
+        """解析帖子，按内容类型存入 source_documents
+        skip_heavy_types: 若 True 则跳过 PDF/xlsx/audio 附件（白天反爬模式）
+        """
         topic_id = str(topic.get("topic_id") or topic.get("topic_uid", ""))
         if not topic_id:
             return False
@@ -185,7 +187,7 @@ class ZsxqSource:
             else:
                 # topic 本体已存在，但附件 PDF 可能需要刷新 oss_url，单独处理后返回
                 text = self._extract_text(topic)
-                files = self._extract_file_urls(topic)
+                files = self._extract_file_urls(topic) if not skip_heavy_types else []
                 if files:
                     author = topic.get("talk", {}).get("owner", {}).get("name", "")
                     create_time = topic.get("create_time", "")
@@ -239,7 +241,7 @@ class ZsxqSource:
         has_files = bool(files)
 
         # PDF/文件附件 → 每个文件单独一条记录
-        if has_files:
+        if has_files and not skip_heavy_types:
             for i, f in enumerate(files):
                 f_ext_id = f"{ext_id}_file{i}"
                 f_doc_id = abs(int(hashlib.md5(f_ext_id.encode()).hexdigest()[:15], 16))
@@ -626,7 +628,7 @@ def _result(fetched, saved, skipped):
 
 def fetch_zsxq_data(group_ids=None, token=None,
                     hours=None, start_date=None, end_date=None,
-                    max_pages=50, progress_callback=None):
+                    max_pages=50, progress_callback=None, skip_heavy_types=False):
     """一键采集知识星球数据到 source_documents，支持多星球
 
     Args:
@@ -646,7 +648,16 @@ def fetch_zsxq_data(group_ids=None, token=None,
         group_ids = ZSXQ_GROUP_IDS
     if isinstance(group_ids, str):
         group_ids = [group_ids]
-    tk = token or ZSXQ_COOKIE
+    # 优先从云端 system_config 读取最新 token
+    if not token:
+        try:
+            from utils.db_utils import execute_cloud_query as _cq
+            _rows = _cq("SELECT value FROM system_config WHERE config_key='zsxq_cookie'") or []
+            tk = (_rows[0]['value'] if _rows else '') or ZSXQ_COOKIE
+        except Exception:
+            tk = ZSXQ_COOKIE
+    else:
+        tk = token
     if not tk:
         raise ValueError("未配置 ZSXQ token，请在 config.py 或环境变量中设置 ZSXQ_COOKIE")
 
@@ -659,6 +670,7 @@ def fetch_zsxq_data(group_ids=None, token=None,
             start_date=start_date,
             end_date=end_date,
             progress_callback=progress_callback,
+            skip_heavy_types=skip_heavy_types,
         )
         for k in total:
             total[k] += result.get(k, 0)
