@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import akshare as ak
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
@@ -1021,6 +1021,157 @@ def api_watchlist_auto_add(body: dict):
         "tier_key": tier_key,
         "tier_label": result.get("tier_label", ""),
         "is_new": result.get("is_new", False),
+    }
+
+
+# ── 产业链认知 Baseline / Diff API ──────────────────────────
+
+import threading
+_baseline_tasks: dict = {}
+
+
+@router.get("/{name}/api/baseline")
+def api_get_baseline(name: str):
+    """获取最新 Baseline"""
+    from chain.chain_baseline import get_latest_baseline
+    bl = get_latest_baseline(name)
+    if not bl:
+        return {"ok": True, "has_baseline": False}
+    return {
+        "ok": True,
+        "has_baseline": True,
+        "version": bl["version"],
+        "baseline": bl["baseline_json"],
+        "source_summary": bl.get("source_summary", ""),
+        "created_at": str(bl.get("created_at", ""))[:19],
+    }
+
+
+@router.get("/{name}/api/baseline/history")
+def api_baseline_history(name: str):
+    """版本历史列表"""
+    from chain.chain_baseline import get_baseline_history
+    history = get_baseline_history(name)
+    for h in history:
+        h["created_at"] = str(h.get("created_at", ""))[:19]
+    return {"ok": True, "history": history}
+
+
+@router.post("/{name}/api/baseline/generate")
+def api_generate_baseline(name: str, background_tasks: BackgroundTasks):
+    """首次生成或重建 Baseline（后台任务）"""
+    task_id = f"bl_{name}_{int(time.time())}"
+    if any(t.get("status") == "running" and t.get("chain") == name for t in _baseline_tasks.values()):
+        return JSONResponse({"ok": False, "error": "该产业链已有任务运行中"}, status_code=409)
+
+    _baseline_tasks[task_id] = {"status": "running", "chain": name, "progress": 0, "message": "初始化..."}
+
+    def _run():
+        from chain.chain_baseline import generate_baseline
+        try:
+            def _cb(msg, pct=None):
+                _baseline_tasks[task_id].update(message=msg)
+                if pct is not None:
+                    _baseline_tasks[task_id]["progress"] = pct
+            result = generate_baseline(name, progress_callback=_cb)
+            _baseline_tasks[task_id].update(status="done", progress=100, result=result)
+        except Exception as e:
+            logger.error(f"Baseline生成失败[{name}]: {e}")
+            _baseline_tasks[task_id].update(status="error", message=str(e))
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "task_id": task_id}
+
+
+@router.post("/{name}/api/diff/generate")
+def api_generate_diff(name: str, background_tasks: BackgroundTasks):
+    """触发增量 Diff 生成（后台任务）"""
+    task_id = f"diff_{name}_{int(time.time())}"
+    if any(t.get("status") == "running" and t.get("chain") == name for t in _baseline_tasks.values()):
+        return JSONResponse({"ok": False, "error": "该产业链已有任务运行中"}, status_code=409)
+
+    _baseline_tasks[task_id] = {"status": "running", "chain": name, "progress": 0, "message": "初始化..."}
+
+    def _run():
+        from chain.chain_baseline import generate_diff
+        try:
+            def _cb(msg, pct=None):
+                _baseline_tasks[task_id].update(message=msg)
+                if pct is not None:
+                    _baseline_tasks[task_id]["progress"] = pct
+            result = generate_diff(name, progress_callback=_cb)
+            _baseline_tasks[task_id].update(status="done", progress=100, result=result)
+        except Exception as e:
+            logger.error(f"Diff生成失败[{name}]: {e}")
+            _baseline_tasks[task_id].update(status="error", message=str(e))
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "task_id": task_id}
+
+
+@router.get("/{name}/api/diff/latest")
+def api_get_latest_diff(name: str):
+    """获取最新待审核的 Diff"""
+    from chain.chain_baseline import get_latest_diff
+    diff = get_latest_diff(name)
+    if not diff:
+        return {"ok": True, "has_diff": False}
+    for f in ("created_at", "updated_at"):
+        if diff.get(f):
+            diff[f] = str(diff[f])[:19]
+    return {"ok": True, "has_diff": True, "diff": diff}
+
+
+@router.put("/{name}/api/diff/{diff_id}")
+def api_save_diff_edit(name: str, diff_id: int, body: dict):
+    """保存用户编辑后的 Diff"""
+    from chain.chain_baseline import save_diff_edit
+    edited = body.get("edited_json")
+    if not edited:
+        return JSONResponse({"ok": False, "error": "缺少 edited_json"}, status_code=400)
+    save_diff_edit(diff_id, edited)
+    return {"ok": True}
+
+
+@router.post("/{name}/api/diff/{diff_id}/merge")
+def api_merge_diff(name: str, diff_id: int, background_tasks: BackgroundTasks):
+    """确认合并 Diff 到 Baseline"""
+    task_id = f"merge_{name}_{int(time.time())}"
+    _baseline_tasks[task_id] = {"status": "running", "chain": name, "progress": 0, "message": "合并中..."}
+
+    def _run():
+        from chain.chain_baseline import merge_diff
+        try:
+            result = merge_diff(name, diff_id)
+            _baseline_tasks[task_id].update(status="done", progress=100, result=result)
+        except Exception as e:
+            logger.error(f"Diff合并失败[{name}]: {e}")
+            _baseline_tasks[task_id].update(status="error", message=str(e))
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "task_id": task_id}
+
+
+@router.post("/{name}/api/diff/{diff_id}/reject")
+def api_reject_diff(name: str, diff_id: int):
+    """拒绝 Diff"""
+    from chain.chain_baseline import reject_diff
+    reject_diff(diff_id)
+    return {"ok": True}
+
+
+@router.get("/api/baseline-task/{task_id}")
+def api_baseline_task(task_id: str):
+    """查询后台任务进度"""
+    task = _baseline_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"ok": False, "error": "任务不存在"}, status_code=404)
+    # 不返回完整 result（可能太大），只返回状态
+    return {
+        "ok": True,
+        "status": task["status"],
+        "progress": task.get("progress", 0),
+        "message": task.get("message", ""),
     }
 
 

@@ -74,6 +74,37 @@
 /* 全链资金流图 */
 .flow-bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
 .flow-bar-neg { background:#22c55e; border-radius:0 0 2px 2px; }
+
+/* Tab 切换按钮 */
+.chain-tab-btn {
+  padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;
+  color:#94a3b8; background:transparent; border:none; cursor:pointer;
+  transition:all .15s;
+}
+.chain-tab-btn:hover { color:#e2e8f0; background:#1e293b; }
+.chain-tab-btn.active { color:#fff; background:{{ chain_color }}; box-shadow:0 2px 8px {{ chain_color }}44; }
+
+/* 认知Tab卡片 */
+.cog-tier-badge {
+  display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700;
+  background:{{ chain_color }}18; color:{{ chain_color }}; border:1px solid {{ chain_color }}33;
+}
+.diff-item {
+  background:#1a2233; border:1px solid #2d3748; border-radius:8px; padding:12px;
+  transition:border-color .15s;
+}
+.diff-item:hover { border-color:#475569; }
+.diff-item textarea {
+  width:100%; background:#0f172a; border:1px solid #334155; border-radius:6px;
+  color:#e2e8f0; padding:8px; font-size:12px; resize:vertical; min-height:60px;
+  margin-top:6px;
+}
+.diff-badge-add { background:#065f4622; color:#34d399; border:1px solid #065f4644; }
+.diff-badge-modify { background:#92400e22; color:#fbbf24; border:1px solid #92400e44; }
+.diff-badge-remove { background:#7f1d1d22; color:#f87171; border:1px solid #7f1d1d44; }
+.diff-badge-add,.diff-badge-modify,.diff-badge-remove {
+  display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700;
+}
 </style>
 {% endblock %}
 
@@ -95,15 +126,25 @@
     </div>
   </div>
 
+  <!-- Tab 切换 -->
+  <div class="flex items-center gap-2 mb-6 bg-slate-800/60 rounded-xl p-1 border border-slate-700/40 w-fit">
+    <button class="chain-tab-btn active" data-tab="market" onclick="switchChainTab('market')">
+      <span class="material-icons-round text-sm align-middle mr-1">trending_up</span>产业链行情
+    </button>
+    <button class="chain-tab-btn" data-tab="cognition" onclick="switchChainTab('cognition')">
+      <span class="material-icons-round text-sm align-middle mr-1">psychology</span>产业链认知
+    </button>
+  </div>
+
+  <!-- Tab 1: 行情 -->
+  <div id="tab-market">
   <!-- 全链资金流概览 -->
   <div class="card p-5 mb-6" id="flowOverview">
     <div class="flex items-center justify-between mb-3">
       <span class="text-sm font-semibold text-slate-400">全链资金流（近15日）</span>
       <span class="text-sm font-bold" id="totalFlowLabel" style="color:{{ chain_color }}">加载中…</span>
     </div>
-    <div id="flowChart" class="flex items-end gap-1" style="height:48px;">
-      <!-- 柱状图 JS 填充 -->
-    </div>
+    <div id="flowChart" class="flex items-end gap-1" style="height:48px;"></div>
     <div id="flowDates" class="flex justify-between mt-1" style="font-size:10px;color:#475569;"></div>
   </div>
 
@@ -114,6 +155,103 @@
       加载产业链数据…
     </div>
   </div>
+  </div><!-- end tab-market -->
+
+  <!-- Tab 2: 认知 -->
+  <div id="tab-cognition" class="hidden">
+    <!-- 顶栏 -->
+    <div class="flex items-center justify-between mb-5">
+      <div class="flex items-center gap-3">
+        <span id="cog-version-label" class="text-sm text-slate-500">加载中...</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="triggerDiff()" id="btn-diff" class="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
+          <span class="material-icons-round text-sm">difference</span>生成增量更新
+        </button>
+        <button onclick="triggerGenerate()" id="btn-generate" class="bg-primary hover:bg-primary/90 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
+          <span class="material-icons-round text-sm">auto_awesome</span>生成 Baseline
+        </button>
+        <button onclick="showHistory()" id="btn-history" class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
+          <span class="material-icons-round text-sm">history</span>版本历史
+        </button>
+      </div>
+    </div>
+
+    <!-- 进度条 -->
+    <div id="cog-progress" class="hidden mb-5">
+      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div class="flex items-center gap-3 mb-2">
+          <span class="material-icons-round text-sm animate-spin" style="color:{{ chain_color }}">refresh</span>
+          <span id="cog-progress-msg" class="text-sm text-slate-400">处理中...</span>
+        </div>
+        <div class="w-full bg-slate-700 rounded-full h-1.5">
+          <div id="cog-progress-bar" class="h-1.5 rounded-full transition-all" style="width:0%;background:{{ chain_color }}"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Baseline 展示区 -->
+    <div id="cog-baseline" class="hidden space-y-5">
+      <!-- 产业链结构 -->
+      <div class="card p-5">
+        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+          <span class="material-icons-round text-base" style="color:{{ chain_color }}">account_tree</span>产业链结构
+        </h3>
+        <div id="bl-structure" class="space-y-2"></div>
+      </div>
+      <!-- 供需 Driver 矩阵 -->
+      <div class="card p-5">
+        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+          <span class="material-icons-round text-base" style="color:{{ chain_color }}">insights</span>供需 Driver 矩阵
+        </h3>
+        <div id="bl-drivers" class="space-y-3"></div>
+      </div>
+      <!-- 宏观关系 -->
+      <div class="card p-5">
+        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
+          <span class="material-icons-round text-base" style="color:{{ chain_color }}">public</span>宏观关系图
+        </h3>
+        <div id="bl-macro" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- 无 Baseline 状态 -->
+    <div id="cog-empty" class="hidden text-center py-16">
+      <span class="material-icons-round text-5xl text-slate-700 mb-4 block">psychology</span>
+      <p class="text-slate-500 text-sm mb-3">该产业链尚未初始化行业认知</p>
+      <p class="text-slate-600 text-xs">点击“生成 Baseline”按钮开始</p>
+    </div>
+
+    <!-- Diff 审核区 -->
+    <div id="cog-diff" class="hidden mt-6">
+      <div class="card p-5 border-amber-600/30">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+            <span class="material-icons-round text-base">difference</span>待审核变更
+          </h3>
+          <div class="flex gap-2">
+            <button onclick="mergeDiff()" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">确认合并到 Baseline</button>
+            <button onclick="rejectDiff()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold">拒绝</button>
+          </div>
+        </div>
+        <div id="diff-summary" class="text-xs text-slate-400 mb-3"></div>
+        <div id="diff-changes" class="space-y-2"></div>
+      </div>
+    </div>
+
+    <!-- 版本历史弹窗 -->
+    <div id="history-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl w-96 max-h-[60vh] overflow-auto p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-bold text-sm">版本历史</h3>
+          <button onclick="document.getElementById('history-modal').classList.add('hidden')" class="text-slate-500 hover:text-white">
+            <span class="material-icons-round">close</span>
+          </button>
+        </div>
+        <div id="history-list" class="space-y-2"></div>
+      </div>
+    </div>
+  </div><!-- end tab-cognition -->
 
 </div>
 {% endblock %}
@@ -372,5 +510,268 @@ function fillPerf(elId, pct) {
 
 // ── 初始化 ─────────────────────────────────────────────────────────
 init();
+
+// ══════════════════════════════════════════════════════════════════════
+// 产业链认知 Tab
+// ══════════════════════════════════════════════════════════════════════
+let _currentDiffId = null;
+let _currentBaseline = null;
+
+function switchChainTab(tab) {
+  document.querySelectorAll('.chain-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  document.getElementById('tab-market').classList.toggle('hidden', tab !== 'market');
+  document.getElementById('tab-cognition').classList.toggle('hidden', tab !== 'cognition');
+  if (tab === 'cognition') loadCognition();
+}
+
+async function loadCognition() {
+  try {
+    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline`);
+    const d = await r.json();
+    if (d.ok && d.baseline) {
+      _currentBaseline = d.baseline;
+      document.getElementById('cog-version-label').textContent = `版本 v${d.baseline.version}（${d.baseline.created_at.slice(0,10)}）`;
+      renderBaseline(JSON.parse(d.baseline.baseline_json));
+      document.getElementById('cog-baseline').classList.remove('hidden');
+      document.getElementById('cog-empty').classList.add('hidden');
+      document.getElementById('btn-diff').classList.remove('hidden');
+      document.getElementById('btn-generate').classList.add('hidden');
+      document.getElementById('btn-history').classList.remove('hidden');
+      // 检查是否有待审核 Diff
+      await loadLatestDiff();
+    } else {
+      document.getElementById('cog-baseline').classList.add('hidden');
+      document.getElementById('cog-empty').classList.remove('hidden');
+      document.getElementById('cog-diff').classList.add('hidden');
+      document.getElementById('cog-version-label').textContent = '尚未初始化';
+      document.getElementById('btn-generate').classList.remove('hidden');
+      document.getElementById('btn-diff').classList.add('hidden');
+      document.getElementById('btn-history').classList.add('hidden');
+    }
+  } catch(e) {
+    console.error('loadCognition error', e);
+    document.getElementById('cog-version-label').textContent = '加载失败';
+  }
+}
+
+async function loadLatestDiff() {
+  try {
+    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/latest`);
+    const d = await r.json();
+    if (d.ok && d.diff && (d.diff.status === 'ready' || d.diff.status === 'editing')) {
+      _currentDiffId = d.diff.id;
+      renderDiff(d.diff);
+      document.getElementById('cog-diff').classList.remove('hidden');
+    } else {
+      document.getElementById('cog-diff').classList.add('hidden');
+      _currentDiffId = null;
+    }
+  } catch(e) { console.error('loadLatestDiff', e); }
+}
+
+function renderBaseline(bl) {
+  // Structure
+  const structEl = document.getElementById('bl-structure');
+  if (bl.structure && bl.structure.length) {
+    structEl.innerHTML = bl.structure.map(s => `
+      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="cog-tier-badge">${s.tier_key}</span>
+          <span class="text-xs text-slate-400">${s.tier_label || ''}</span>
+        </div>
+        ${s.key_segments && s.key_segments.length ? `<div class="text-xs text-slate-400 mb-1">关键细分：${s.key_segments.join('、')}</div>` : ''}
+        ${s.description ? `<div class="text-xs text-slate-500">${s.description}</div>` : ''}
+        ${s.key_companies && s.key_companies.length ? `<div class="text-xs text-slate-600 mt-1">代表公司：${s.key_companies.join('、')}</div>` : ''}
+      </div>
+    `).join('');
+  } else { structEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
+
+  // Drivers
+  const drvEl = document.getElementById('bl-drivers');
+  if (bl.drivers && bl.drivers.length) {
+    drvEl.innerHTML = bl.drivers.map(d => `
+      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
+        <div class="flex items-center gap-2 mb-2"><span class="cog-tier-badge">${d.tier_key}</span></div>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <div><span class="text-slate-500">供给因素：</span><span class="text-slate-300">${(d.supply_factors||[]).join('、') || '—'}</span></div>
+          <div><span class="text-slate-500">需求因素：</span><span class="text-slate-300">${(d.demand_factors||[]).join('、') || '—'}</span></div>
+          <div><span class="text-slate-500">成本要素：</span><span class="text-slate-300">${(d.cost_elements||[]).join('、') || '—'}</span></div>
+          <div><span class="text-slate-500">收入要素：</span><span class="text-slate-300">${(d.revenue_elements||[]).join('、') || '—'}</span></div>
+        </div>
+        ${d.competition ? `<div class="text-xs text-slate-500 mt-2">竞争格局：${d.competition}</div>` : ''}
+      </div>
+    `).join('');
+  } else { drvEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
+
+  // Macro relations
+  const macroEl = document.getElementById('bl-macro');
+  if (bl.macro_relations && bl.macro_relations.length) {
+    macroEl.innerHTML = bl.macro_relations.map(m => {
+      const dirColor = m.impact_direction === 'positive' ? '#34d399' : m.impact_direction === 'negative' ? '#f87171' : '#94a3b8';
+      const dirIcon = m.impact_direction === 'positive' ? 'trending_up' : m.impact_direction === 'negative' ? 'trending_down' : 'trending_flat';
+      return `
+      <div class="flex items-center gap-3 bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
+        <span class="material-icons-round text-sm" style="color:${dirColor}">${dirIcon}</span>
+        <div class="flex-1">
+          <div class="text-xs font-semibold text-slate-300">${m.macro_indicator}</div>
+          <div class="text-xs text-slate-500">${m.transmission_path || ''}</div>
+        </div>
+        <span class="text-xs px-2 py-0.5 rounded" style="background:${dirColor}22;color:${dirColor}">${m.confidence || ''}</span>
+      </div>`;
+    }).join('');
+  } else { macroEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
+}
+
+function renderDiff(diff) {
+  const changes = JSON.parse(diff.user_edited_json || diff.diff_json);
+  document.getElementById('diff-summary').textContent = changes.summary || '';
+  const container = document.getElementById('diff-changes');
+  if (!changes.changes || !changes.changes.length) {
+    container.innerHTML = '<p class="text-xs text-slate-600">无变更项</p>';
+    return;
+  }
+  container.innerHTML = changes.changes.map((c, i) => {
+    const badgeClass = c.change_type === 'add' ? 'diff-badge-add' : c.change_type === 'remove' ? 'diff-badge-remove' : 'diff-badge-modify';
+    const badgeText = c.change_type === 'add' ? '新增' : c.change_type === 'remove' ? '移除' : '修改';
+    return `
+    <div class="diff-item" data-idx="${i}">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="${badgeClass}">${badgeText}</span>
+        <span class="text-xs text-slate-400">${c.category} / ${c.tier_key || '全局'}</span>
+      </div>
+      <textarea data-field="detail" rows="2">${c.detail || ''}</textarea>
+      <div class="text-xs text-slate-600 mt-1">证据：${c.evidence || '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+async function triggerGenerate() {
+  if (!confirm('将为此产业链生成初始 Baseline，需要1-2分钟，确认？')) return;
+  try {
+    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/generate`, {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      showProgress('正在生成 Baseline…');
+      pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
+    } else { alert(d.error || '启动失败'); }
+  } catch(e) { alert('请求失败'); }
+}
+
+async function triggerDiff() {
+  if (!confirm('将基于最新数据生成增量 Diff，确认？')) return;
+  try {
+    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/generate`, {method:'POST'});
+    const d = await r.json();
+    if (d.ok) {
+      showProgress('正在生成增量更新…');
+      pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
+    } else { alert(d.error || '启动失败'); }
+  } catch(e) { alert('请求失败'); }
+}
+
+async function mergeDiff() {
+  if (!_currentDiffId) return;
+  // 收集用户编辑
+  const items = document.querySelectorAll('#diff-changes .diff-item');
+  const origData = JSON.parse((_currentBaseline ? document.querySelector('#diff-changes')?.dataset.origJson : null) || '{}');
+  const editedChanges = [];
+  items.forEach((item, i) => {
+    const ta = item.querySelector('textarea[data-field="detail"]');
+    editedChanges.push({...getOrigChange(i), detail: ta ? ta.value : ''});
+  });
+  // 先保存编辑
+  const editPayload = JSON.stringify({changes: editedChanges, summary: document.getElementById('diff-summary').textContent});
+  await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}`, {
+    method:'PUT', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({edited_json: editPayload})
+  });
+  // 合并
+  if (!confirm('确认将变更合并到 Baseline？')) return;
+  showProgress('正在合并…');
+  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/merge`, {method:'POST'});
+  const d = await r.json();
+  if (d.ok && d.task_id) {
+    pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
+  } else {
+    hideProgress();
+    alert(d.error || '合并失败');
+  }
+}
+
+function getOrigChange(idx) {
+  // 从已渲染的 diff 取原始数据
+  const el = document.querySelectorAll('#diff-changes .diff-item')[idx];
+  if (!el) return {};
+  const badge = el.querySelector('[class*="diff-badge"]');
+  const catSpan = el.querySelector('.text-xs.text-slate-400');
+  const catText = catSpan ? catSpan.textContent : '';
+  const parts = catText.split(' / ');
+  let change_type = 'modify';
+  if (badge && badge.classList.contains('diff-badge-add')) change_type = 'add';
+  if (badge && badge.classList.contains('diff-badge-remove')) change_type = 'remove';
+  return {category: parts[0]||'', tier_key: parts[1]||'', change_type};
+}
+
+async function rejectDiff() {
+  if (!_currentDiffId) return;
+  if (!confirm('确认拒绝此 Diff？')) return;
+  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/reject`, {method:'POST'});
+  const d = await r.json();
+  if (d.ok) { _currentDiffId = null; document.getElementById('cog-diff').classList.add('hidden'); }
+  else { alert(d.error || '操作失败'); }
+}
+
+async function showHistory() {
+  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/history`);
+  const d = await r.json();
+  const list = document.getElementById('history-list');
+  if (d.ok && d.history && d.history.length) {
+    list.innerHTML = d.history.map(h => `
+      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800 border border-slate-700/50">
+        <div>
+          <span class="text-xs font-bold text-slate-300">v${h.version}</span>
+          <span class="text-xs text-slate-500 ml-2">${h.created_at.slice(0,16)}</span>
+        </div>
+        <span class="text-xs text-slate-600">${h.source_summary ? h.source_summary.slice(0,30) : ''}</span>
+      </div>
+    `).join('');
+  } else {
+    list.innerHTML = '<p class="text-xs text-slate-600 text-center py-4">暂无历史版本</p>';
+  }
+  document.getElementById('history-modal').classList.remove('hidden');
+}
+
+function showProgress(msg) {
+  document.getElementById('cog-progress').classList.remove('hidden');
+  document.getElementById('cog-progress-msg').textContent = msg;
+  document.getElementById('cog-progress-bar').style.width = '10%';
+}
+function hideProgress() {
+  document.getElementById('cog-progress').classList.add('hidden');
+  document.getElementById('cog-progress-bar').style.width = '0%';
+}
+
+function pollTask(taskId, onDone) {
+  let progress = 10;
+  const iv = setInterval(async () => {
+    try {
+      const r = await fetch(`/chain/api/baseline-task/${taskId}`);
+      const d = await r.json();
+      if (d.status === 'done') {
+        clearInterval(iv);
+        document.getElementById('cog-progress-bar').style.width = '100%';
+        setTimeout(onDone, 400);
+      } else if (d.status === 'error') {
+        clearInterval(iv);
+        hideProgress();
+        alert('任务失败：' + (d.error || '未知错误'));
+      } else {
+        progress = Math.min(progress + 8, 90);
+        document.getElementById('cog-progress-bar').style.width = progress + '%';
+        if (d.message) document.getElementById('cog-progress-msg').textContent = d.message;
+      }
+    } catch(e) { /* retry */ }
+  }, 2000);
+}
 </script>
 {% endblock %}
