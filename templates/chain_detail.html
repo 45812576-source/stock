@@ -574,14 +574,20 @@ function renderBaseline(bl) {
   const structEl = document.getElementById('bl-structure');
   if (bl.structure && bl.structure.length) {
     structEl.innerHTML = bl.structure.map(s => `
-      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
+      <div class="bg-slate-800/60 rounded-lg p-4 border border-slate-700/50">
         <div class="flex items-center gap-2 mb-2">
           <span class="cog-tier-badge">${s.tier_key}</span>
-          <span class="text-xs text-slate-400">${s.tier_label || ''}</span>
+          <span class="text-xs text-slate-400 font-semibold">${s.tier_label || ''}</span>
+          ${s.lifecycle_stage ? `<span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">${s.lifecycle_stage}</span>` : ''}
+          ${s.value_share ? `<span class="text-xs text-slate-500">价值占比: ${s.value_share}</span>` : ''}
         </div>
-        ${s.key_segments && s.key_segments.length ? `<div class="text-xs text-slate-400 mb-1">关键细分：${s.key_segments.join('、')}</div>` : ''}
-        ${s.description ? `<div class="text-xs text-slate-500">${s.description}</div>` : ''}
-        ${s.key_companies && s.key_companies.length ? `<div class="text-xs text-slate-600 mt-1">代表公司：${s.key_companies.join('、')}</div>` : ''}
+        ${s.description ? `<div class="text-xs text-slate-300 mb-2">${s.description}</div>` : ''}
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          ${s.key_segments && s.key_segments.length ? `<div><span class="text-slate-500">细分赛道：</span><span class="text-slate-400">${s.key_segments.join('、')}</span></div>` : ''}
+          ${s.concentration ? `<div><span class="text-slate-500">集中度：</span><span class="text-slate-400">${s.concentration}</span></div>` : ''}
+          ${s.entry_barriers ? `<div class="col-span-2"><span class="text-slate-500">进入壁垒：</span><span class="text-slate-400">${s.entry_barriers}</span></div>` : ''}
+        </div>
+        ${s.key_companies && s.key_companies.length ? `<div class="text-xs text-slate-600 mt-2">代表公司：${s.key_companies.join('、')}</div>` : ''}
       </div>
     `).join('');
   } else { structEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
@@ -589,18 +595,31 @@ function renderBaseline(bl) {
   // Drivers
   const drvEl = document.getElementById('bl-drivers');
   if (bl.drivers && bl.drivers.length) {
-    drvEl.innerHTML = bl.drivers.map(d => `
-      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-        <div class="flex items-center gap-2 mb-2"><span class="cog-tier-badge">${d.tier_key}</span></div>
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          <div><span class="text-slate-500">供给因素：</span><span class="text-slate-300">${(d.supply_factors||[]).join('、') || '—'}</span></div>
-          <div><span class="text-slate-500">需求因素：</span><span class="text-slate-300">${(d.demand_factors||[]).join('、') || '—'}</span></div>
-          <div><span class="text-slate-500">成本要素：</span><span class="text-slate-300">${(d.cost_elements||[]).join('、') || '—'}</span></div>
-          <div><span class="text-slate-500">收入要素：</span><span class="text-slate-300">${(d.revenue_elements||[]).join('、') || '—'}</span></div>
+    drvEl.innerHTML = bl.drivers.map(d => {
+      const costHtml = renderElementCards(d.cost_elements, 'cost');
+      const revHtml = renderElementCards(d.revenue_elements, 'revenue');
+      return `
+      <div class="bg-slate-800/60 rounded-lg p-4 border border-slate-700/50">
+        <div class="flex items-center gap-2 mb-3"><span class="cog-tier-badge">${d.tier_key}</span></div>
+        <div class="grid grid-cols-2 gap-3 text-xs mb-3">
+          <div><span class="text-slate-500 font-semibold">供给因素：</span><span class="text-slate-300">${(d.supply_factors||[]).join('、') || '—'}</span></div>
+          <div><span class="text-slate-500 font-semibold">需求因素：</span><span class="text-slate-300">${(d.demand_factors||[]).join('、') || '—'}</span></div>
         </div>
-        ${d.competition ? `<div class="text-xs text-slate-500 mt-2">竞争格局：${d.competition}</div>` : ''}
-      </div>
-    `).join('');
+        <div class="mb-3">
+          <div class="text-xs font-semibold text-red-400/80 mb-1.5 flex items-center gap-1">
+            <span class="material-icons-round text-xs">payments</span>成本要素 <span class="text-slate-600 font-normal">(点击展开)</span>
+          </div>
+          <div class="space-y-1">${costHtml}</div>
+        </div>
+        <div class="mb-3">
+          <div class="text-xs font-semibold text-emerald-400/80 mb-1.5 flex items-center gap-1">
+            <span class="material-icons-round text-xs">trending_up</span>收入要素 <span class="text-slate-600 font-normal">(点击展开)</span>
+          </div>
+          <div class="space-y-1">${revHtml}</div>
+        </div>
+        ${d.competition ? `<div class="text-xs text-slate-500 border-t border-slate-700/50 pt-2 mt-2"><span class="font-semibold text-slate-400">竞争格局：</span>${d.competition}</div>` : ''}
+      </div>`;
+    }).join('');
   } else { drvEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
 
   // Macro relations
@@ -610,16 +629,74 @@ function renderBaseline(bl) {
       const dirColor = m.impact_direction === 'positive' ? '#34d399' : m.impact_direction === 'negative' ? '#f87171' : '#94a3b8';
       const dirIcon = m.impact_direction === 'positive' ? 'trending_up' : m.impact_direction === 'negative' ? 'trending_down' : 'trending_flat';
       return `
-      <div class="flex items-center gap-3 bg-slate-800/60 rounded-lg p-3 border border-slate-700/50">
-        <span class="material-icons-round text-sm" style="color:${dirColor}">${dirIcon}</span>
-        <div class="flex-1">
-          <div class="text-xs font-semibold text-slate-300">${m.macro_indicator}</div>
-          <div class="text-xs text-slate-500">${m.transmission_path || ''}</div>
+      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50 cursor-pointer" onclick="this.querySelector('.macro-detail').classList.toggle('hidden')">
+        <div class="flex items-center gap-3">
+          <span class="material-icons-round text-sm" style="color:${dirColor}">${dirIcon}</span>
+          <div class="flex-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-semibold text-slate-300">${m.macro_indicator}</span>
+              ${m.indicator_category ? `<span class="text-xs px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-500">${m.indicator_category}</span>` : ''}
+            </div>
+            <div class="text-xs text-slate-500 mt-0.5">${m.transmission_path || ''}</div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded" style="background:${dirColor}22;color:${dirColor}">${m.confidence || ''}</span>
+          <span class="material-icons-round text-xs text-slate-600">expand_more</span>
         </div>
-        <span class="text-xs px-2 py-0.5 rounded" style="background:${dirColor}22;color:${dirColor}">${m.confidence || ''}</span>
+        <div class="macro-detail hidden mt-2 pt-2 border-t border-slate-700/50 text-xs space-y-1">
+          ${m.impact_mechanism ? `<div><span class="text-slate-500">影响机制：</span><span class="text-slate-400">${m.impact_mechanism}</span></div>` : ''}
+          ${m.affected_tiers ? `<div><span class="text-slate-500">受影响环节：</span><span class="text-slate-400">${(m.affected_tiers||[]).join('、')}</span></div>` : ''}
+          ${m.lag_periods ? `<div><span class="text-slate-500">时滞：</span><span class="text-slate-400">${m.lag_periods}</span></div>` : ''}
+          ${m.historical_evidence ? `<div><span class="text-slate-500">历史案例：</span><span class="text-slate-400">${m.historical_evidence}</span></div>` : ''}
+        </div>
       </div>`;
     }).join('');
   } else { macroEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
+}
+
+function renderElementCards(elements, type) {
+  if (!elements || !elements.length) return '<span class="text-xs text-slate-600">—</span>';
+  // 兼容旧格式(纯字符串数组)和新格式(对象数组)
+  return elements.map(el => {
+    if (typeof el === 'string') {
+      return `<div class="inline-block text-xs px-2 py-1 rounded bg-slate-700/60 text-slate-400 mr-1 mb-1">${el}</div>`;
+    }
+    const isExpanded = false;
+    const trendColor = el.trend === '上升' ? '#f87171' : el.trend === '下降' ? '#34d399' : '#94a3b8';
+    const trendIcon = el.trend === '上升' ? '↑' : el.trend === '下降' ? '↓' : '→';
+    if (type === 'cost') {
+      return `
+      <div class="element-card bg-slate-900/60 rounded-lg border border-slate-700/40 px-3 py-2 cursor-pointer" onclick="this.querySelector('.el-detail').classList.toggle('hidden')">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-300">${el.name}</span>
+          <div class="flex items-center gap-2">
+            ${el.share_pct ? `<span class="text-xs text-amber-400/80">${el.share_pct}</span>` : ''}
+            <span class="text-xs" style="color:${trendColor}">${trendIcon} ${el.trend||''}</span>
+            <span class="material-icons-round text-xs text-slate-600">expand_more</span>
+          </div>
+        </div>
+        <div class="el-detail hidden mt-2 pt-2 border-t border-slate-700/40 text-xs space-y-1">
+          ${el.driver ? `<div><span class="text-slate-500">驱动因素：</span><span class="text-slate-400">${el.driver}</span></div>` : ''}
+          ${el.industry_data ? `<div class="bg-slate-800 rounded p-2 mt-1"><span class="text-slate-500">行业数据：</span><span class="text-blue-300/80">${el.industry_data}</span></div>` : ''}
+        </div>
+      </div>`;
+    } else {
+      return `
+      <div class="element-card bg-slate-900/60 rounded-lg border border-slate-700/40 px-3 py-2 cursor-pointer" onclick="this.querySelector('.el-detail').classList.toggle('hidden')">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-slate-300">${el.name}</span>
+          <div class="flex items-center gap-2">
+            ${el.growth_rate ? `<span class="text-xs text-emerald-400/80">${el.growth_rate}</span>` : ''}
+            <span class="material-icons-round text-xs text-slate-600">expand_more</span>
+          </div>
+        </div>
+        <div class="el-detail hidden mt-2 pt-2 border-t border-slate-700/40 text-xs space-y-1">
+          ${el.volume_driver ? `<div><span class="text-slate-500">量驱动：</span><span class="text-slate-400">${el.volume_driver}</span></div>` : ''}
+          ${el.price_driver ? `<div><span class="text-slate-500">价驱动：</span><span class="text-slate-400">${el.price_driver}</span></div>` : ''}
+          ${el.industry_data ? `<div class="bg-slate-800 rounded p-2 mt-1"><span class="text-slate-500">行业数据：</span><span class="text-blue-300/80">${el.industry_data}</span></div>` : ''}
+        </div>
+      </div>`;
+    }
+  }).join('');
 }
 
 function renderDiff(diff) {

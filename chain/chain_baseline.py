@@ -158,27 +158,96 @@ def _collect_daily_intel(chain_name: str, since_date: str = None) -> str:
 # Baseline 生成
 # ══════════════════════════════════════════════════════════════════
 
-_BASELINE_SYSTEM = """你是产业链研究专家。根据用户提供的产业链配置、关联研究报告和知识库信息，
-生成一份**结构化的行业认知 Baseline**。
+_BASELINE_SYSTEM = """你是产业链研究专家，精通 Porter 五力模型、产业生命周期、价值链分析和宏观经济传导机制。
+根据用户提供的产业链配置、关联研究报告和知识库信息，生成一份**深度结构化的行业认知 Baseline**。
 
-输出严格 JSON，结构如下：
+## 分析框架要求
+
+### 1. 产业链结构 (structure)
+对每个环节进行深度分析：
+- 细分赛道及代表公司
+- 该环节的技术壁垒和进入门槛
+- 行业集中度和竞争格局(CR5/CR10估算)
+- 所处生命周期阶段(导入期/成长期/成熟期/衰退期)
+
+### 2. 供需-成本-收入 Driver 矩阵 (drivers)
+对每个环节穷尽分析：
+- 供给因素：产能、良率、资本开支周期、技术迭代
+- 需求因素：下游应用拉动、替代需求、政策驱动
+- 成本要素(重点)：每项成本需带具体行业数据说明(占比/趋势/驱动因素)
+- 收入要素(重点)：每项收入需带量价拆分、增速驱动因素
+- 竞争格局：Porter五力分析总结
+
+### 3. 宏观关系图 (macro_relations)
+运用宏观-股票传导机制框架，穷尽分析：
+- 货币政策指标(利率、M2、社融)的传导链
+- 汇率变动的影响路径
+- 产业政策、监管变化的影响
+- 全球供应链/贸易环境的影响
+- 大宗商品价格联动
+每个指标务必说明：传导路径 → 影响哪个环节 → 具体如何影响收入/成本
+
+## 输出严格 JSON，结构如下：
 {
   "structure": [
-    {"tier_key":"环节名","tier_label":"环节描述","key_segments":["细分1","细分2"],"description":"该环节概述","key_companies":["公司1","公司2"]}
+    {
+      "tier_key": "环节key",
+      "tier_label": "环节名称",
+      "key_segments": ["细分1", "细分2"],
+      "description": "该环节详细概述(2-3句)",
+      "key_companies": ["公司1", "公司2"],
+      "entry_barriers": "进入壁垒说明",
+      "concentration": "行业集中度(如 CR5≈60%)",
+      "lifecycle_stage": "成长期/成熟期等",
+      "value_share": "该环节在产业链中的价值占比估算"
+    }
   ],
   "drivers": [
-    {"tier_key":"环节名","supply_factors":["供给因子"],"demand_factors":["需求因子"],"cost_elements":["成本要素"],"revenue_elements":["收入要素"],"competition":"竞争格局描述"}
+    {
+      "tier_key": "环节key",
+      "supply_factors": ["供给因子1", "供给因子2"],
+      "demand_factors": ["需求因子1", "需求因子2"],
+      "cost_elements": [
+        {
+          "name": "成本项名称",
+          "share_pct": "占总成本比例(如35%)",
+          "trend": "上升/下降/稳定",
+          "driver": "驱动因素说明",
+          "industry_data": "相关行业数据/价格/趋势描述"
+        }
+      ],
+      "revenue_elements": [
+        {
+          "name": "收入项名称",
+          "volume_driver": "量的驱动因素",
+          "price_driver": "价的驱动因素",
+          "growth_rate": "近期增速估算",
+          "industry_data": "相关市场规模/增长数据"
+        }
+      ],
+      "competition": "Porter五力总结：供应商议价力x/买方议价力x/新进入者威胁x/替代品威胁x/行业竞争x(高/中/低)"
+    }
   ],
   "macro_relations": [
-    {"macro_indicator":"宏观指标名","transmission_path":"传导路径描述","impact_direction":"positive/negative","lag_periods":"滞后期","confidence":"high/medium/low"}
+    {
+      "macro_indicator": "宏观指标名",
+      "indicator_category": "货币政策/财政政策/汇率/大宗商品/产业政策/国际贸易",
+      "transmission_path": "A→B→C的完整传导链(具体到影响哪个环节的收入/成本)",
+      "affected_tiers": ["受影响环节key"],
+      "impact_direction": "positive/negative",
+      "impact_mechanism": "具体影响成本端还是收入端，如何量化",
+      "lag_periods": "传导时滞(如1-3个月)",
+      "confidence": "high/medium/low",
+      "historical_evidence": "历史案例简述(如有)"
+    }
   ]
 }
 
 要求：
-- structure 完整覆盖产业链各环节，附详细描述
-- drivers 穷尽每个环节的供需-成本-收入-竞争五维分析
-- macro_relations 穷尽与此行业相关的所有宏观指标及传导链
-- 基于通识+提供的实际数据，务实客观
+- structure 完整覆盖产业链各环节，附详细描述、壁垒、集中度
+- drivers 穷尽每个环节的供需-成本-收入-竞争五维分析；成本和收入必须是对象数组(含数据)
+- macro_relations 至少列出8个以上宏观指标及完整传导链
+- 基于通识+提供的实际数据，务实客观，尽量带具体数据/比例
 - 只输出 JSON，不要其他文字"""
 
 
@@ -217,7 +286,7 @@ def generate_baseline(chain_name: str, progress_callback=None) -> dict:
 请根据以上信息和你的行业通识，为"{chain_name}"产业链生成结构化行业认知 Baseline（JSON）。"""
 
     _progress("AI 生成 Baseline", 55)
-    baseline_json = _call_llm_json(_BASELINE_SYSTEM, user_msg, max_tokens=6000)
+    baseline_json = _call_llm_json(_BASELINE_SYSTEM, user_msg, max_tokens=12000)
 
     if not baseline_json or not isinstance(baseline_json, dict):
         raise ValueError(f"LLM 返回异常: {type(baseline_json)}")
