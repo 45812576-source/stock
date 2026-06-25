@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _call_llm_json(system: str, user: str, max_tokens: int = 6000):
-    return _call_model_json("hotspot", system, user, max_tokens=max_tokens, timeout=900)
+    return _call_model_json("cleaning", system, user, max_tokens=max_tokens, timeout=900)
 
 
 # ══════════════════════════════════════════════════════════════════

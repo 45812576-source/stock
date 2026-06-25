@@ -528,10 +528,10 @@ async function loadCognition() {
   try {
     const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline`);
     const d = await r.json();
-    if (d.ok && d.baseline) {
-      _currentBaseline = d.baseline;
-      document.getElementById('cog-version-label').textContent = `版本 v${d.baseline.version}（${d.baseline.created_at.slice(0,10)}）`;
-      renderBaseline(JSON.parse(d.baseline.baseline_json));
+    if (d.ok && d.has_baseline && d.baseline) {
+      _currentBaseline = d;
+      document.getElementById('cog-version-label').textContent = `版本 v${d.version}（${(d.created_at||'').slice(0,10)}）`;
+      renderBaseline(typeof d.baseline === 'string' ? JSON.parse(d.baseline) : d.baseline);
       document.getElementById('cog-baseline').classList.remove('hidden');
       document.getElementById('cog-empty').classList.add('hidden');
       document.getElementById('btn-diff').classList.remove('hidden');
@@ -764,7 +764,7 @@ function pollTask(taskId, onDone) {
       } else if (d.status === 'error') {
         clearInterval(iv);
         hideProgress();
-        alert('任务失败：' + (d.error || '未知错误'));
+        alert('任务失败：' + (d.message || d.error || '未知错误'));
       } else {
         progress = Math.min(progress + 8, 90);
         document.getElementById('cog-progress-bar').style.width = progress + '%';
