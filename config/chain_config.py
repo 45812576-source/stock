@@ -21,6 +21,15 @@ CHAIN_ORDER = [
     "稀土永磁",
     "氢能",  # auto-added
     "工程机械",  # auto-added
+    "商用车",  # auto-added
+    "消费品牌",  # auto-added
+    "金融服务",  # auto-added
+    "医疗器械",  # auto-added
+    "战略金属",  # auto-added
+    "在线旅游",  # auto-added
+    "油气设备",  # auto-added
+    "跨境电商",  # auto-added
+    "金刚石散热",  # auto-added
 ]
 
 CHAINS = {
@@ -30,7 +39,40 @@ CHAINS = {
         "tiers": {
             "上上游": {
                 "label": "资源（锂/钴/镍）",
-                "stocks": ["赣锋锂业", "天齐锂业", "华友钴业", "洛阳钼业", "盛新锂能", "盐湖股份"],
+                "stocks": ["赣锋锂业", "天齐锂业", "华友钴业", "洛阳钼业", "盛新锂能", "盐湖股份",  # auto-added
+                    "国城矿业",  # auto-added
+                    "大中矿业",  # auto-added
+                    "仙鹤股份",  # auto-added
+                    "时代新材",  # auto-added
+                    "兴发集团",  # auto-added
+                    "中钨高新",  # auto-added
+                    "滨化股份",  # auto-added
+                    "天岳先进",  # auto-added
+                    "三安光电",  # auto-added
+                    "兴福电子",  # auto-added
+                    "云南锗业",  # auto-added
+                    "沃格光电",  # auto-added
+                    "凯盛科技",  # auto-added
+                    "鼎龙股份",  # auto-added
+                    "飞凯材料",  # auto-added
+                    "彤程新材",  # auto-added
+                    "国瓷材料",  # auto-added
+                    "博迁新材",  # auto-added
+                    "洁美科技",  # auto-added
+                    "神工股份",  # auto-added
+                    "莲花控股",  # auto-added
+                    "中矿资源",  # auto-added
+                    "力诺药包",  # auto-added
+                    "容大感光",  # auto-added
+                    "八亿时空",  # auto-added
+                    "圣泉集团",  # auto-added
+                    "东材科技",  # auto-added
+                    "久日新材",  # auto-added
+                    "强力新材",  # auto-added
+                    "万润股份",  # auto-added
+                    "瑞联新材",  # auto-added
+                    "天承科技",  # auto-added
+                    "宸展光电"],
             },
             "上游": {
                 "label": "材料（正极/负极/隔膜/电解液/铜箔）",
@@ -43,7 +85,65 @@ CHAINS = {
                     "帝尔激光",  # auto-added
                     "大族激光",  # auto-added
                     "东威科技",  # auto-added
-                    "星宸科技"],
+                    "星宸科技",  # auto-added
+                    "拓荆科技",  # auto-added
+                    "华海清科",  # auto-added
+                    "盛美上海",  # auto-added
+                    "鸿仕达",  # auto-added
+                    "晶升股份",  # auto-added
+                    "新益昌",  # auto-added
+                    "联动科技",  # auto-added
+                    "精智达",  # auto-added
+                    "金海通",  # auto-added
+                    "强一股份",  # auto-added
+                    "亚威股份",  # auto-added
+                    "芯碁微装",  # auto-added
+                    "华盛锂电",  # auto-added
+                    "海科新源",  # auto-added
+                    "富祥药业",  # auto-added
+                    "孚日股份",  # auto-added
+                    "海辰药业",  # auto-added
+                    "ASML",  # auto-added
+                    "英杰电气",  # auto-added
+                    "恒运昌",  # auto-added
+                    "沐曦股份",  # auto-added
+                    "天数智芯",  # auto-added
+                    "南亚新材",  # auto-added
+                    "智立方",  # auto-added
+                    "盛剑科技",  # auto-added
+                    "高测股份",  # auto-added
+                    "建滔积层板",  # auto-added
+                    "德福科技",  # auto-added
+                    "铜冠铜箔",  # auto-added
+                    "海亮股份",  # auto-added
+                    "洪田股份",  # auto-added
+                    "泰金新能",  # auto-added
+                    "艾华集团",  # auto-added
+                    "江海股份",  # auto-added
+                    "万泽股份",  # auto-added
+                    "海光信息",  # auto-added
+                    "云南锗业",  # auto-added
+                    "横店东磁",  # auto-added
+                    "臻宝科技",  # auto-added
+                    "海星股份",  # auto-added
+                    "王子新材",  # auto-added
+                    "亚翔集成",  # auto-added
+                    "万裕科技",  # auto-added
+                    "立隆电",  # auto-added
+                    "中国稀土",  # auto-added
+                    "宏明电子",  # auto-added
+                    "盛科通信",  # auto-added
+                    "西部材料",  # auto-added
+                    "中航高科",  # auto-added
+                    "信维通信",  # auto-added
+                    "斯瑞新材",  # auto-added
+                    "雅化集团",  # auto-added
+                    "建滔集团",  # auto-added
+                    "华正新材",  # auto-added
+                    "金安国际",  # auto-added
+                    "国际复材",  # auto-added
+                    "元力股份",  # auto-added
+                    "汇成真空"],
             },
             "中游": {
                 "label": "动力电池 & 电机电控",
@@ -51,7 +151,59 @@ CHAINS = {
                     "朝阳科技",  # auto-added
                     "中际旭创",  # auto-added
                     "新易盛",  # auto-added
-                    "工业富联"],
+                    "工业富联",  # auto-added
+                    "金富科技",  # auto-added
+                    "五洋自控",  # auto-added
+                    "英维克",  # auto-added
+                    "思泉新材",  # auto-added
+                    "强瑞技术",  # auto-added
+                    "东阳光",  # auto-added
+                    "秦淮数据",  # auto-added
+                    "潍柴动力",  # auto-added
+                    "杰瑞股份",  # auto-added
+                    "中国动力",  # auto-added
+                    "豪迈科技",  # auto-added
+                    "汽轮科技",  # auto-added
+                    "潍柴重机",  # auto-added
+                    "联德股份",  # auto-added
+                    "金盘科技",  # auto-added
+                    "四方股份",  # auto-added
+                    "长飞光纤",  # auto-added
+                    "亨通光电",  # auto-added
+                    "中天科技",  # auto-added
+                    "永鼎股份",  # auto-added
+                    "舜宇光学科技",  # auto-added
+                    "茂莱光学",  # auto-added
+                    "康宁",  # auto-added
+                    "川润股份",  # auto-added
+                    "同星科技",  # auto-added
+                    "胜蓝股份",  # auto-added
+                    "美利信",  # auto-added
+                    "中鼎股份",  # auto-added
+                    "溯联股份",  # auto-added
+                    "川环科技",  # auto-added
+                    "鸿富瀚",  # auto-added
+                    "锦富技术",  # auto-added
+                    "大元泵业",  # auto-added
+                    "飞龙股份",  # auto-added
+                    "国瓷材料",  # auto-added
+                    "宏达电子",  # auto-added
+                    "太辰光",  # auto-added
+                    "仕佳光子",  # auto-added
+                    "衡东光",  # auto-added
+                    "航天电子",  # auto-added
+                    "国博电子",  # auto-added
+                    "陕西华达",  # auto-added
+                    "智明达",  # auto-added
+                    "六九一二",  # auto-added
+                    "上海瀚讯",  # auto-added
+                    "高华科技",  # auto-added
+                    "西测测试",  # auto-added
+                    "铂力特",  # auto-added
+                    "通鼎互联",  # auto-added
+                    "杭电股份",  # auto-added
+                    "特发信息",  # auto-added
+                    "宏柏新材"],
             },
             "下游": {
                 "label": "整车 & 零部件",
@@ -67,7 +219,43 @@ CHAINS = {
                     "鼎泰高科",  # auto-added
                     "京东方A",  # auto-added
                     "银轮股份",  # auto-added
-                    "天润工业"],
+                    "天润工业",  # auto-added
+                    "中富电路",  # auto-added
+                    "洁美科技",  # auto-added
+                    "博迁新材",  # auto-added
+                    "国瓷材料",  # auto-added
+                    "三环集团",  # auto-added
+                    "风华高科",  # auto-added
+                    "艾华集团",  # auto-added
+                    "金富科技",  # auto-added
+                    "科翔股份",  # auto-added
+                    "博敏电子",  # auto-added
+                    "超捷股份",  # auto-added
+                    "江海股份",  # auto-added
+                    "国光电子",  # auto-added
+                    "宝鼎科技",  # auto-added
+                    "剑桥科技",  # auto-added
+                    "光迅科技",  # auto-added
+                    "宏景科技",  # auto-added
+                    "新凤鸣",  # auto-added
+                    "桐昆股份",  # auto-added
+                    "恒逸石化",  # auto-added
+                    "行云科技",  # auto-added
+                    "同大股份",  # auto-added
+                    "炬光科技",  # auto-added
+                    "昀冢科技",  # auto-added
+                    "力源信息",  # auto-added
+                    "商络电子",  # auto-added
+                    "电科蓝天",  # auto-added
+                    "烽火通信",  # auto-added
+                    "信科移动",  # auto-added
+                    "航天工程",  # auto-added
+                    "智谱",  # auto-added
+                    "凌玮科技",  # auto-added
+                    "新国都",  # auto-added
+                    "云天励飞",  # auto-added
+                    "海博思创",  # auto-added
+                    "新乡化纤"],
             },
             "设备": {
                 "label": "锂电设备",
@@ -95,13 +283,45 @@ CHAINS = {
                 "stocks": [
                     "兆易创新", "圣邦股份", "卓胜微", "汇顶科技",  # 韦尔股份待补录
                     "北京君正", "斯达半导", "扬杰科技", "士兰微", "华润微",
-                    "瑞芯微", "晶晨股份", "乐鑫科技", "寒武纪", "景嘉微", "紫光国微",
-                ],
+                    "瑞芯微", "晶晨股份", "乐鑫科技", "寒武纪", "景嘉微", "紫光国微",,  # auto-added
+                    "新洁能",  # auto-added
+                    "宏微科技",  # auto-added
+                    "时代电气",  # auto-added
+                    "思瑞浦",  # auto-added
+                    "纳芯微",  # auto-added
+                    "杰华特",  # auto-added
+                    "普冉股份",  # auto-added
+                    "东芯股份",  # auto-added
+                    "裕太微",  # auto-added
+                    "德明利",  # auto-added
+                    "大普微",  # auto-added
+                    "佰维存储",  # auto-added
+                    "芯原股份",  # auto-added
+                    "灿芯股份",  # auto-added
+                    "翱捷科技",  # auto-added
+                    "复旦微电",  # auto-added
+                    "国芯科技",  # auto-added
+                    "华峰"],
             },
             "中游制造": {
                 "label": "晶圆代工 & 封测",
                 "stocks": ["中芯国际", "通富微电", "华天科技", "长电科技",  # auto-added
-                    "华虹公司"],
+                    "华虹公司",  # auto-added
+                    "戈碧迦",  # auto-added
+                    "京东方",  # auto-added
+                    "深天马",  # auto-added
+                    "TCL科技",  # auto-added
+                    "芯联集成",  # auto-added
+                    "美光科技",  # auto-added
+                    "晶合集成",  # auto-added
+                    "汇成股份",  # auto-added
+                    "新恒汇",  # auto-added
+                    "富信",  # auto-added
+                    "东方通信",  # auto-added
+                    "长鑫科技",  # auto-added
+                    "长江存储",  # auto-added
+                    "信测标准",  # auto-added
+                    "华虹半导体"],
             },
             "下游": {
                 "label": "PCB & 被动元件",
@@ -209,11 +429,13 @@ CHAINS = {
             },
             "配套": {
                 "label": "电缆/电力机器人/电力工程",
-                "stocks": ["东方电缆", "长缆科技", "亿嘉和", "中国电建", "永福股份"],
+                "stocks": ["东方电缆", "长缆科技", "亿嘉和", "中国电建", "永福股份",  # auto-added
+                    "远东股份"],
             },
             "终端": {
                 "label": "低压电器/智能电表/充电桩",
-                "stocks": ["正泰电器", "良信股份", "林洋能源", "特锐德"],
+                "stocks": ["正泰电器", "良信股份", "林洋能源", "特锐德",  # auto-added
+                    "宏发股份"],
             },
         },
     },
@@ -332,7 +554,8 @@ CHAINS = {
             },
             "中游-特钢": {
                 "label": "特种钢材/高温合金",
-                "stocks": ["永兴材料", "抚顺特钢", "南钢股份", "方大特钢", "广大特材"],
+                "stocks": ["永兴材料", "抚顺特钢", "南钢股份", "方大特钢", "广大特材",  # auto-added
+                    "天工国际"],
             },
             "中游-普钢": {
                 "label": "普通钢铁",
@@ -340,7 +563,8 @@ CHAINS = {
             },
             "中游-建材": {
                 "label": "水泥/玻纤/涂料",
-                "stocks": ["海螺水泥", "上峰水泥", "中国巨石", "三棵树", "福莱特"],  # 华新水泥待补录
+                "stocks": ["海螺水泥", "上峰水泥", "中国巨石", "三棵树", "福莱特",  # auto-added
+                    "国际复材"],  # 华新水泥待补录
             },
         },
     },
@@ -378,7 +602,8 @@ CHAINS = {
             },
             "CDMO": {
                 "label": "合同研发生产",
-                "stocks": ["凯莱英", "博腾股份", "九洲药业"],
+                "stocks": ["凯莱英", "博腾股份", "九洲药业",  # auto-added
+                    "神州细胞"],
             },
         },
     },
@@ -419,7 +644,111 @@ CHAINS = {
         "tiers": {
             "整机": {
                 "label": "工程机械整机制造",
-                "stocks": ["宏观"],  # auto-added
+                "stocks": ["宏观",  # auto-added
+                    "三一重工"],  # auto-added
+            },
+        },
+    },
+
+    "商用车": {
+        "icon": "local_shipping",
+        "color": "#f59e0b",
+        "tiers": {
+            "整机": {
+                "label": "商用车整机制造",
+                "stocks": ["中国重汽H"],  # auto-added
+            },
+        },
+    },
+
+    "消费品牌": {
+        "icon": "category",
+        "color": "#d946ef",
+        "tiers": {
+            "多元业务": {
+                "label": "电池品牌+硅光芯片",
+                "stocks": ["安孚科技"],  # auto-added
+            },
+            "休闲食品": {
+                "label": "休闲食品品牌",
+                "stocks": ["洽洽食品"],  # auto-added
+            },
+        },
+    },
+
+    "金融服务": {
+        "icon": "category",
+        "color": "#6366f1",
+        "tiers": {
+            "券商": {
+                "label": "综合券商",
+                "stocks": ["华泰证券"],  # auto-added
+            },
+        },
+    },
+
+    "医疗器械": {
+        "icon": "biotech",
+        "color": "#10b981",
+        "tiers": {
+            "消费医疗": {
+                "label": "消费医疗/医美器械",
+                "stocks": ["乐普医疗"],  # auto-added
+            },
+        },
+    },
+
+    "战略金属": {
+        "icon": "grain",
+        "color": "#ef4444",
+        "tiers": {
+            "资源采选": {
+                "label": "钨矿采选冶炼",
+                "stocks": ["中钨高新"],  # auto-added
+            },
+        },
+    },
+
+    "在线旅游": {
+        "icon": "flight",
+        "color": "#0ea5e9",
+        "tiers": {
+            "OTA平台": {
+                "label": "OTA综合平台",
+                "stocks": ["携程集团-S"],  # auto-added
+            },
+        },
+    },
+
+    "油气设备": {
+        "icon": "precision_manufacturing",
+        "color": "#f59e0b",
+        "tiers": {
+            "设备制造": {
+                "label": "深海油气装备制造",
+                "stocks": ["博迈科"],  # auto-added
+            },
+        },
+    },
+
+    "跨境电商": {
+        "icon": "local_shipping",
+        "color": "#10b981",
+        "tiers": {
+            "平台运营": {
+                "label": "跨境电商运营",
+                "stocks": ["吉宏股份"],  # auto-added
+            },
+        },
+    },
+
+    "金刚石散热": {
+        "icon": "precision_manufacturing",
+        "color": "#d946ef",
+        "tiers": {
+            "材料制备": {
+                "label": "金刚石材料制备",
+                "stocks": ["国机精工"],  # auto-added
             },
         },
     },
@@ -742,4 +1071,496 @@ STOCK_TAGS = {
     "银轮股份": "news",  # auto-added
 
     "天润工业": "news",  # auto-added
+
+    "中富电路": "news",  # auto-added
+
+    "拓荆科技": "news",  # auto-added
+
+    "华海清科": "news",  # auto-added
+
+    "盛美上海": "news",  # auto-added
+
+    "鸿仕达": "news",  # auto-added
+
+    "晶升股份": "news",  # auto-added
+
+    "新益昌": "news",  # auto-added
+
+    "联动科技": "news",  # auto-added
+
+    "精智达": "news",  # auto-added
+
+    "金海通": "news",  # auto-added
+
+    "强一股份": "news",  # auto-added
+
+    "金富科技": "news",  # auto-added
+
+    "五洋自控": "news",  # auto-added
+
+    "英维克": "news",  # auto-added
+
+    "思泉新材": "news",  # auto-added
+
+    "亚威股份": "news",  # auto-added
+
+    "洁美科技": "news",  # auto-added
+
+    "博迁新材": "news",  # auto-added
+
+    "国瓷材料": "news",  # auto-added
+
+    "三环集团": "news",  # auto-added
+
+    "风华高科": "news",  # auto-added
+
+    "艾华集团": "news",  # auto-added
+
+    "强瑞技术": "news",  # auto-added
+
+    "东阳光": "news",  # auto-added
+
+    "秦淮数据": "news",  # auto-added
+
+    "芯碁微装": "news",  # auto-added
+
+    "华盛锂电": "news",  # auto-added
+
+    "海科新源": "news",  # auto-added
+
+    "富祥药业": "news",  # auto-added
+
+    "孚日股份": "news",  # auto-added
+
+    "海辰药业": "news",  # auto-added
+
+    "ASML": "news",  # auto-added
+
+    "科翔股份": "news",  # auto-added
+
+    "博敏电子": "news",  # auto-added
+
+    "英杰电气": "news",  # auto-added
+
+    "恒运昌": "news",  # auto-added
+
+    "超捷股份": "news",  # auto-added
+
+    "沐曦股份": "news",  # auto-added
+
+    "天数智芯": "news",  # auto-added
+
+    "南亚新材": "news",  # auto-added
+
+    "江海股份": "news",  # auto-added
+
+    "国光电子": "news",  # auto-added
+
+    "国城矿业": "news",  # auto-added
+
+    "宝鼎科技": "news",  # auto-added
+
+    "智立方": "news",  # auto-added
+
+    "盛剑科技": "news",  # auto-added
+
+    "大中矿业": "news",  # auto-added
+
+    "高测股份": "news",  # auto-added
+
+    "建滔积层板": "news",  # auto-added
+
+    "国际复材": "news",  # auto-added
+
+    "德福科技": "news",  # auto-added
+
+    "铜冠铜箔": "news",  # auto-added
+
+    "海亮股份": "news",  # auto-added
+
+    "洪田股份": "news",  # auto-added
+
+    "泰金新能": "news",  # auto-added
+
+    "新洁能": "news",  # auto-added
+
+    "宏发股份": "news",  # auto-added
+
+    "潍柴动力": "news",  # auto-added
+
+    "杰瑞股份": "news",  # auto-added
+
+    "中国动力": "news",  # auto-added
+
+    "豪迈科技": "news",  # auto-added
+
+    "万泽股份": "news",  # auto-added
+
+    "汽轮科技": "news",  # auto-added
+
+    "潍柴重机": "news",  # auto-added
+
+    "联德股份": "news",  # auto-added
+
+    "国泰海通": "news",  # auto-added
+
+    "中信证券": "news",  # auto-added
+
+    "广发证券": "news",  # auto-added
+
+    "中金公司": "news",  # auto-added
+
+    "同花顺": "news",  # auto-added
+
+    "仙鹤股份": "news",  # auto-added
+
+    "时代新材": "news",  # auto-added
+
+    "兴发集团": "news",  # auto-added
+
+    "中钨高新": "news",  # auto-added
+
+    "滨化股份": "news",  # auto-added
+
+    "天工国际": "news",  # auto-added
+
+    "海光信息": "news",  # auto-added
+
+    "剑桥科技": "news",  # auto-added
+
+    "戈碧迦": "news",  # auto-added
+
+    "京东方": "news",  # auto-added
+
+    "深天马": "news",  # auto-added
+
+    "TCL科技": "news",  # auto-added
+
+    "天岳先进": "news",  # auto-added
+
+    "三安光电": "news",  # auto-added
+
+    "芯联集成": "news",  # auto-added
+
+    "宏微科技": "news",  # auto-added
+
+    "时代电气": "news",  # auto-added
+
+    "金盘科技": "news",  # auto-added
+
+    "四方股份": "news",  # auto-added
+
+    "兴福电子": "news",  # auto-added
+
+    "云南锗业": "news",  # auto-added
+
+    "光迅科技": "news",  # auto-added
+
+    "长飞光纤": "news",  # auto-added
+
+    "亨通光电": "news",  # auto-added
+
+    "中天科技": "news",  # auto-added
+
+    "沃格光电": "news",  # auto-added
+
+    "凯盛科技": "news",  # auto-added
+
+    "美光科技": "news",  # auto-added
+
+    "永鼎股份": "news",  # auto-added
+
+    "宏景科技": "news",  # auto-added
+
+    "舜宇光学科技": "news",  # auto-added
+
+    "晶合集成": "news",  # auto-added
+
+    "思瑞浦": "news",  # auto-added
+
+    "纳芯微": "news",  # auto-added
+
+    "杰华特": "news",  # auto-added
+
+    "鼎龙股份": "news",  # auto-added
+
+    "飞凯材料": "news",  # auto-added
+
+    "彤程新材": "news",  # auto-added
+
+    "茂莱光学": "news",  # auto-added
+
+    "横店东磁": "news",  # auto-added
+
+    "新凤鸣": "news",  # auto-added
+
+    "桐昆股份": "news",  # auto-added
+
+    "恒逸石化": "news",  # auto-added
+
+    "汇成股份": "news",  # auto-added
+
+    "康宁": "news",  # auto-added
+
+    "臻宝科技": "news",  # auto-added
+
+    "海星股份": "news",  # auto-added
+
+    "王子新材": "news",  # auto-added
+
+    "亚翔集成": "news",  # auto-added
+
+    "万裕科技": "news",  # auto-added
+
+    "立隆电": "news",  # auto-added
+
+    "川润股份": "news",  # auto-added
+
+    "同星科技": "news",  # auto-added
+
+    "胜蓝股份": "news",  # auto-added
+
+    "美利信": "news",  # auto-added
+
+    "中鼎股份": "news",  # auto-added
+
+    "溯联股份": "news",  # auto-added
+
+    "川环科技": "news",  # auto-added
+
+    "鸿富瀚": "news",  # auto-added
+
+    "锦富技术": "news",  # auto-added
+
+    "大元泵业": "news",  # auto-added
+
+    "飞龙股份": "news",  # auto-added
+
+    "行云科技": "news",  # auto-added
+
+    "厦门钨业": "news",  # auto-added
+
+    "翔鹭钨业": "news",  # auto-added
+
+    "章源钨业": "news",  # auto-added
+
+    "金钼股份": "news",  # auto-added
+
+    "中国稀土": "news",  # auto-added
+
+    "驰宏锌锗": "news",  # auto-added
+
+    "锡业股份": "news",  # auto-added
+
+    "株冶集团": "news",  # auto-added
+
+    "豫光金铅": "news",  # auto-added
+
+    "有研新材": "news",  # auto-added
+
+    "宏达电子": "news",  # auto-added
+
+    "宏明电子": "news",  # auto-added
+
+    "华润饮料": "news",  # auto-added
+
+    "H&H国际控股": "news",  # auto-added
+
+    "同大股份": "news",  # auto-added
+
+    "炬光科技": "news",  # auto-added
+
+    "太辰光": "news",  # auto-added
+
+    "仕佳光子": "news",  # auto-added
+
+    "衡东光": "news",  # auto-added
+
+    "昀冢科技": "news",  # auto-added
+
+    "力源信息": "news",  # auto-added
+
+    "商络电子": "news",  # auto-added
+
+    "神工股份": "news",  # auto-added
+
+    "普冉股份": "news",  # auto-added
+
+    "东芯股份": "news",  # auto-added
+
+    "裕太微": "news",  # auto-added
+
+    "盛科通信": "news",  # auto-added
+
+    "电科蓝天": "news",  # auto-added
+
+    "航天电子": "news",  # auto-added
+
+    "国博电子": "news",  # auto-added
+
+    "陕西华达": "news",  # auto-added
+
+    "西部材料": "news",  # auto-added
+
+    "智明达": "news",  # auto-added
+
+    "中航高科": "news",  # auto-added
+
+    "六九一二": "news",  # auto-added
+
+    "烽火通信": "news",  # auto-added
+
+    "信科移动": "news",  # auto-added
+
+    "信维通信": "news",  # auto-added
+
+    "斯瑞新材": "news",  # auto-added
+
+    "上海瀚讯": "news",  # auto-added
+
+    "航天工程": "news",  # auto-added
+
+    "高华科技": "news",  # auto-added
+
+    "西测测试": "news",  # auto-added
+
+    "铂力特": "news",  # auto-added
+
+    "莲花控股": "news",  # auto-added
+
+    "通鼎互联": "news",  # auto-added
+
+    "杭电股份": "news",  # auto-added
+
+    "携程集团-S": "news",  # auto-added
+
+    "神州细胞": "news",  # auto-added
+
+    "中矿资源": "news",  # auto-added
+
+    "雅化集团": "news",  # auto-added
+
+    "松发股份": "news",  # auto-added
+
+    "建滔集团": "news",  # auto-added
+
+    "华正新材": "news",  # auto-added
+
+    "金安国际": "news",  # auto-added
+
+    "华凯易佰": "news",  # auto-added
+
+    "三一重工": "news",  # auto-added
+
+    "新恒汇": "news",  # auto-added
+
+    "九安医疗": "news",  # auto-added
+
+    "富信": "news",  # auto-added
+
+    "特发信息": "news",  # auto-added
+
+    "东方通信": "news",  # auto-added
+
+    "智谱": "news",  # auto-added
+
+    "长鑫科技": "news",  # auto-added
+
+    "长江存储": "news",  # auto-added
+
+    "德明利": "news",  # auto-added
+
+    "大普微": "news",  # auto-added
+
+    "佰维存储": "news",  # auto-added
+
+    "远东股份": "news",  # auto-added
+
+    "凌玮科技": "news",  # auto-added
+
+    "力诺药包": "news",  # auto-added
+
+    "元力股份": "news",  # auto-added
+
+    "新国都": "news",  # auto-added
+
+    "信测标准": "news",  # auto-added
+
+    "芯原股份": "news",  # auto-added
+
+    "灿芯股份": "news",  # auto-added
+
+    "翱捷科技": "news",  # auto-added
+
+    "复旦微电": "news",  # auto-added
+
+    "云天励飞": "news",  # auto-added
+
+    "国芯科技": "news",  # auto-added
+
+    "宏柏新材": "news",  # auto-added
+
+    "容大感光": "news",  # auto-added
+
+    "八亿时空": "news",  # auto-added
+
+    "圣泉集团": "news",  # auto-added
+
+    "东材科技": "news",  # auto-added
+
+    "久日新材": "news",  # auto-added
+
+    "强力新材": "news",  # auto-added
+
+    "万润股份": "news",  # auto-added
+
+    "瑞联新材": "news",  # auto-added
+
+    "华虹半导体": "news",  # auto-added
+
+    "海博思创": "news",  # auto-added
+
+    "新乡化纤": "news",  # auto-added
+
+    "斯莱克": "news",  # auto-added
+
+    "国机精工": "news",  # auto-added
+
+    "四方达": "news",  # auto-added
+
+    "中兵红箭": "news",  # auto-added
+
+    "黄河旋风": "news",  # auto-added
+
+    "力量钻石": "news",  # auto-added
+
+    "沃尔德": "news",  # auto-added
+
+    "华峰": "news",  # auto-added
+
+    "国泰君安": "news",  # auto-added
+
+    "海通证券": "news",  # auto-added
+
+    "招商证券": "news",  # auto-added
+
+    "天承科技": "news",  # auto-added
+
+    "宸展光电": "news",  # auto-added
+
+    "汇成真空": "news",  # auto-added
+
+    "中国重汽H": "news",  # auto-added
+
+    "安孚科技": "news",  # auto-added
+
+    "华泰证券": "news",  # auto-added
+
+    "乐普医疗": "news",  # auto-added
+
+    "洽洽食品": "news",  # auto-added
+
+    "博迈科": "news",  # auto-added
+
+    "吉宏股份": "news",  # auto-added
 }

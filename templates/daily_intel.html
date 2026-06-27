@@ -336,7 +336,7 @@ function openDetail(it) {
 
   const code = it.stock_code;
   const link = document.getElementById('dp-stock-link');
-  if (code) {
+  if (code && /^\d{6}$/.test(code)) {
     link.href = '/stock/' + code;
     link.classList.remove('hidden');
   } else {

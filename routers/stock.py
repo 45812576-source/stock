@@ -480,6 +480,10 @@ def stock_list(request: Request):
 @router.get("/{stock_code}", response_class=HTMLResponse)
 def stock_detail(request: Request, stock_code: str, user: TokenData = Depends(get_current_user)):
     """个股详情页"""
+    import re
+    if not re.match(r'^\d{6}$', stock_code):
+        return HTMLResponse("<h1>404 — 无效股票代码</h1>", status_code=404)
+
     user_id = user.user_id
 
     # 检查K线分析权限
