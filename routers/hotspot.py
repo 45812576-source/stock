@@ -762,17 +762,52 @@ def _refresh_heat_trend_worker():
             else:
                 tag_list_with_context.append(tag)
 
-        # 2) 调用 LLM 合并
-        user_msg = f"以下是从研报/资讯中提取的行业标签列表（共 {len(raw_industries)} 个），请按规则归并。每个标签后附带了部分样本信息供你参考归类：\n\n{json.dumps(tag_list_with_context, ensure_ascii=False)}"
-        result = call_model_json("heat_merge", _HEAT_TREND_SYSTEM_PROMPT, user_msg,
-                                max_tokens=8192, timeout=180)
-
-        industry_mapping = result.get("industry_mapping", {})
-        concept_groups = result.get("concept_groups", {})
+        # 2) 分批调用 LLM 做行业映射（每批≤300标签，避免输出截断）
+        BATCH_SIZE = 300
+        industry_mapping = {}
+        for i in range(0, len(tag_list_with_context), BATCH_SIZE):
+            batch = tag_list_with_context[i:i + BATCH_SIZE]
+            batch_msg = f"以下是第{i//BATCH_SIZE+1}批行业标签（共{len(batch)}个），请按规则归并。只需返回 industry_mapping 即可，concept_groups 留空{{}}。\n\n{json.dumps(batch, ensure_ascii=False)}"
+            batch_result = call_model_json("heat_merge", _HEAT_TREND_SYSTEM_PROMPT, batch_msg,
+                                          max_tokens=16384, timeout=300)
+            if batch_result and batch_result.get("industry_mapping"):
+                industry_mapping.update(batch_result["industry_mapping"])
+            logger.info(f"refresh-heat-trend batch {i//BATCH_SIZE+1}: +{len(batch_result.get('industry_mapping', {}) if batch_result else {})} 映射")
 
         if not industry_mapping:
             logger.warning("refresh-heat-trend: LLM 未返回有效 industry_mapping")
             return
+
+        # 2b) 单独调用 LLM 生成概念板块（输入为已归并的 sector 列表，量少不会截断）
+        concept_groups = {}
+        unique_sectors = list(set(
+            v.get("sector", v) if isinstance(v, dict) else v
+            for v in industry_mapping.values()
+        ))
+        concept_prompt = f"""请根据以下 {len(unique_sectors)} 个行业板块，生成概念板块分组。
+规则：将不同产业链但共享同一投资主题/驱动因素的板块归入同一概念。
+只需返回 JSON：{{"concept_groups": {{"概念名": ["行业板块1", "行业板块2"]}}}}
+
+行业板块列表：{json.dumps(unique_sectors, ensure_ascii=False)}"""
+        concept_result = call_model_json("heat_merge", "你是A股概念板块分类专家。严格返回JSON。", concept_prompt,
+                                        max_tokens=4096, timeout=120)
+        if concept_result and concept_result.get("concept_groups"):
+            # 概念板块的值是 sector 名，需要映射回 raw_industry
+            raw_concept_groups = {}
+            sector_to_raws = {}
+            for raw, val in industry_mapping.items():
+                s = val.get("sector", val) if isinstance(val, dict) else val
+                if s not in sector_to_raws:
+                    sector_to_raws[s] = []
+                sector_to_raws[s].append(raw)
+            for concept, sectors_in_concept in concept_result["concept_groups"].items():
+                raws = []
+                for s in sectors_in_concept:
+                    raws.extend(sector_to_raws.get(s, [s]))
+                if raws:
+                    raw_concept_groups[concept] = raws
+            concept_groups = raw_concept_groups
+            logger.info(f"refresh-heat-trend concept: {len(concept_groups)} 概念板块")
 
         # 解析新格式：每个值可能是 {"sector": ..., "sub": ...} 或旧格式的字符串
         sector_map = {}   # raw -> sector_name
@@ -786,16 +821,22 @@ def _refresh_heat_trend_worker():
                 sector_map[raw] = val
                 sub_map[raw] = val
 
-        # 3) 写入 industry_merge_map（全量替换，云端）
-        execute_cloud_insert("DELETE FROM industry_merge_map")
-        for raw in sector_map:
-            execute_cloud_insert(
-                "INSERT INTO industry_merge_map (raw_industry, sector_name, sub_sector_name) VALUES (%s, %s, %s)",
-                [raw, sector_map[raw], sub_map[raw]],
-            )
+        # 3) 写入 industry_merge_map（确认新数据有效后再替换旧数据）
+        if len(sector_map) < 100:
+            logger.warning(f"refresh-heat-trend: 映射数过少({len(sector_map)})，跳过更新，保留旧数据")
+        else:
+            execute_cloud_insert("DELETE FROM industry_merge_map")
+            for raw in sector_map:
+                execute_cloud_insert(
+                    "INSERT INTO industry_merge_map (raw_industry, sector_name, sub_sector_name) VALUES (%s, %s, %s)",
+                    [raw, sector_map[raw], sub_map[raw]],
+                )
 
-        # 4) 写入 concept_sector_map（全量替换，云端）
-        execute_cloud_insert("DELETE FROM concept_sector_map")
+        # 4) 写入 concept_sector_map（有数据才替换）
+        if concept_groups:
+            execute_cloud_insert("DELETE FROM concept_sector_map")
+        else:
+            logger.warning("refresh-heat-trend: concept_groups 为空，保留旧数据")
         for concept, tags in concept_groups.items():
             for tag in tags:
                 execute_cloud_insert(
@@ -832,10 +873,13 @@ def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict)
     ) or []
 
     # ═══ 行业视角 ═══
+    # 未映射的标签归入"其他"，避免生成数百个无意义 sector
     sector_day_sources: dict = {}
     for r in rows:
         raw = r["industry"].strip()
-        sector = industry_mapping.get(raw, raw)
+        sector = industry_mapping.get(raw)
+        if not sector:
+            sector = "其他"
         day = str(r["day"])[:10]
         if sector not in sector_day_sources:
             sector_day_sources[sector] = {}
@@ -853,8 +897,9 @@ def _compute_heat_cache(days: int, industry_mapping: dict, concept_groups: dict)
             total += cnt
         sector_heat[sector] = {"daily": daily, "total": total}
 
-    # 排除"宏观策略"（不在热力图展示）
+    # 排除"宏观策略"和"其他"（不在热力图展示）
     sector_heat.pop("宏观策略", None)
+    sector_heat.pop("其他", None)
     sorted_sectors = sorted(sector_heat.keys(), key=lambda s: sector_heat[s]["total"], reverse=True)
     sector_result = {
         "dates": dates,

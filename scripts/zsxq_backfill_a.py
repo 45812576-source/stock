@@ -104,9 +104,21 @@ def phase1_fetch():
 
 
 def phase2_clean():
-    """Phase 2: 逐天提取 + 抽情报"""
-    cur = START
-    while cur <= END:
+    """Phase 2: 逐天提取 + 抽情报（从最新往前）"""
+    cur = END
+    # 查询已完成的天（有 daily_intel_stocks 的日期）
+    from utils.db_utils import execute_cloud_query as _cq2
+    done_rows = _cq2(
+        "SELECT DISTINCT scan_date FROM daily_intel_stocks WHERE scan_date >= %s AND scan_date <= %s",
+        [str(START), str(END)]
+    ) or []
+    done_dates = {str(r['scan_date']) for r in done_rows}
+    logger.info(f"  已完成 {len(done_dates)} 天，将跳过")
+
+    while cur >= START:
+        if str(cur) in done_dates:
+            cur -= timedelta(days=1)
+            continue
         night = is_night_mode()
         logger.info(f"  -- Phase 2: {cur} (night={night}) --")
 
@@ -126,13 +138,14 @@ def phase2_clean():
         except Exception as e:
             logger.error(f"    [intel] {cur} fail: {e}")
 
-        cur += timedelta(days=1)
+        cur -= timedelta(days=1)
 
     logger.info("== Phase 2 完成 ==")
 
 
 def main():
-    phase1_fetch()
+    # Phase 1 已完成，跳过
+    # phase1_fetch()
     phase2_clean()
     logger.info("==== 全部回溯完成 ====")
 

@@ -359,8 +359,8 @@ async def api_scan_status():
 # ── API: K线数据 ──────────────────────────────────────────────────
 
 @router.get("/api/kline/{code}")
-async def api_kline(code: str):
-    """月K(6月)+周K(3周)，从云端 stock_db.stock_data 读取"""
+async def api_kline(code: str, weeks: int = 3):
+    """月K(6月)+周K(N周)，从云端 stock_db.stock_data 读取。weeks 默认3，穿透页传6"""
     from utils.db_utils import _get_cloud_stockdb_conn
     from stock_selector.kline_calc import _resample_monthly, _resample_weekly
 
@@ -391,7 +391,7 @@ async def api_kline(code: str):
     monthly = _resample_monthly(daily)
     weekly = _resample_weekly(daily)
     m_bars = (monthly[:-1] if len(monthly) > 1 else monthly)[-6:]
-    w_bars = (weekly[:-1] if len(weekly) > 1 else weekly)[-3:]
+    w_bars = (weekly[:-1] if len(weekly) > 1 else weekly)[-weeks:]
 
     def fmt(bars, is_monthly):
         return [{

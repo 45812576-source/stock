@@ -68,15 +68,15 @@
 <!-- 综合热度趋势 V2 -->
 <div class="mb-8">
   <div class="bg-surface-card rounded-xl p-6 border border-slate-700/50 relative">
-    <div class="flex justify-between items-center mb-4">
-      <div>
-        <h2 class="font-bold flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <div class="flex-shrink-0 mr-auto">
+        <h2 class="font-bold flex items-center gap-2 whitespace-nowrap">
           <span class="material-icons-round text-orange-500">trending_up</span>
           综合热度趋势
         </h2>
-        <p class="text-xs text-slate-500">LLM 智能归并 · 文章去重计数 · 点击穿透</p>
+        <p class="text-xs text-slate-500 whitespace-nowrap">LLM 智能归并 · 文章去重计数 · 点击穿透</p>
       </div>
-      <div class="flex items-center gap-3">
+      <div class="flex flex-wrap items-center gap-2">
         <!-- 视角切换 -->
         <div class="flex bg-slate-800 rounded-lg p-1 border border-slate-700/50" id="trend-view-tab">
           <button onclick="switchHeatView('sector')" data-view="sector" class="heat-view-btn px-3 py-1 text-xs font-bold rounded-md bg-slate-600 text-white">行业</button>
@@ -95,7 +95,7 @@
         </button>
       </div>
     </div>
-    <div id="freq-chart"><div class="flex items-center justify-center text-slate-500 text-sm py-20">加载中...</div></div>
+    <div id="freq-chart" style="min-height:300px;"><div class="flex items-center justify-center text-slate-500 text-sm py-20">加载中...</div></div>
   </div>
 </div>
 
@@ -348,8 +348,16 @@ async function loadHeatTrend(days) {
   });
   const el = document.getElementById('freq-chart');
   if (!el) return;
-  el.innerHTML = '<div class="flex items-center justify-center h-full text-slate-500 text-sm"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
+  el.innerHTML = '<div class="flex items-center justify-center text-slate-500 text-sm py-20"><span class="material-icons-round animate-spin mr-2">refresh</span>加载中...</div>';
   try {
+    // 等待 Plotly 加载（最多等 5 秒）
+    if (typeof Plotly === 'undefined') {
+      let waited = 0;
+      while (typeof Plotly === 'undefined' && waited < 5000) {
+        await new Promise(r => setTimeout(r, 200));
+        waited += 200;
+      }
+    }
     if (typeof Plotly === 'undefined') {
       el.innerHTML = '<p class="text-center text-red-400 text-sm py-20">Plotly 未加载，请刷新页面</p>';
       return;
@@ -604,6 +612,83 @@ function closeStockDetail() {
   document.getElementById('stock-detail-modal').classList.add('hidden');
 }
 
+
+// ── 个股穿透：K线 + 资金流渲染辅助 ────────────────────────────────
+function _renderDrillKline(bars, w, h) {
+  if (!bars || !bars.length) return '<span class="text-slate-700 text-[10px]">—</span>';
+  const maxH = Math.max(...bars.map(b => b.high));
+  const minL = Math.min(...bars.map(b => b.low));
+  const range = maxH - minL || 1;
+  const n = bars.length;
+  const bw = Math.max(Math.floor((w - 4) / n) - 2, 4);
+  const gap = Math.floor((w - 4 - bw * n) / (n + 1));
+  const toY = v => Math.round(4 + (maxH - v) / range * (h - 8));
+  let svg = '';
+  bars.forEach((b, i) => {
+    const x = 2 + gap + i * (bw + gap);
+    const yOpen = toY(b.open), yClose = toY(b.close);
+    const yTop = Math.min(yOpen, yClose), yBot = Math.max(yOpen, yClose);
+    const bodyH = Math.max(yBot - yTop, 1);
+    const color = b.yang ? '#ef4444' : '#22c55e';
+    const cx = x + bw / 2;
+    svg += `<line x1="${cx}" y1="${toY(b.high)}" x2="${cx}" y2="${toY(b.low)}" stroke="${color}" stroke-width="1" opacity="0.5"/>`;
+    svg += `<rect x="${x}" y="${yTop}" width="${bw}" height="${bodyH}" fill="${color}" rx="0.5"/>`;
+    if (b.label) {
+      svg += `<text x="${cx}" y="${h + 10}" text-anchor="middle" font-size="7" fill="#475569">${b.label.slice(-5)}</text>`;
+    }
+  });
+  return `<svg width="${w}" height="${h + 14}" viewBox="0 0 ${w} ${h + 14}" xmlns="http://www.w3.org/2000/svg">${svg}</svg>`;
+}
+
+function _renderDrillCapital(items) {
+  if (!items || !items.length) return '<span class="text-slate-700 text-[10px]">暂无数据</span>';
+  const recent = items.slice(-10);
+  const maxAbs = Math.max(...recent.map(i => Math.abs(i.main_net)), 1);
+  return `<div class="space-y-1">${recent.map(i => {
+    const pct = (Math.abs(i.main_net) / maxAbs * 46).toFixed(1);
+    const pos = i.main_net > 0;
+    const color = pos ? '#ef4444' : '#22c55e';
+    const val = (i.main_net / 10000).toFixed(2);
+    return `<div class="flex items-center gap-1 text-[9px]">
+      <span class="text-slate-600 w-10 flex-shrink-0">${i.trade_date.slice(5)}</span>
+      <div class="flex-1 flex items-center" style="gap:0">
+        <div class="flex justify-end" style="width:50%">${!pos ? `<div style="width:${pct}%;height:6px;background:${color};border-radius:2px 0 0 2px;min-width:2px;"></div>` : ''}</div>
+        <div style="width:1px;height:10px;background:#334155;flex-shrink:0;"></div>
+        <div class="flex justify-start" style="width:50%">${pos ? `<div style="width:${pct}%;height:6px;background:${color};border-radius:0 2px 2px 0;min-width:2px;"></div>` : ''}</div>
+      </div>
+      <span class="w-14 text-right flex-shrink-0" style="color:${color}">${pos?'+':''}${val}亿</span>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function _loadDrillKlineAndCapital(stockCode) {
+  if (!stockCode) return;
+  // K线
+  const kEl = document.getElementById('drill-kline-area');
+  if (kEl) {
+    try {
+      const { monthly, weekly } = await fetch('/daily-intel/api/kline/' + stockCode + '?weeks=6').then(r => r.json());
+      if (monthly.length || weekly.length) {
+        let html = '<div class="flex items-start gap-6">';
+        if (monthly.length) html += `<div><p class="text-[9px] text-slate-500 mb-1">月K（近6月）</p>${_renderDrillKline(monthly, 180, 56)}</div>`;
+        if (weekly.length) html += `<div><p class="text-[9px] text-slate-500 mb-1">周K（近6周）</p>${_renderDrillKline(weekly, 160, 56)}</div>`;
+        html += '</div>';
+        kEl.innerHTML = html;
+      } else {
+        kEl.innerHTML = '<span class="text-slate-700 text-[10px]">暂无K线数据</span>';
+      }
+    } catch(e) { kEl.innerHTML = '<span class="text-slate-700 text-[10px]">加载失败</span>'; }
+  }
+  // 资金流
+  const cEl = document.getElementById('drill-capital-area');
+  if (cEl) {
+    try {
+      const { items } = await fetch('/daily-intel/api/capital/' + stockCode).then(r => r.json());
+      cEl.innerHTML = _renderDrillCapital(items);
+    } catch(e) { cEl.innerHTML = '<span class="text-slate-700 text-[10px]">加载失败</span>'; }
+  }
+}
+
 async function openStockDetail(stockName, stockCode) {
   const modal = document.getElementById('stock-detail-modal');
   const title = document.getElementById('stock-detail-title');
@@ -631,6 +716,24 @@ async function openStockDetail(stockName, stockCode) {
     if (profile.business_desc) {
       html += `<p class="text-sm text-slate-300">${profile.business_desc}</p>`;
     }
+    // 跳转个股详情页链接
+    if (profile.code) {
+      html += `<div class="mt-3 pt-3 border-t border-slate-700/30">`;
+      html += `<a href="/stock/${profile.code}" class="text-xs text-blue-400 hover:text-blue-300 hover:underline flex items-center gap-1"><span class="material-icons-round text-sm">open_in_new</span>进入个股详细分析页</a>`;
+      html += `</div>`;
+    }
+    html += `</div>`;
+
+    // K线缩略图区域
+    html += `<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">`;
+    html += `<h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-1"><span class="material-icons-round text-blue-400 text-sm">candlestick_chart</span>K线走势</h4>`;
+    html += `<div id="drill-kline-area"><span class="text-slate-600 text-xs">加载中...</span></div>`;
+    html += `</div>`;
+
+    // 资金流区域
+    html += `<div class="bg-slate-800/50 rounded-lg p-4 border border-slate-700/50">`;
+    html += `<h4 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-1"><span class="material-icons-round text-emerald-400 text-sm">account_balance</span>近10个交易日主力资金流</h4>`;
+    html += `<div id="drill-capital-area"><span class="text-slate-600 text-xs">加载中...</span></div>`;
     html += `</div>`;
 
     // 事件列表
@@ -667,6 +770,8 @@ async function openStockDetail(stockName, stockCode) {
     }
 
     content.innerHTML = html;
+    // 异步加载K线和资金流
+    _loadDrillKlineAndCapital(profile.code);
   } catch(e) {
     content.innerHTML = '<p class="text-center text-red-400 text-sm py-20">加载失败</p>';
     console.error(e);
