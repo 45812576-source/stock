@@ -68,8 +68,8 @@ def enrich_baseline_industry_data(
         llm_original = el.get("industry_data", "") if isinstance(el.get("industry_data"), str) else ""
         metric_type = "cost" if el_type == "cost" else "demand"
 
-        # L1: industry_indicators
-        items = _search_indicator_db(element_name, tier_label, metric_type, name_mapping)
+        # L1: industry_indicators (必须带 chain_name 约束)
+        items = _search_indicator_db(element_name, chain_name, tier_label, metric_type, name_mapping)
 
         # L2: hybrid_search (如果 L1 少于 2 条)
         if len(items) < 2:
@@ -109,46 +109,118 @@ def enrich_baseline_industry_data(
 
 
 # ══════════════════════════════════════════════════════════════════
-# L1: industry_indicators 表查询
+# L1: industry_indicators 表查询（精确匹配，宁缺毋滥）
 # ══════════════════════════════════════════════════════════════════
 
 def _search_indicator_db(
     element_name: str,
+    chain_name: str,
     tier_label: str,
     metric_type: str,
     name_mapping: dict,
 ) -> list:
-    """L1 层：从 industry_indicators 表检索匹配指标。"""
-    try:
-        from utils.db_utils import query_industry_indicator
-    except ImportError:
+    """L1 层：从 industry_indicators 表检索匹配指标。
+
+    核心原则：**宁缺毋滥**。必须用产业链名称做强约束，
+    绝不返回跨行业的不相关数据。
+    """
+    current_year = datetime.now().year
+    min_year = current_year - 2  # 最近两年数据
+
+    # 构建行业约束关键词：chain_name + tier_label
+    # 例如 chain_name="风电", tier_label="风电整机" → 搜索条件包含"风电"
+    industry_keywords = [chain_name]
+    if tier_label and tier_label != chain_name:
+        industry_keywords.append(tier_label)
+
+    # 策略1: chain_name 约束 + metric_name 匹配
+    # 查询: industry_l2/industry_l1 匹配产业链 AND metric_name 匹配要素名
+    items = _query_with_industry_constraint(
+        element_name, industry_keywords, min_year, limit=5
+    )
+    if items:
+        return items
+
+    # 策略2: KG 桥接名 + chain 约束
+    std_names = name_mapping.get(element_name, [])
+    for sn in std_names[:2]:
+        items = _query_with_industry_constraint(
+            sn, industry_keywords, min_year, limit=5
+        )
+        if items:
+            return items
+
+    # 策略3: chain 约束下用 tier_label + element_name 组合搜 metric_name
+    if tier_label:
+        combined = f"{tier_label}{element_name}"
+        items = _query_with_industry_constraint(
+            combined, industry_keywords, min_year, limit=5
+        )
+        if items:
+            return items
+
+    # 宁缺毋滥：都不命中就返回空，不做无约束搜索
+    return []
+
+
+def _query_with_industry_constraint(
+    metric_keyword: str,
+    industry_keywords: list,
+    min_year: int,
+    limit: int = 5,
+) -> list:
+    """带行业约束的精确查询。
+
+    SQL 逻辑:
+      WHERE (industry_l2 LIKE %chain% OR industry_l1 LIKE %chain%)
+        AND (metric_name LIKE %element%)
+        AND period_year >= min_year
+    """
+    if not metric_keyword or not industry_keywords:
         return []
 
-    current_year = datetime.now().year
-    results = []
+    # 构建行业约束条件（OR 多个关键词）
+    industry_clauses = []
+    params = []
+    for kw in industry_keywords:
+        industry_clauses.append("(industry_l2 LIKE %s OR industry_l1 LIKE %s OR industry_l3 LIKE %s)")
+        params.extend([f"%{kw}%", f"%{kw}%", f"%{kw}%"])
 
-    # 策略1: 直接用 element_name 查
-    rows = query_industry_indicator(element_name, period_year=current_year - 1, limit=5)
-    if rows:
-        results.extend(_convert_indicator_rows(rows))
-        return results[:5]
+    industry_where = " OR ".join(industry_clauses)
 
-    # 策略2: KG 名称桥接
-    std_names = name_mapping.get(element_name, [])
-    for sn in std_names[:3]:
-        rows = query_industry_indicator(sn, period_year=current_year - 1, limit=5)
-        if rows:
-            results.extend(_convert_indicator_rows(rows))
-            return results[:5]
+    # metric_name 匹配
+    params.append(f"%{metric_keyword}%")
+    params.append(min_year)
+    params.append(limit)
 
-    # 策略3: tier_label + element_name 组合
-    if tier_label:
-        combined = f"{tier_label} {element_name}"
-        rows = query_industry_indicator(combined, period_year=current_year - 1, limit=5)
-        if rows:
-            results.extend(_convert_indicator_rows(rows))
+    sql = f"""SELECT * FROM industry_indicators
+        WHERE ({industry_where})
+          AND metric_name LIKE %s
+          AND period_year >= %s
+        ORDER BY publish_date DESC, confidence DESC
+        LIMIT %s"""
 
-    return results[:5]
+    try:
+        rows = execute_cloud_query(sql, params)
+    except Exception as e:
+        logger.warning(f"[enrich] L1 查询异常: {e}")
+        return []
+
+    if not rows:
+        return []
+
+    # 二次验证：确认返回数据的 industry 与查询意图相关
+    validated = []
+    for r in rows:
+        ind_context = f"{r.get('industry_l1', '')} {r.get('industry_l2', '')} {r.get('industry_l3', '')}"
+        # 至少有一个行业关键词出现在结果的行业字段中
+        if any(kw in ind_context for kw in industry_keywords):
+            validated.append(r)
+
+    if not validated:
+        return []
+
+    return _convert_indicator_rows(validated)[:limit]
 
 
 def _convert_indicator_rows(rows: list) -> list:
