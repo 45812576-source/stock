@@ -1083,6 +1083,51 @@ def api_generate_baseline(name: str, background_tasks: BackgroundTasks):
     return {"ok": True, "task_id": task_id}
 
 
+@router.post("/{name}/api/baseline/enrich")
+def api_enrich_baseline(name: str, background_tasks: BackgroundTasks):
+    """对已有 Baseline 重新补充行业数据"""
+    task_id = f"enrich_{name}_{int(time.time())}"
+    if any(t.get("status") == "running" and t.get("chain") == name for t in _baseline_tasks.values()):
+        return JSONResponse({"ok": False, "error": "该产业链已有任务运行中"}, status_code=409)
+
+    _baseline_tasks[task_id] = {"status": "running", "chain": name, "progress": 0, "message": "初始化..."}
+
+    def _run():
+        import json
+        from chain.chain_baseline import get_latest_baseline
+        from chain.chain_enrichment import enrich_baseline_industry_data
+        from utils.db_utils import execute_cloud_insert
+        try:
+            bl = get_latest_baseline(name)
+            if not bl:
+                _baseline_tasks[task_id].update(status="error", message="未找到 Baseline")
+                return
+
+            baseline_json = bl["baseline_json"]
+            if isinstance(baseline_json, str):
+                baseline_json = json.loads(baseline_json)
+
+            def _cb(msg, pct=None):
+                _baseline_tasks[task_id].update(message=msg)
+                if pct is not None:
+                    _baseline_tasks[task_id]["progress"] = pct
+
+            enriched = enrich_baseline_industry_data(baseline_json, name, progress_callback=_cb)
+
+            # 更新回数据库
+            execute_cloud_insert(
+                "UPDATE chain_baseline SET baseline_json=%s WHERE chain_name=%s AND version=%s",
+                [json.dumps(enriched, ensure_ascii=False), name, bl["version"]],
+            )
+            _baseline_tasks[task_id].update(status="done", progress=100, message="补充完成")
+        except Exception as e:
+            logger.error(f"行业数据补充失败[{name}]: {e}")
+            _baseline_tasks[task_id].update(status="error", message=str(e))
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "task_id": task_id}
+
+
 @router.post("/{name}/api/diff/generate")
 def api_generate_diff(name: str, background_tasks: BackgroundTasks):
     """触发增量 Diff 生成（后台任务）"""
@@ -1173,6 +1218,58 @@ def api_baseline_task(task_id: str):
         "progress": task.get("progress", 0),
         "message": task.get("message", ""),
     }
+
+
+# ── 产业链认知上下文 API ─────────────────────────────────────────
+
+@router.get("/api/context")
+def api_chain_context(stock_code: str = None, chain_name: str = None, mode: str = "full"):
+    """获取产业链认知上下文（供个股分析/KG等模块显式调用）
+
+    Query Params:
+        stock_code: 股票代码（自动查映射到产业链）
+        chain_name: 直接指定产业链名
+        mode: full(完整baseline) / prompt(LLM注入格式) / kg_seed(KG种子实体+关系)
+    """
+    from chain.chain_context_provider import (
+        get_chain_context, get_chain_context_for_prompt, get_chain_seed_for_kg,
+        get_chain_for_stock,
+    )
+
+    if not stock_code and not chain_name:
+        return JSONResponse({"ok": False, "error": "需提供 stock_code 或 chain_name"}, status_code=400)
+
+    # 解析 chain_name
+    resolved_chain = chain_name or get_chain_for_stock(stock_code)
+    if not resolved_chain:
+        return {"ok": True, "found": False, "message": f"股票 {stock_code} 不属于任何已配置产业链"}
+
+    if mode == "prompt":
+        text = get_chain_context_for_prompt(chain_name=resolved_chain, stock_code=stock_code)
+        return {"ok": True, "found": bool(text), "chain_name": resolved_chain, "prompt_text": text}
+
+    elif mode == "kg_seed":
+        seed = get_chain_seed_for_kg(resolved_chain)
+        return {"ok": True, "found": True, "chain_name": resolved_chain, "seed": seed}
+
+    else:  # full
+        ctx = get_chain_context(chain_name=resolved_chain, stock_code=stock_code)
+        return {"ok": True, **ctx}
+
+
+@router.get("/api/stock-chain-mapping")
+def api_stock_chain_mapping(stock_codes: str = ""):
+    """批量查询股票→产业链映射
+
+    Query Params:
+        stock_codes: 逗号分隔的股票代码列表
+    """
+    from chain.chain_context_provider import get_chains_for_stocks
+    codes = [c.strip() for c in stock_codes.split(",") if c.strip()]
+    if not codes:
+        return JSONResponse({"ok": False, "error": "需提供 stock_codes"}, status_code=400)
+    mapping = get_chains_for_stocks(codes)
+    return {"ok": True, "mapping": mapping, "count": len(mapping)}
 
 
 # ── 明细页入口（必须放在所有 /api/* 之后） ───────────────────────

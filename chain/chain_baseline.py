@@ -285,11 +285,21 @@ def generate_baseline(chain_name: str, progress_callback=None) -> dict:
 
 请根据以上信息和你的行业通识，为"{chain_name}"产业链生成结构化行业认知 Baseline（JSON）。"""
 
-    _progress("AI 生成 Baseline", 55)
+    _progress("AI 生成 Baseline", 50)
     baseline_json = _call_llm_json(_BASELINE_SYSTEM, user_msg, max_tokens=12000)
 
     if not baseline_json or not isinstance(baseline_json, dict):
         raise ValueError(f"LLM 返回异常: {type(baseline_json)}")
+
+    # 补充真实行业数据（三层检索）
+    _progress("补充行业数据", 60)
+    try:
+        from chain.chain_enrichment import enrich_baseline_industry_data
+        baseline_json = enrich_baseline_industry_data(
+            baseline_json, chain_name, progress_callback=progress_callback
+        )
+    except Exception as e:
+        logger.warning(f"行业数据补充失败，跳过: {e}")
 
     # 检查已有版本
     existing = execute_cloud_query(
@@ -300,7 +310,7 @@ def generate_baseline(chain_name: str, progress_callback=None) -> dict:
     if existing and existing[0].get("mv"):
         next_ver = existing[0]["mv"] + 1
 
-    _progress("保存到数据库", 90)
+    _progress("保存到数据库", 96)
     source_summary = f"首次生成: tiers={len(baseline_json.get('structure', []))}, " \
                      f"drivers={len(baseline_json.get('drivers', []))}, " \
                      f"macro={len(baseline_json.get('macro_relations', []))}"

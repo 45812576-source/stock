@@ -406,7 +406,8 @@ def extract_batch(file_type: str = None, limit: int = 50, on_progress=None) -> d
         params.append(file_type)
 
     sql = f"""SELECT id, doc_type, file_type, title, text_content, oss_url, extract_status
-             FROM source_documents WHERE {status_filter} LIMIT %s"""
+             FROM source_documents WHERE {status_filter}
+             ORDER BY publish_date DESC LIMIT %s"""
     params.append(limit)
 
     rows = execute_cloud_query(sql, params)
