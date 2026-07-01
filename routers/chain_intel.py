@@ -8,6 +8,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -44,7 +45,7 @@ def _build_chain_context() -> str:
 
 # ── AI 分类单条 intel ─────────────────────────────────────────────
 
-def _classify_intel(intel: dict) -> dict | None:
+def _classify_intel(intel: dict) -> Optional[dict]:
     """调用 AI 判断 intel 属于哪个产业链/环节，返回分类结果"""
     chain_context = _build_chain_context()
 
