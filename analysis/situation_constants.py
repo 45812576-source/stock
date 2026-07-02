@@ -46,28 +46,29 @@ def get_phase(situation_id: int) -> str:
 def get_color(situation_id: int) -> str:
     return STAGE_COLORS.get(get_phase(situation_id), "#64748b")
 
-# ── 7维度期望范围 ─────────────────────────────────────────────────────────────
-# 格式: (min, max) 或 None 表示不约束
-# 维度: rsi, price_vs_ma20_pct, macd_hist_sign, capital_flow_sign,
-#        profit_ratio_pct, ma_arrangement, volume_ratio
+# ── 9维度期望范围 ─────────────────────────────────────────────────────────────
+# 基础6维: rsi, price_vs_ma20_pct, macd_hist_sign, capital_flow_sign,
+#          profit_ratio_pct, volume_ratio
+# 动态3维: price_change_pct(段内涨跌幅%), rsi_slope(RSI趋势: 1上/-1下/0平),
+#          (前段上下文通过转换矩阵加分，不在criteria中)
 SITUATION_CRITERIA = {
-    1:  {"rsi": (20, 45), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (0, 1),  "profit_ratio_pct": (0, 40),  "volume_ratio": (0.3, 1.5)},
-    2:  {"rsi": (25, 50), "price_vs_ma20_pct": (-10, 8),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (10, 55), "volume_ratio": (0.3, 1.2)},
-    3:  {"rsi": (35, 60), "price_vs_ma20_pct": (-5, 12),  "macd_hist_sign": (0, 1),  "capital_flow_sign": (0, 1),  "profit_ratio_pct": (30, 65), "volume_ratio": (0.8, 2.0)},
-    4:  {"rsi": (50, 75), "price_vs_ma20_pct": (3, 20),   "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (50, 80), "volume_ratio": (1.5, 5.0)},
-    5:  {"rsi": (55, 75), "price_vs_ma20_pct": (5, 25),   "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (55, 85), "volume_ratio": (1.0, 3.0)},
-    6:  {"rsi": (65, 85), "price_vs_ma20_pct": (10, 40),  "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (70, 95), "volume_ratio": (1.5, 6.0)},
-    7:  {"rsi": (70, 90), "price_vs_ma20_pct": (8, 35),   "macd_hist_sign": (0, 1),  "capital_flow_sign": (-1, 1), "profit_ratio_pct": (75, 98), "volume_ratio": (1.0, 4.0)},
-    8:  {"rsi": (55, 80), "price_vs_ma20_pct": (0, 20),   "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (60, 90), "volume_ratio": (0.8, 2.5)},
-    9:  {"rsi": (40, 65), "price_vs_ma20_pct": (-8, 10),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (40, 75), "volume_ratio": (0.8, 2.0)},
-    10: {"rsi": (45, 70), "price_vs_ma20_pct": (-5, 15),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (35, 70), "volume_ratio": (0.5, 2.0)},
-    11: {"rsi": (35, 60), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (20, 60), "volume_ratio": (0.8, 2.5)},
-    12: {"rsi": (30, 55), "price_vs_ma20_pct": (-20, 0),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (10, 50), "volume_ratio": (0.5, 2.0)},
-    13: {"rsi": (35, 60), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (15, 55), "volume_ratio": (0.5, 1.8)},
-    14: {"rsi": (20, 40), "price_vs_ma20_pct": (-30, -5), "macd_hist_sign": (-1, -1),"capital_flow_sign": (-1, -1),"profit_ratio_pct": (5, 30),  "volume_ratio": (1.0, 4.0)},
-    15: {"rsi": (10, 30), "price_vs_ma20_pct": (-40, -10),"macd_hist_sign": (-1, -1),"capital_flow_sign": (-1, -1),"profit_ratio_pct": (0, 20),  "volume_ratio": (2.0, 8.0)},
-    16: {"rsi": (20, 45), "price_vs_ma20_pct": (-20, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (0, 35),  "volume_ratio": (0.3, 1.5)},
-    17: {"rsi": (30, 55), "price_vs_ma20_pct": (-10, 10), "macd_hist_sign": (0, 1),  "capital_flow_sign": (0, 1),  "profit_ratio_pct": (15, 50), "volume_ratio": (0.8, 2.0)},
+    1:  {"rsi": (20, 45), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (0, 1),  "profit_ratio_pct": (0, 40),  "volume_ratio": (0.3, 1.5),  "price_change_pct": (-5, 5),   "rsi_slope": (0, 1)},
+    2:  {"rsi": (25, 50), "price_vs_ma20_pct": (-10, 8),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (10, 55), "volume_ratio": (0.3, 1.2),  "price_change_pct": (-8, 5),   "rsi_slope": (-1, 1)},
+    3:  {"rsi": (35, 60), "price_vs_ma20_pct": (-5, 12),  "macd_hist_sign": (0, 1),  "capital_flow_sign": (0, 1),  "profit_ratio_pct": (30, 65), "volume_ratio": (0.8, 2.0),  "price_change_pct": (3, 15),   "rsi_slope": (0, 1)},
+    4:  {"rsi": (50, 75), "price_vs_ma20_pct": (3, 20),   "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (50, 80), "volume_ratio": (1.5, 5.0),  "price_change_pct": (5, 20),   "rsi_slope": (0, 1)},
+    5:  {"rsi": (55, 75), "price_vs_ma20_pct": (5, 25),   "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (55, 85), "volume_ratio": (1.0, 3.0),  "price_change_pct": (10, 35),  "rsi_slope": (0, 1)},
+    6:  {"rsi": (65, 85), "price_vs_ma20_pct": (10, 40),  "macd_hist_sign": (1, 1),  "capital_flow_sign": (1, 1),  "profit_ratio_pct": (70, 95), "volume_ratio": (1.5, 6.0),  "price_change_pct": (20, 60),  "rsi_slope": (0, 1)},
+    7:  {"rsi": (70, 90), "price_vs_ma20_pct": (8, 35),   "macd_hist_sign": (0, 1),  "capital_flow_sign": (-1, 1), "profit_ratio_pct": (75, 98), "volume_ratio": (1.0, 4.0),  "price_change_pct": (-5, 8),   "rsi_slope": (-1, 0)},
+    8:  {"rsi": (55, 80), "price_vs_ma20_pct": (0, 20),   "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (60, 90), "volume_ratio": (0.8, 2.5),  "price_change_pct": (-10, 0),  "rsi_slope": (-1, 0)},
+    9:  {"rsi": (40, 65), "price_vs_ma20_pct": (-8, 10),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (40, 75), "volume_ratio": (0.8, 2.0),  "price_change_pct": (-15, -3), "rsi_slope": (-1, 0)},
+    10: {"rsi": (45, 70), "price_vs_ma20_pct": (-5, 15),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (35, 70), "volume_ratio": (0.5, 2.0),  "price_change_pct": (-8, 8),   "rsi_slope": (-1, 1)},
+    11: {"rsi": (35, 60), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (20, 60), "volume_ratio": (0.8, 2.5),  "price_change_pct": (-12, -3), "rsi_slope": (-1, 0)},
+    12: {"rsi": (30, 55), "price_vs_ma20_pct": (-20, 0),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 0), "profit_ratio_pct": (10, 50), "volume_ratio": (0.5, 2.0),  "price_change_pct": (-30, -10),"rsi_slope": (-1, -1)},
+    13: {"rsi": (35, 60), "price_vs_ma20_pct": (-15, 5),  "macd_hist_sign": (-1, 1), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (15, 55), "volume_ratio": (0.5, 1.8),  "price_change_pct": (3, 15),   "rsi_slope": (0, 1)},
+    14: {"rsi": (20, 40), "price_vs_ma20_pct": (-30, -5), "macd_hist_sign": (-1, -1),"capital_flow_sign": (-1, -1),"profit_ratio_pct": (5, 30),  "volume_ratio": (1.0, 4.0),  "price_change_pct": (-50, -15),"rsi_slope": (-1, -1)},
+    15: {"rsi": (10, 30), "price_vs_ma20_pct": (-40, -10),"macd_hist_sign": (-1, -1),"capital_flow_sign": (-1, -1),"profit_ratio_pct": (0, 20),  "volume_ratio": (2.0, 8.0),  "price_change_pct": (-60, -20),"rsi_slope": (-1, -1)},
+    16: {"rsi": (20, 45), "price_vs_ma20_pct": (-20, 5),  "macd_hist_sign": (-1, 0), "capital_flow_sign": (-1, 1), "profit_ratio_pct": (0, 35),  "volume_ratio": (0.3, 1.5),  "price_change_pct": (-5, 5),   "rsi_slope": (0, 1)},
+    17: {"rsi": (30, 55), "price_vs_ma20_pct": (-10, 10), "macd_hist_sign": (0, 1),  "capital_flow_sign": (0, 1),  "profit_ratio_pct": (15, 50), "volume_ratio": (0.8, 2.0),  "price_change_pct": (3, 12),   "rsi_slope": (0, 1)},
 }
 
 # ── 转换矩阵 ─────────────────────────────────────────────────────────────────

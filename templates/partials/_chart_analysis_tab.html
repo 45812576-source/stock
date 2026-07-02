@@ -1,47 +1,73 @@
 {# K线阶段分析 Tab — 叠加在K线图上的阶段标注 + 右侧结论面板 #}
-<div id="chart-analysis-panel" class="flex gap-4">
+<div id="chart-analysis-panel">
 
-  {# 左侧：K线图（带阶段标注） #}
-  <div class="flex-1 min-w-0">
-    <div class="flex items-center justify-between mb-2">
-      <span class="text-xs text-slate-400">基于180天K线的17情形阶段分析</span>
-      <div class="flex items-center gap-2">
-        <span id="ca-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">未分析</span>
-        <button id="ca-refresh-btn" onclick="startChartAnalysis()"
-          class="px-3 py-1 rounded-lg text-xs bg-primary/20 text-primary hover:bg-primary/30 transition flex items-center gap-1">
-          <span class="material-icons-round" style="font-size:14px">refresh</span>重新分析
-        </button>
+  <div class="flex gap-4">
+    {# 左侧：K线图（带阶段标注） #}
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs text-slate-400">分析范围:</span>
+          <input type="date" id="ca-start-date"
+            class="px-2 py-0.5 rounded bg-slate-700 border border-slate-600 text-xs text-slate-300 w-28">
+          <span class="text-xs text-slate-500">至</span>
+          <input type="date" id="ca-end-date"
+            class="px-2 py-0.5 rounded bg-slate-700 border border-slate-600 text-xs text-slate-300 w-28">
+          <select id="ca-preset-range" onchange="applyPresetRange(this.value)"
+            class="px-2 py-0.5 rounded bg-slate-700 border border-slate-600 text-xs text-slate-300">
+            <option value="180">近180天</option>
+            <option value="90">近90天</option>
+            <option value="365">近1年</option>
+            <option value="730">近2年</option>
+            <option value="custom">自定义</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="ca-status-badge" class="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-400">未分析</span>
+          <button id="ca-refresh-btn" onclick="startChartAnalysis()"
+            class="px-3 py-1 rounded-lg text-xs bg-primary/20 text-primary hover:bg-primary/30 transition flex items-center gap-1">
+            <span class="material-icons-round" style="font-size:14px">refresh</span>重新分析
+          </button>
+        </div>
+      </div>
+      <div id="ca-kline-chart" style="height:460px"></div>
+    </div>
+
+    {# 右侧：结论面板（只保留当前阶段+预测） #}
+    <div class="w-72 flex-shrink-0 space-y-3" id="ca-conclusion-panel">
+      {# 当前阶段 #}
+      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+        <div class="text-xs text-slate-500 font-semibold mb-2">当前阶段</div>
+        <div id="ca-current-stage">
+          <div class="text-slate-500 text-xs text-center py-4">点击“重新分析”生成阶段分析</div>
+        </div>
+      </div>
+
+      {# 下一阶段预测（含转换信号） #}
+      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+        <div class="text-xs text-slate-500 font-semibold mb-2">下一阶段预测</div>
+        <div id="ca-predictions">
+          <div class="text-slate-600 text-xs">—</div>
+        </div>
+      </div>
+
+      {# 监控条件进度 #}
+      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+        <div class="text-xs text-slate-500 font-semibold mb-2">监控指标</div>
+        <div id="ca-monitor-progress">
+          <div class="text-slate-600 text-xs">—</div>
+        </div>
       </div>
     </div>
-    <div id="ca-kline-chart" style="height:460px"></div>
   </div>
 
-  {# 右侧：结论面板 #}
-  <div class="w-72 flex-shrink-0 space-y-3" id="ca-conclusion-panel">
-    {# 当前阶段 #}
-    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-      <div class="text-xs text-slate-500 font-semibold mb-2">当前阶段</div>
-      <div id="ca-current-stage">
-        <div class="text-slate-500 text-xs text-center py-4">点击"重新分析"生成阶段分析</div>
-      </div>
-    </div>
-
-    {# 退出信号 #}
-    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-      <div class="text-xs text-slate-500 font-semibold mb-2">退出信号监控</div>
-      <div id="ca-exit-signals">
-        <div class="text-slate-600 text-xs">—</div>
-      </div>
-    </div>
-
-    {# 预测场景 #}
-    <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-      <div class="text-xs text-slate-500 font-semibold mb-2">下一阶段预测</div>
-      <div id="ca-predictions">
-        <div class="text-slate-600 text-xs">—</div>
-      </div>
+  {# 历史复盘（放在K线图下方，全宽） #}
+  <div class="mt-4 rounded-xl border border-slate-700 bg-slate-800/50 p-4">
+    <div class="text-xs text-slate-500 font-semibold mb-3">历史复盘</div>
+    <div id="ca-reviews">
+      <div class="text-slate-600 text-xs">—</div>
     </div>
   </div>
+
 </div>
 
 <style>
@@ -327,30 +353,75 @@
       <div class="text-xs text-slate-500">已持续 <span class="text-white font-semibold">${cur.days_in_stage || '—'}</span> 天</div>
     `;
 
-    // 退出信号
-    const exits = cur.exit_conditions || [];
-    document.getElementById('ca-exit-signals').innerHTML = exits.length
-      ? exits.map(e => `<div class="ca-exit-item"><span class="material-icons-round text-amber-400" style="font-size:12px">warning</span>${e}</div>`).join('')
-      : '<div class="text-slate-600 text-xs">暂无退出信号</div>';
+    // 退出信号（已合并到预测中，不再单独渲染）
 
-    // 预测
+    // 预测（含转换信号）
     document.getElementById('ca-predictions').innerHTML = preds.length
-      ? preds.map(p => `
-          <div class="ca-pred-row">
-            <span class="ca-pred-prob">${Math.round((p.probability||0)*100)}%</span>
+      ? preds.map(p => {
+          const probPct = Math.round((p.probability||0)*100);
+          const probColor = probPct >= 80 ? '#f87171' : (probPct >= 50 ? '#fbbf24' : '#60a5fa');
+          return `
+          <div class="ca-pred-row" style="border-bottom:1px solid rgba(100,116,139,0.1);padding:8px 0">
+            <span class="ca-pred-prob" style="color:${probColor}">${probPct}%</span>
             <div>
-              <div class="text-xs text-slate-300">${p.scenario || ''}</div>
-              <div class="text-xs text-slate-500 mt-0.5">${p.entry_conditions || ''}</div>
+              <div class="text-xs text-slate-200 font-medium">${p.scenario || ''}</div>
+              <div class="text-xs text-slate-500 mt-1">当出现: ${p.trigger || ''}</div>
             </div>
-          </div>`).join('')
+          </div>`;
+        }).join('')
       : '<div class="text-slate-600 text-xs">—</div>';
+
+    // 加载监控指标进度
+    _loadMonitorProgress();
+  }
+
+  // 渲染监控指标进度
+  function _loadMonitorProgress() {
+    fetch(`/stock/${stockCode}/api/prediction-monitors`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.monitors && data.monitors.length) {
+          renderMonitorProgress(data.monitors);
+        }
+      })
+      .catch(() => {});
+  }
+
+  function renderMonitorProgress(monitors) {
+    const container = document.getElementById('ca-monitor-progress');
+    if (!monitors || !monitors.length) {
+      container.innerHTML = '<div class="text-slate-600 text-xs">暂无监控项</div>';
+      return;
+    }
+    container.innerHTML = monitors.map(m => {
+      const probPct = Math.round((m.probability || 0) * 100);
+      const triggers = m.triggers || [];
+      const triggerRows = triggers.map(t => {
+        const icon = t.satisfied ? '✓' : '○';
+        const color = t.satisfied ? 'text-emerald-400' : 'text-slate-500';
+        const display = t.threshold_display || `${t.label} ${t.operator} ${t.threshold}`;
+        const currentStr = t.current_value != null ? `(当前: ${typeof t.current_value === 'number' ? t.current_value.toFixed ? t.current_value.toFixed(2) : t.current_value : t.current_value})` : '';
+        return `<div class="flex items-center gap-1 text-xs py-0.5">
+          <span class="${color} shrink-0 w-3">${icon}</span>
+          <span class="${t.satisfied ? 'text-emerald-300' : 'text-slate-400'}">${display}</span>
+          <span class="text-slate-600 text-xs">${currentStr}</span>
+        </div>`;
+      }).join('');
+      return `<div class="mb-3 last:mb-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-xs font-bold text-blue-400">${probPct}%</span>
+          <span class="text-xs text-slate-300">${m.scenario_name || ''}</span>
+          <span class="text-xs text-slate-600 ml-auto">${m.satisfied_count}/${m.total_count}</span>
+        </div>
+        ${triggerRows}
+      </div>`;
+    }).join('');
   }
 
   // 加载已有分析（幂等：已渲染过则直接 resize）
   let _caLoaded = false;
   window.loadExistingAnalysis = function() {
     if (_caLoaded) {
-      // 已渲染过，只需 resize（从 hidden 切回来时 Plotly 需要重算尺寸）
       const el = document.getElementById('ca-kline-chart');
       if (el && el.data) Plotly.Plots.resize(el);
       return;
@@ -364,34 +435,90 @@
           renderCaConclusion(data);
           document.getElementById('ca-status-badge').textContent = `已分析 ${data.analysis_date || ''}`;
           document.getElementById('ca-status-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
+          // 回填日期范围
+          if (data.start_date_range) document.getElementById('ca-start-date').value = data.start_date_range;
+          if (data.end_date_range) document.getElementById('ca-end-date').value = data.end_date_range;
           _caLoaded = true;
         } else {
           renderCaChart([]);
+          _loadMonitorProgress();  // 无分析数据也尝试加载监控
           _caLoaded = true;
         }
       })
       .catch(() => { renderCaChart([]); _caLoaded = true; });
+
+    // 同时加载历史复盘
+    fetch(`/stock/${stockCode}/api/chart-analysis/reviews`)
+      .then(r => r.json())
+      .then(d => { if (d.ok) renderCaReviews(d.reviews); })
+      .catch(() => {});
   };
 
-  // 触发分析
+  // 日期预设快捷
+  window.applyPresetRange = function(val) {
+    const startInput = document.getElementById('ca-start-date');
+    const endInput = document.getElementById('ca-end-date');
+    if (val === 'custom') {
+      startInput.value = ''; endInput.value = '';
+      return;
+    }
+    const days = parseInt(val);
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - days);
+    endInput.value = end.toISOString().slice(0, 10);
+    startInput.value = start.toISOString().slice(0, 10);
+  };
+
+  // 日期框变化时自动切换为“自定义”
+  document.getElementById('ca-start-date').addEventListener('change', () => {
+    document.getElementById('ca-preset-range').value = 'custom';
+  });
+  document.getElementById('ca-end-date').addEventListener('change', () => {
+    document.getElementById('ca-preset-range').value = 'custom';
+  });
+
+  // 触发分析 — 携带日期范围
   window.startChartAnalysis = function() {
     const btn = document.getElementById('ca-refresh-btn');
     const badge = document.getElementById('ca-status-badge');
+
+    // 前端校验
+    const startDate = document.getElementById('ca-start-date').value || null;
+    const endDate = document.getElementById('ca-end-date').value || null;
+    if (startDate && endDate && startDate > endDate) {
+      alert('起始日期不能晚于结束日期');
+      return;
+    }
+
     btn.disabled = true;
     btn.innerHTML = '<span class="material-icons-round animate-spin" style="font-size:14px">refresh</span>分析中...';
     badge.textContent = '分析中...';
     badge.className = 'text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400';
 
-    fetch(`/stock/${stockCode}/api/chart-analysis`, { method: 'POST' })
+    // 构建请求体
+    const body = {};
+    if (startDate) body.start_date = startDate;
+    if (endDate) body.end_date = endDate;
+    const preset = document.getElementById('ca-preset-range').value;
+    if (!startDate && !endDate && preset !== 'custom') {
+      body.days = parseInt(preset) || 180;
+    }
+
+    fetch(`/stock/${stockCode}/api/chart-analysis`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    })
       .then(r => r.json())
       .then(d => {
-        if (d.task_id) {
+        if (d.ok && d.task_id) {
           caTaskId = d.task_id;
           caPollTimer = setInterval(pollAnalysisTask, 3000);
         } else {
           btn.disabled = false;
           btn.innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
-          badge.textContent = '启动失败';
+          badge.textContent = d.error || '启动失败';
         }
       })
       .catch(() => {
@@ -412,12 +539,18 @@
           btn.innerHTML = '<span class="material-icons-round" style="font-size:14px">refresh</span>重新分析';
           if (d.result && d.result.ok) {
             caAnalysisData = d.result;
-            _caLoaded = true;  // 标记已渲染
+            _caLoaded = true;
             renderCaChart(d.result.stages);
             renderCaConclusion(d.result);
             const badge = document.getElementById('ca-status-badge');
             badge.textContent = `已分析 ${d.result.analysis_date || ''}`;
             badge.className = 'text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400';
+            // 如果有复盘结果，刷新复盘列表
+            if (d.result.review) {
+              fetch(`/stock/${stockCode}/api/chart-analysis/reviews`)
+                .then(r => r.json())
+                .then(rv => { if (rv.ok) renderCaReviews(rv.reviews); });
+            }
           } else {
             document.getElementById('ca-status-badge').textContent = '分析失败';
             document.getElementById('ca-status-badge').className = 'text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400';
@@ -431,7 +564,60 @@
       });
   }
 
+  // 渲染复盘记录
+  function renderCaReviews(reviews) {
+    const container = document.getElementById('ca-reviews');
+    if (!reviews || !reviews.length) {
+      container.innerHTML = '<div class="text-slate-600 text-xs">暂无复盘记录</div>';
+      return;
+    }
+    container.innerHTML = reviews.map(r => {
+      const verdictColor = r.verdict === 'hit' ? 'text-emerald-400' :
+                           r.verdict === 'top_hit' ? 'text-emerald-400' :
+                           r.verdict === 'partial' ? 'text-amber-400' : 'text-red-400';
+      const verdictLabel = r.verdict === 'hit' ? '✓ 命中' :
+                           r.verdict === 'top_hit' ? '✓ 最高概率预测命中' :
+                           r.verdict === 'partial' ? '◐ 部分命中' : '✗ 偏差';
+
+      // 上次分析时的状态
+      const prevStage = r.prev_stage || {};
+      const prevInfo = prevStage.name
+        ? `<div class="text-xs text-slate-400 mb-1">当时处于: <span class="text-white">情形${prevStage.situation_id || ''} ${prevStage.name}</span></div>`
+        : '';
+
+      // 预测列表
+      const preds = (r.predictions || []).map(p => {
+        const pct = Math.round((p.probability || 0) * 100);
+        const trigger = p.trigger || p.entry_conditions || '';
+        return `<div class="flex items-start gap-1 text-xs py-0.5">
+          <span class="text-slate-500 shrink-0">${pct}%</span>
+          <span class="text-slate-300">${p.scenario || ''}</span>
+          ${trigger ? `<span class="text-slate-600">| 当: ${trigger}</span>` : ''}
+        </div>`;
+      }).join('');
+
+      // 实际发生
+      const actuals = (r.actual || []).map(a => {
+        return `<div class="text-xs text-slate-300 py-0.5">→ ${a.start_date}~${a.end_date}: <span class="text-white">${a.name}</span> ${a.summary || ''}</div>`;
+      }).join('');
+
+      return `<div class="border-b border-slate-700/50 pb-3 mb-3 last:border-0">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-slate-400">${r.prev_analysis_date || ''} 分析</span>
+          <span class="${verdictColor} text-xs font-bold">${verdictLabel}</span>
+        </div>
+        ${prevInfo}
+        ${preds ? `<div class="mb-1.5"><div class="text-xs text-slate-500 mb-0.5">当时预测:</div>${preds}</div>` : ''}
+        ${actuals ? `<div class="mb-1.5"><div class="text-xs text-slate-500 mb-0.5">实际发生:</div>${actuals}</div>` : ''}
+        ${r.explanation ? `<div class="text-xs text-slate-500 mb-1">分析: <span class="text-slate-400">${r.explanation}</span></div>` : ''}
+        ${r.lessons ? `<div class="text-xs text-amber-500/80">→ ${r.lessons}</div>` : ''}
+      </div>`;
+    }).join('');
+  }
+
   // 初始化：不在 DOMContentLoaded 时加载，改为切换到阶段分析 tab 时懒加载
   // （由 setKlineView('analysis') 调用 loadExistingAnalysis）
+  // 初始化默认日期范围
+  applyPresetRange('180');
 })();
 </script>

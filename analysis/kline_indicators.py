@@ -31,9 +31,14 @@ def _sma(arr: list, n: int) -> list:
     return result
 
 
-def compute_all_indicators(stock_code: str, days: int = 180) -> dict:
+def compute_all_indicators(stock_code: str, days: int = 180,
+                           start_date: str = None, end_date: str = None) -> dict:
     """
     预计算全部技术指标，返回结构化字典。
+
+    支持两种模式：
+    - 日期范围模式：start_date + end_date 指定精确范围
+    - 天数模式（默认）：取最近 days 天
 
     Returns:
         {
@@ -50,18 +55,33 @@ def compute_all_indicators(stock_code: str, days: int = 180) -> dict:
         }
     """
     # 多取60天用于指标预热
-    fetch_days = days + 60
-    rows = execute_query(
-        """SELECT trade_date, open, high, low, close, volume, amount
-           FROM stock_daily WHERE stock_code=%s
-           ORDER BY trade_date DESC LIMIT %s""",
-        [stock_code, fetch_days],
-    )
+    if start_date and end_date:
+        # 日期范围模式：额外前取60个交易日预热
+        from datetime import datetime, timedelta
+        warmup_start = (datetime.strptime(start_date, "%Y-%m-%d") - timedelta(days=90)).strftime("%Y-%m-%d")
+        rows = execute_query(
+            """SELECT trade_date, open, high, low, close, volume, amount
+               FROM stock_daily WHERE stock_code=%s AND trade_date >= %s AND trade_date <= %s
+               ORDER BY trade_date ASC""",
+            [stock_code, warmup_start, end_date],
+        )
+    else:
+        fetch_days = days + 60
+        rows = execute_query(
+            """SELECT trade_date, open, high, low, close, volume, amount
+               FROM stock_daily WHERE stock_code=%s
+               ORDER BY trade_date DESC LIMIT %s""",
+            [stock_code, fetch_days],
+        )
     if not rows:
         return {}
 
-    rows = list(reversed(rows))
-    ohlcv = [dict(r) for r in rows]
+    if start_date and end_date:
+        # 日期范围模式已经 ASC 排序
+        ohlcv = [dict(r) for r in rows]
+    else:
+        rows = list(reversed(rows))
+        ohlcv = [dict(r) for r in rows]
 
     dates = [r["trade_date"] for r in ohlcv]
     closes = [float(r["close"] or 0) for r in ohlcv]
@@ -134,13 +154,22 @@ def compute_all_indicators(stock_code: str, days: int = 180) -> dict:
             vol_ratio.append(vols[i] / avg20 if avg20 > 0 else None)
 
     # 资金流向
-    cap_rows = execute_query(
-        """SELECT trade_date, main_net_inflow, super_large_net, large_net, medium_net, small_net
-           FROM capital_flow WHERE stock_code=%s
-           ORDER BY trade_date DESC LIMIT %s""",
-        [stock_code, fetch_days],
-    )
-    capital_flow = [dict(r) for r in reversed(cap_rows)] if cap_rows else []
+    if start_date and end_date:
+        cap_rows = execute_query(
+            """SELECT trade_date, main_net_inflow, super_large_net, large_net, medium_net, small_net
+               FROM capital_flow WHERE stock_code=%s AND trade_date >= %s AND trade_date <= %s
+               ORDER BY trade_date ASC""",
+            [stock_code, start_date, end_date],
+        )
+        capital_flow = [dict(r) for r in cap_rows] if cap_rows else []
+    else:
+        cap_rows = execute_query(
+            """SELECT trade_date, main_net_inflow, super_large_net, large_net, medium_net, small_net
+               FROM capital_flow WHERE stock_code=%s
+               ORDER BY trade_date DESC LIMIT %s""",
+            [stock_code, fetch_days],
+        )
+        capital_flow = [dict(r) for r in reversed(cap_rows)] if cap_rows else []
     cap_map = {r["trade_date"]: r for r in capital_flow}
 
     # 估算获利盘比例（简化：基于过去60日成交量加权平均成本 vs 当前价）
@@ -160,8 +189,16 @@ def compute_all_indicators(stock_code: str, days: int = 180) -> dict:
             ratio = min(100, max(0, 50 + (closes[i] - vwap) / vwap * 200))
             profit_ratio.append(round(ratio, 1))
 
-    # 只返回最近 days 天的数据（去掉预热部分）
-    trim = max(0, len(dates) - days)
+    # 去掉预热部分：日期范围模式按start_date截断，天数模式按days截断
+    if start_date and end_date:
+        # 找到 start_date 对应的索引
+        trim = 0
+        for i, d in enumerate(dates):
+            if str(d) >= start_date:
+                trim = i
+                break
+    else:
+        trim = max(0, len(dates) - days)
     def _trim(lst):
         return lst[trim:] if lst else lst
 

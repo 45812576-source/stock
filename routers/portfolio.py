@@ -35,6 +35,30 @@ def _trigger_report_pull(stock_code: str):
     threading.Thread(target=_bg, args=(stock_code,), daemon=True).start()
 
 
+def _trigger_tag_compute(stock_code: str):
+    """加入篮子时后台触发 L1+L2+L3 标签计算"""
+    import threading
+    def _bg(code: str):
+        try:
+            from tagging.l1_quant_engine import run_l1_for_stock
+            result = run_l1_for_stock(code)
+            matched = sum(1 for x in result["computed"] if x["matched"])
+            logger.info(f"[Portfolio] L1标签计算完成: {code}, matched={matched}")
+
+            # L2/L3
+            try:
+                from tagging.l2_ai_engine import run_l2_for_stock
+                from tagging.l3_deep_engine import run_l3_for_stock
+                run_l2_for_stock(code)
+                run_l3_for_stock(code)
+                logger.info(f"[Portfolio] L2/L3标签计算完成: {code}")
+            except Exception as e2:
+                logger.warning(f"[Portfolio] L2/L3标签计算失败 {code}: {e2}")
+        except Exception as e:
+            logger.warning(f"[Portfolio] L1标签计算失败 {code}: {e}")
+    threading.Thread(target=_bg, args=(stock_code,), daemon=True).start()
+
+
 # ==================== 页面路由 ====================
 
 @router.get("", response_class=HTMLResponse)
@@ -117,6 +141,8 @@ async def api_add_stock(strategy_id: int, request: Request):
         return JSONResponse({"ok": False, "error": str(e)[:200]}, status_code=500)
 
     _trigger_report_pull(stock_code)
+    # 加入篮子时自动触发标签计算（后台）
+    _trigger_tag_compute(stock_code)
     return {"ok": True}
 
 

@@ -134,35 +134,57 @@ def _get_knowledge_tags(stock_code):
 
     Returns:
         {
-            'core': [  # 行业标签 + 投资主题标签（全显示）
-                {'name': '半导体', 'type': 'industry'},
-                {'name': 'AI芯片', 'type': 'theme'},
+            'industry_layered': {  # 行业标签按层级分组
+                1: [{'name': '电子布', 'strength': 0.9}],  # 核心层
+                2: [{'name': 'AI电子布', 'strength': 0.8}],  # 相关层
+                3: [{'name': '计算机', 'strength': 0.7}],  # 关联层
+            },
+            'theme_layered': {...},  # 主题标签按层级分组
+            'selection': [  # 选股标签L1/L2/L3
+                {'name': '营收加速增长', 'layer': 1, 'category': 'growth_momentum', 'confidence': 0.85, 'evidence': '...'}
             ],
-            'more': [  # 选股标签（matched=1 的规则）
-                {'name': '均线多头排列', 'type': 'selection', 'category': '技术形态', 'layer': 1},
-            ],
-            'structured': {  # 结构化分类（供新模板使用）
-                'industry': [...], 'themes': [...], 'selection': [...]
-            }
+            'core': [...],  # 兼容旧接口: 仅tier1的行业+主题
+            'more': [...],  # 兼容旧接口: 选股标签
         }
     """
     try:
         from tagging.stock_tag_service import get_stock_tags
         result = get_stock_tags(stock_code)
-        display = result.to_display_dict()
-        core = (
-            [{"name": t, "type": "industry"} for t in result.industry_tags] +
-            [{"name": t, "type": "theme"} for t in result.theme_tags]
-        )
-        more = [
+
+        # 行业标签分层
+        industry_layered = {1: [], 2: [], 3: []}
+        for t in result.industry_tags_layered:
+            industry_layered[t.tier].append({"name": t.name, "type": "industry", "strength": t.strength})
+
+        # 主题标签分层
+        theme_layered = {1: [], 2: [], 3: []}
+        for t in result.theme_tags_layered:
+            theme_layered[t.tier].append({"name": t.name, "type": "theme", "strength": t.strength})
+
+        # 选股标签（全部返回，前端按layer分色）
+        selection = [
             {
                 "name": t.name, "type": "selection",
                 "category": t.category, "layer": t.layer,
-                "confidence": t.confidence,
+                "confidence": t.confidence, "evidence": t.evidence,
             }
             for t in result.selection_tags
         ]
-        return {"core": core, "more": more, "structured": display}
+
+        # 兼容旧接口
+        core = (
+            [{"name": t.name, "type": "industry"} for t in result.industry_tags_layered if t.tier == 1] +
+            [{"name": t.name, "type": "theme"} for t in result.theme_tags_layered if t.tier == 1]
+        )
+        more = selection
+
+        return {
+            "industry_layered": industry_layered,
+            "theme_layered": theme_layered,
+            "selection": selection,
+            "core": core,
+            "more": more,
+        }
     except Exception as e:
         logger.warning(f"标签聚合失败，降级到旧逻辑: {e}")
         rows = execute_query(
@@ -520,10 +542,14 @@ def stock_detail(request: Request, stock_code: str, user: TokenData = Depends(ge
         "kline": kline,
         "kline_json": json.dumps(kline, ensure_ascii=False, default=str),
         "capital_json": json.dumps([dict(c) for c in reversed(capital)] if capital else [], ensure_ascii=False, default=str),
-        "tags": core_tags + more_tags,  # 兼容旧模板
+        "tags": core_tags + more_tags,
         "core_tags": core_tags,
         "more_tags": more_tags,
         "tags_json": json.dumps(core_tags + more_tags, ensure_ascii=False),
+        # 新增分层数据（行业/主题按层级, 选股全量）
+        "industry_layered_json": json.dumps(layered_tags.get('industry_layered', {}), ensure_ascii=False),
+        "theme_layered_json": json.dumps(layered_tags.get('theme_layered', {}), ensure_ascii=False),
+        "selection_tags_json": json.dumps(layered_tags.get('selection', []), ensure_ascii=False),
         "research": research,
         "history": history,
         "capital": capital,
@@ -1028,6 +1054,36 @@ def api_toggle_watch(stock_code: str):
 _tag_gen_tasks: dict = {}
 
 
+@router.post("/{stock_code}/api/refresh-tags")
+def api_refresh_tags(stock_code: str, background_tasks: BackgroundTasks):
+    """刷新标签：用最新数据重算 L1（同步）+ L2/L3（后台）"""
+    try:
+        from tagging.l1_quant_engine import run_l1_for_stock
+        result = run_l1_for_stock(stock_code)
+        matched = sum(1 for x in result["computed"] if x["matched"])
+
+        # L2/L3 后台跑（不阻塞前端）
+        def _run_l2l3():
+            try:
+                from tagging.l2_ai_engine import run_l2_for_stock
+                from tagging.l3_deep_engine import run_l3_for_stock
+                run_l2_for_stock(stock_code)
+                run_l3_for_stock(stock_code)
+            except Exception as e:
+                logger.warning(f"L2/L3 后台刷新失败 {stock_code}: {e}")
+
+        background_tasks.add_task(_run_l2l3)
+
+        return JSONResponse({
+            "ok": True,
+            "computed": len(result["computed"]),
+            "matched": matched,
+            "skipped": len(result["skipped"]),
+        })
+    except Exception as e:
+        logger.error(f"refresh-tags 失败 {stock_code}: {e}")
+        return JSONResponse({"ok": False, "error": str(e)[:200]}, status_code=500)
+
 @router.post("/{stock_code}/api/generate-tags")
 def api_generate_tags(stock_code: str, background_tasks: BackgroundTasks):
     """触发 L1+L2+L3 全量标签生成（后台任务）"""
@@ -1123,14 +1179,33 @@ def _create_ca_task(stock_code: str) -> str:
 
 
 @router.post("/{stock_code}/api/chart-analysis")
-async def api_start_chart_analysis(stock_code: str, background_tasks: BackgroundTasks, user: TokenData = Depends(get_current_user)):
-    """触发K线阶段分析（后台任务）"""
+async def api_start_chart_analysis(stock_code: str, background_tasks: BackgroundTasks, request: Request, user: TokenData = Depends(get_current_user)):
+    """触发K线阶段分析（后台任务）— 支持自定义日期范围"""
     user_id = user.user_id
 
     # 检查K线分析权限
     can_run, msg = check_quota(user_id, 'chart_analysis')
     if not can_run:
         return JSONResponse({"ok": False, "error": msg}, status_code=403)
+
+    # 解析请求体
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    start_date = body.get("start_date")  # YYYY-MM-DD or None
+    end_date = body.get("end_date")      # YYYY-MM-DD or None
+    days = body.get("days", 180)
+
+    # 校验日期范围
+    if start_date and end_date:
+        if start_date > end_date:
+            return JSONResponse({"ok": False, "error": "起始日期不能晚于结束日期"}, status_code=400)
+        from datetime import datetime
+        delta = (datetime.strptime(end_date, "%Y-%m-%d") - datetime.strptime(start_date, "%Y-%m-%d")).days
+        if delta > 730:
+            return JSONResponse({"ok": False, "error": "分析范围不能超过730天"}, status_code=400)
 
     # 消耗配额
     consume_quota(user_id, 'chart_analysis', 1)
@@ -1140,7 +1215,8 @@ async def api_start_chart_analysis(stock_code: str, background_tasks: Background
     def _run():
         try:
             from analysis.kline_analyzer import run_full_analysis
-            result = run_full_analysis(stock_code, days=180)
+            result = run_full_analysis(stock_code, days=days,
+                                      start_date=start_date, end_date=end_date)
             with _ca_tasks_lock:
                 if task_id in _chart_analysis_tasks:
                     _chart_analysis_tasks[task_id]["status"] = "done"
@@ -1163,10 +1239,11 @@ def api_get_latest_chart_analysis(stock_code: str):
         from analysis.kline_analyzer import get_latest_analysis
         data = get_latest_analysis(stock_code)
         if data:
-            # 序列化 date/datetime 为字符串
             payload = {
                 "ok": True,
                 "analysis_date": str(data.get("analysis_date") or ""),
+                "start_date_range": data.get("start_date_range") or "",
+                "end_date_range": data.get("end_date_range") or "",
                 "created_at": str(data.get("created_at") or ""),
                 "stages": data.get("stages") or [],
                 "current_stage": data.get("current_stage") or {},
@@ -1179,6 +1256,18 @@ def api_get_latest_chart_analysis(stock_code: str):
         return JSONResponse({"ok": False, "error": str(e)})
 
 
+@router.get("/{stock_code}/api/chart-analysis/reviews")
+def api_get_chart_reviews(stock_code: str):
+    """获取历史复盘记录（含完整预测对比数据）"""
+    try:
+        from analysis.kline_analyzer import get_review_history_full
+        reviews = get_review_history_full(stock_code, limit=10)
+        return JSONResponse({"ok": True, "reviews": reviews})
+    except Exception as e:
+        logger.error(f"获取复盘记录失败 {stock_code}: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
+
+
 @router.get("/{stock_code}/api/chart-analysis/{task_id}")
 def api_get_chart_analysis_task(stock_code: str, task_id: str):
     """查询阶段分析任务状态"""
@@ -1187,6 +1276,44 @@ def api_get_chart_analysis_task(stock_code: str, task_id: str):
     if not task:
         return JSONResponse({"error": "任务不存在"}, status_code=404)
     return JSONResponse(task)
+
+
+@router.get("/{stock_code}/api/prediction-monitors")
+def api_get_prediction_monitors(stock_code: str):
+    """获取当前活跃的预测监控项（含量化条件进度）"""
+    try:
+        rows = execute_query(
+            """SELECT id, situation_id, scenario_name, probability,
+                      trigger_logic, triggers_json, satisfied_count, total_count,
+                      created_at
+               FROM prediction_monitors
+               WHERE stock_code=%s AND status='active'
+               ORDER BY probability DESC""",
+            [stock_code],
+        )
+        monitors = []
+        for r in (rows or []):
+            row = dict(r)
+            triggers = []
+            if row.get("triggers_json"):
+                try:
+                    triggers = json.loads(row["triggers_json"])
+                except:
+                    pass
+            monitors.append({
+                "id": row["id"],
+                "situation_id": row["situation_id"],
+                "scenario_name": row.get("scenario_name", ""),
+                "probability": row.get("probability", 0),
+                "triggers": triggers,
+                "satisfied_count": row.get("satisfied_count", 0),
+                "total_count": row.get("total_count", 0),
+                "created_at": str(row["created_at"])[:10] if row.get("created_at") else "",
+            })
+        return JSONResponse({"ok": True, "monitors": monitors})
+    except Exception as e:
+        logger.error(f"获取预测监控失败 {stock_code}: {e}")
+        return JSONResponse({"ok": False, "error": str(e)})
 
 
 # ==================== 个股报告 Chatbot API ====================

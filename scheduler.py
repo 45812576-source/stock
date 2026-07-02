@@ -297,6 +297,21 @@ def run_market_data_monthly():
     return result
 
 
+# ── K线预测监控检测 ─────────────────────────────────────────
+
+def run_prediction_monitor_job():
+    """每交易日 19:30：检测所有活跃预测监控的触发条件是否满足"""
+    logger.info("[Scheduler] K线预测监控检测开始")
+    try:
+        from analysis.kline_monitor import run_prediction_monitor
+        result = run_prediction_monitor()
+        logger.info(f"[Scheduler] K线预测监控检测完成: {result}")
+        return result
+    except Exception as e:
+        logger.exception(f"[Scheduler] K线预测监控检测失败: {e}")
+        return {"error": str(e)}
+
+
 # ── 问财行业指标采集 ─────────────────────────────────────────
 
 def run_wencai_indicators():
@@ -412,6 +427,12 @@ def start_scheduler():
         id="wencai_indicators_daily", replace_existing=True,
         name="问财行业指标采集",
     )
+    # 每交易日 19:30 — 预测监控检测（日线数据入库后）
+    scheduler.add_job(
+        run_prediction_monitor_job, CronTrigger(hour=19, minute=30, day_of_week='mon-fri'),
+        id="prediction_monitor_daily", replace_existing=True,
+        name="K线预测监控检测",
+    )
 
     # 每天 07:00 + 17:00 — zsxq 采集 + daily intel scanner
     def _run_zsxq_and_scanner(scan_date: str = None):
@@ -504,7 +525,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():

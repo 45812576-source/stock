@@ -111,24 +111,26 @@
       </div>
 
       <!-- Layered tags area -->
-      <div class="flex items-center gap-2 mb-5 flex-wrap">
-        <!-- Core tags: industry + theme (全显示) -->
-        <div id="coreTagsContainer" class="flex flex-wrap gap-1.5"></div>
-        <!-- More tags toggle: selection rules -->
-        <button id="moreTagsBtn" class="tag-more-btn hidden" onclick="toggleMoreTags()">
-          <span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_more</span>
-          选股标签 <span id="moreTagsCount">0</span>
-        </button>
-        <!-- More tags (hidden by default) -->
-        <div id="moreTagsContainer" class="hidden flex flex-wrap gap-1.5"></div>
-        <!-- Actions -->
-        <button id="genTagBtn" class="gen-tag-btn" onclick="generateTags()">
-          <span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签
-        </button>
-        <input id="tagInput" class="tag-input" placeholder="添加..." onkeydown="if(event.key==='Enter'){event.preventDefault();addTag()}">
-        <button id="saveTagBtn" class="save-tag-btn hidden" onclick="saveTags()">
-          <span class="material-icons-round text-xs align-middle" style="font-size:14px">save</span> 保存
-        </button>
+      <div class="mb-5">
+        <!-- 行业/主题标签（分层可展开） -->
+        <div id="industryThemeArea" class="flex items-center gap-2 flex-wrap mb-2">
+          <div id="industryTier1" class="flex flex-wrap gap-1.5"></div>
+          <button id="industryExpandBtn" class="tag-more-btn hidden" onclick="toggleIndustryExpand()">
+            <span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_more</span>
+            <span id="industryExpandLabel">相关行业</span>
+          </button>
+        </div>
+        <!-- 行业展开层 -->
+        <div id="industryTier2" class="hidden flex flex-wrap gap-1.5 mb-1.5 ml-4"></div>
+        <div id="industryTier3" class="hidden flex flex-wrap gap-1.5 mb-2 ml-8"></div>
+
+        <!-- 选股标签 95体系 (L1/L2/L3 三色) -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <div id="selectionTagsContainer" class="flex flex-wrap gap-1.5"></div>
+          <button id="refreshTagsBtn" class="tag-more-btn" onclick="refreshTags()" title="重新计算选股标签">
+            <span class="material-icons-round text-xs align-middle" style="font-size:12px">refresh</span> 刷新标签
+          </button>
+        </div>
       </div>
 
       <!-- K-line chart -->
@@ -343,6 +345,12 @@ const moreTags = {{ more_tags | tojson | safe }};
 const stockCode = '{{ stock_code }}';
 const stockName = '{{ stock.stock_name | replace("'", "\\'") if stock else "" }}';
 let showMoreTags = false;
+
+// 新增分层数据
+const industryLayered = {{ industry_layered_json | safe }};
+const themeLayered = {{ theme_layered_json | safe }};
+const selectionTags = {{ selection_tags_json | safe }};
+let industryExpanded = 0; // 0=只显示tier1, 1=展开tier2, 2=展开tier3
 
 /* ====== Delete Report ====== */
 function deleteReport(reportId) {
@@ -665,83 +673,120 @@ function getTagIcon(type) {
   }
 }
 
-function getTagClass(type) {
-  switch(type) {
-    case 'industry': return 'industry';
-    case 'theme': return 'theme';
-    case 'event': return 'event';
-    case 'selection': return 'selection';
+function getLayerColor(layer) {
+  // L1=蓝色(量化), L2=紫色(AI轻量), L3=橙色(AI深度)
+  switch(layer) {
+    case 1: return 'bg-blue-500/15 text-blue-300 border-blue-500/30';
+    case 2: return 'bg-purple-500/15 text-purple-300 border-purple-500/30';
+    case 3: return 'bg-orange-500/15 text-orange-300 border-orange-500/30';
+    default: return 'bg-slate-500/15 text-slate-300 border-slate-500/30';
+  }
+}
+
+function getLayerLabel(layer) {
+  switch(layer) {
+    case 1: return 'L1';
+    case 2: return 'L2';
+    case 3: return 'L3';
     default: return '';
   }
 }
 
+function renderIndustryChip(tag, tierClass) {
+  const icon = tag.type === 'theme' ? 'auto_awesome' : 'domain';
+  const cls = tag.type === 'theme'
+    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+    : 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30';
+  return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${cls} ${tierClass || ''}">`
+    + `<span class="material-icons-round" style="font-size:11px">${icon}</span>`
+    + `${tag.name}`
+    + `</span>`;
+}
+
+function renderSelectionChip(tag) {
+  const cls = getLayerColor(tag.layer);
+  const label = getLayerLabel(tag.layer);
+  const evidence = tag.evidence ? ` title="${tag.evidence.replace(/"/g, '&quot;')}"` : '';
+  return `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] border ${cls} cursor-help"${evidence}>`
+    + `<span class="font-bold text-[9px] opacity-70">${label}</span>`
+    + `${tag.name}`
+    + `</span>`;
+}
+
 function renderLayeredTags() {
-  // Render core tags
-  const coreContainer = document.getElementById('coreTagsContainer');
-  coreContainer.innerHTML = coreTags.map((t, i) =>
-    '<span class="tag-chip ' + getTagClass(t.type) + '">' +
-      '<span class="material-icons-round" style="font-size:12px">' + getTagIcon(t.type) + '</span>' +
-      t.name +
-      (t.heat ? '<span class="heat">' + t.heat + '</span>' : '') +
-      '<span class="del" onclick="removeCoreTag(' + i + ')">&times;</span>' +
-    '</span>'
-  ).join('');
+  // ── 行业/主题标签分层渲染 ──
+  const tier1Items = [...(industryLayered['1'] || []), ...(themeLayered['1'] || [])];
+  const tier2Items = [...(industryLayered['2'] || []), ...(themeLayered['2'] || [])];
+  const tier3Items = [...(industryLayered['3'] || []), ...(themeLayered['3'] || [])];
 
-  // Render more tags
-  const moreContainer = document.getElementById('moreTagsContainer');
-  moreContainer.innerHTML = moreTags.map((t, i) =>
-    '<span class="tag-chip ' + getTagClass(t.type) + '">' +
-      '<span class="material-icons-round" style="font-size:12px">' + getTagIcon(t.type) + '</span>' +
-      t.name +
-      '<span class="del" onclick="removeMoreTag(' + i + ')">&times;</span>' +
-    '</span>'
-  ).join('');
+  // Tier 1: 始终显示
+  document.getElementById('industryTier1').innerHTML = tier1Items.map(t => renderIndustryChip(t)).join('');
 
-  // Update more button
-  const moreBtn = document.getElementById('moreTagsBtn');
-  if (moreTags.length > 0) {
-    moreBtn.classList.remove('hidden');
-    document.getElementById('moreTagsCount').textContent = moreTags.length;
+  // 展开按钮
+  const expandBtn = document.getElementById('industryExpandBtn');
+  if (tier2Items.length + tier3Items.length > 0) {
+    expandBtn.classList.remove('hidden');
+    const total = tier2Items.length + tier3Items.length;
+    document.getElementById('industryExpandLabel').textContent =
+      industryExpanded === 0 ? `展开 ${total} 个更多` :
+      industryExpanded === 1 && tier3Items.length > 0 ? `展开 ${tier3Items.length} 个关联` : '收起';
+    expandBtn.querySelector('.material-icons-round').textContent =
+      industryExpanded >= 2 || (industryExpanded >= 1 && tier3Items.length === 0) ? 'expand_less' : 'expand_more';
   } else {
-    moreBtn.classList.add('hidden');
+    expandBtn.classList.add('hidden');
   }
-}
 
-function toggleMoreTags() {
-  showMoreTags = !showMoreTags;
-  const container = document.getElementById('moreTagsContainer');
-  const btn = document.getElementById('moreTagsBtn');
-  if (showMoreTags) {
-    container.classList.remove('hidden');
-    btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_less</span>收起';
+  // Tier 2
+  const t2El = document.getElementById('industryTier2');
+  t2El.innerHTML = tier2Items.map(t => renderIndustryChip(t, 'opacity-85')).join('');
+  t2El.classList.toggle('hidden', industryExpanded < 1);
+
+  // Tier 3
+  const t3El = document.getElementById('industryTier3');
+  t3El.innerHTML = tier3Items.map(t => renderIndustryChip(t, 'opacity-65')).join('');
+  t3El.classList.toggle('hidden', industryExpanded < 2);
+
+  // ── 选股标签 95体系 ──
+  const selContainer = document.getElementById('selectionTagsContainer');
+  if (selectionTags.length > 0) {
+    selContainer.innerHTML = selectionTags.map(t => renderSelectionChip(t)).join('');
   } else {
-    container.classList.add('hidden');
-    btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">expand_more</span><span id="moreTagsCount">' + moreTags.length + '</span>个更多';
+    selContainer.innerHTML = '<span class="text-[11px] text-slate-500 italic">暂无选股标签（点击“刷新标签”计算）</span>';
   }
 }
 
-function removeCoreTag(i) {
-  coreTags.splice(i, 1);
+function toggleIndustryExpand() {
+  const tier2Items = [...(industryLayered['2'] || []), ...(themeLayered['2'] || [])];
+  const tier3Items = [...(industryLayered['3'] || []), ...(themeLayered['3'] || [])];
+  const maxLevel = tier3Items.length > 0 ? 2 : (tier2Items.length > 0 ? 1 : 0);
+
+  industryExpanded++;
+  if (industryExpanded > maxLevel) industryExpanded = 0;
   renderLayeredTags();
-  document.getElementById('saveTagBtn').classList.remove('hidden');
 }
 
-function removeMoreTag(i) {
-  moreTags.splice(i, 1);
-  renderLayeredTags();
-  document.getElementById('saveTagBtn').classList.remove('hidden');
-}
+function refreshTags() {
+  const btn = document.getElementById('refreshTagsBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="material-icons-round text-xs align-middle animate-spin" style="font-size:12px">refresh</span> 计算中...';
 
-function addTag() {
-  const inp = document.getElementById('tagInput');
-  const v = inp.value.trim();
-  if (v && !coreTags.find(t => t.name === v) && !moreTags.find(t => t.name === v)) {
-    // 新添加的标签默认放到 more 区
-    moreTags.push({ name: v, type: 'tag' });
-    renderLayeredTags();
-    inp.value = '';
-    document.getElementById('saveTagBtn').classList.remove('hidden');
-  }
+  fetch('/stock/' + stockCode + '/api/refresh-tags', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok) {
+        // 重新加载页面获取最新标签
+        setTimeout(() => location.reload(), 500);
+      } else {
+        alert(data.error || '刷新失败');
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">refresh</span> 刷新标签';
+      }
+    })
+    .catch(err => {
+      console.error('refresh-tags error:', err);
+      btn.disabled = false;
+      btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:12px">refresh</span> 刷新标签';
+    });
 }
 
 function generateTags() {
@@ -766,16 +811,10 @@ function generateTags() {
 
             if (task.status === 'done') {
               clearInterval(pollTimer);
-              const result = task.result || {};
-              // Replace tags with fresh results
-              coreTags.length = 0;
-              moreTags.length = 0;
-              (result.core || []).forEach(t => coreTags.push(t));
-              (result.more || []).forEach(t => moreTags.push(t));
-              renderLayeredTags();
-              document.getElementById('saveTagBtn').classList.remove('hidden');
               btn.disabled = false;
-              btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">auto_awesome</span> 生成标签';
+              btn.innerHTML = '<span class="material-icons-round text-xs align-middle" style="font-size:14px">check</span> 完成';
+              // 重新加载页面显示最新标签
+              setTimeout(() => location.reload(), 800);
             } else if (task.status === 'failed') {
               clearInterval(pollTimer);
               btn.disabled = false;

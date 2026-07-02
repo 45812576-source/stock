@@ -116,8 +116,18 @@ def find_candidate_splits(indicators: dict) -> list:
             snapshot=snap,
         ))
 
-    # 合并相邻3天内的切割点（取最多原因的那个）
-    splits = _merge_nearby(splits, window=3)
+    # 过滤弱信号：仅有1个弱原因的切割点丢弃
+    WEAK_REASONS = {"RSI上穿50", "RSI下穿50", "主力资金由流入转流出", "主力资金由流出转流入"}
+    splits = [
+        s for s in splits
+        if len(s.reasons) >= 2 or not all(r in WEAK_REASONS for r in s.reasons)
+    ]
+
+    # 基础去重：2个交易日内的重复点只保留信号最强的
+    splits = _dedup_nearby(splits, min_gap=2)
+
+    # 智能合并：基于情形置信度决定是否合并短段
+    splits = _smart_merge(splits, indicators)
     return splits
 
 
@@ -192,28 +202,314 @@ def _build_snapshot(i: int, indicators: dict) -> dict:
     }
 
 
-def _merge_nearby(splits: list, window: int = 3) -> list:
-    """合并相邻 window 天内的切割点，保留原因最多的"""
+def _dedup_nearby(splits: list, min_gap: int = 2) -> list:
+    """基础去重：相邻不足min_gap个交易日的切割点只保留信号最强的"""
     if not splits:
         return splits
     merged = [splits[0]]
     for sp in splits[1:]:
         last = merged[-1]
-        # 比较日期差（简单字符串比较，格式YYYY-MM-DD）
-        try:
-            from datetime import date
-            d1 = date.fromisoformat(str(last.date))
-            d2 = date.fromisoformat(str(sp.date))
-            diff = (d2 - d1).days
-        except Exception:
-            diff = window + 1
-        if diff <= window:
-            # 保留原因更多的
-            if len(sp.reasons) > len(last.reasons):
+        if sp.index - last.index < min_gap:
+            if len(sp.reasons) >= len(last.reasons):
                 merged[-1] = sp
         else:
             merged.append(sp)
     return merged
+
+
+def _score_segment(start_i: int, end_i: int, indicators: dict,
+                   prev_situation: int = None) -> tuple:
+    """
+    计算一个段与17情形的最佳匹配。9维度加权评分。
+    返回 (best_situation_id, confidence_score)
+
+    评分公式:
+      总分 = 基碀6维匹配分×0.5 + 价格变动匹配分×0.25 + RSI斜率匹配分×0.1 + 转换矩阵合理性×0.15
+    """
+    from analysis.situation_constants import SITUATION_CRITERIA, get_transition_prob
+
+    rsi_vals = [indicators["rsi14"][i] for i in range(start_i, end_i + 1)
+                if i < len(indicators["rsi14"]) and indicators["rsi14"][i] is not None]
+    hist_vals = [indicators["macd_hist"][i] for i in range(start_i, end_i + 1)
+                 if i < len(indicators["macd_hist"]) and indicators["macd_hist"][i] is not None]
+    vr_vals = [indicators["volume_ratio"][i] for i in range(start_i, end_i + 1)
+               if i < len(indicators["volume_ratio"]) and indicators["volume_ratio"][i] is not None]
+    pr_vals = [indicators["profit_ratio"][i] for i in range(start_i, end_i + 1)
+               if i < len(indicators["profit_ratio"]) and indicators["profit_ratio"][i] is not None]
+
+    # 计算基础均值
+    avg_rsi = sum(rsi_vals) / len(rsi_vals) if rsi_vals else 50
+    avg_hist = sum(hist_vals) / len(hist_vals) if hist_vals else 0
+    avg_vr = sum(vr_vals) / len(vr_vals) if vr_vals else 1.0
+    avg_pr = sum(pr_vals) / len(pr_vals) if pr_vals else 50
+
+    # price_vs_ma20
+    ma20 = indicators.get("ma20", [])
+    ohlcv = indicators["ohlcv"]
+    pvm_vals = []
+    for i in range(start_i, end_i + 1):
+        if i < len(ma20) and ma20[i] and ma20[i] > 0:
+            c = float(ohlcv[i]["close"] or 0)
+            pvm_vals.append((c - ma20[i]) / ma20[i] * 100)
+    avg_pvm = sum(pvm_vals) / len(pvm_vals) if pvm_vals else 0
+
+    # 资金流方向
+    cap_map = indicators.get("cap_map", {})
+    dates = indicators["dates"]
+    cap_sum = 0.0
+    for i in range(start_i, end_i + 1):
+        d = dates[i]
+        cap = cap_map.get(d) or cap_map.get(str(d))
+        if cap:
+            cap_sum += float(cap.get("main_net_inflow") or 0)
+
+    macd_sign = 1 if avg_hist > 0 else (-1 if avg_hist < 0 else 0)
+    cap_sign = 1 if cap_sum > 0 else (-1 if cap_sum < 0 else 0)
+
+    # === 动态维度7: 段内价格变动幅度 ===
+    close_start = float(ohlcv[start_i]["close"] or 0)
+    close_end = float(ohlcv[end_i]["close"] or 0)
+    price_change_pct = ((close_end - close_start) / close_start * 100) if close_start > 0 else 0
+
+    # === 动态维度8: RSI斜率方向 ===
+    # 用简化的线性回归方向: 比较前半段与后半段的RSI均值
+    if len(rsi_vals) >= 4:
+        mid = len(rsi_vals) // 2
+        rsi_first_half = sum(rsi_vals[:mid]) / mid
+        rsi_second_half = sum(rsi_vals[mid:]) / (len(rsi_vals) - mid)
+        rsi_diff = rsi_second_half - rsi_first_half
+        if rsi_diff > 3:
+            rsi_slope = 1   # 上行
+        elif rsi_diff < -3:
+            rsi_slope = -1  # 下行
+        else:
+            rsi_slope = 0   # 平稳
+    else:
+        rsi_slope = 0
+
+    # === 对每个情形计算加权分 ===
+    best_id = 1
+    best_score = 0.0
+    for sit_id, criteria in SITUATION_CRITERIA.items():
+        # --- 基碀6维度 (权重0.5) ---
+        base_dims = 0.0
+        base_total = 6
+
+        # RSI
+        lo, hi = criteria["rsi"]
+        if lo <= avg_rsi <= hi:
+            base_dims += 1
+        elif avg_rsi < lo:
+            base_dims += max(0, 1 - (lo - avg_rsi) / 20)
+        else:
+            base_dims += max(0, 1 - (avg_rsi - hi) / 20)
+
+        # price_vs_ma20
+        lo, hi = criteria["price_vs_ma20_pct"]
+        if lo <= avg_pvm <= hi:
+            base_dims += 1
+        elif avg_pvm < lo:
+            base_dims += max(0, 1 - (lo - avg_pvm) / 15)
+        else:
+            base_dims += max(0, 1 - (avg_pvm - hi) / 15)
+
+        # MACD柱方向
+        lo, hi = criteria["macd_hist_sign"]
+        if lo <= macd_sign <= hi:
+            base_dims += 1
+
+        # 资金流方向
+        lo, hi = criteria["capital_flow_sign"]
+        if lo <= cap_sign <= hi:
+            base_dims += 1
+
+        # 获利比例
+        lo, hi = criteria["profit_ratio_pct"]
+        if lo <= avg_pr <= hi:
+            base_dims += 1
+        elif avg_pr < lo:
+            base_dims += max(0, 1 - (lo - avg_pr) / 25)
+        else:
+            base_dims += max(0, 1 - (avg_pr - hi) / 25)
+
+        # 量比
+        lo, hi = criteria["volume_ratio"]
+        if lo <= avg_vr <= hi:
+            base_dims += 1
+        elif avg_vr < lo:
+            base_dims += max(0, 1 - (lo - avg_vr) / 1.0)
+        else:
+            base_dims += max(0, 1 - (avg_vr - hi) / 2.0)
+
+        base_score = base_dims / base_total
+
+        # --- 价格变动匹配分 (权重0.25) ---
+        lo, hi = criteria["price_change_pct"]
+        if lo <= price_change_pct <= hi:
+            price_score = 1.0
+        elif price_change_pct < lo:
+            price_score = max(0, 1 - (lo - price_change_pct) / 15)
+        else:
+            price_score = max(0, 1 - (price_change_pct - hi) / 15)
+
+        # --- RSI斜率匹配分 (权重0.10) ---
+        lo, hi = criteria["rsi_slope"]
+        if lo <= rsi_slope <= hi:
+            slope_score = 1.0
+        else:
+            slope_score = 0.0  # 方向不对直接0分
+
+        # --- 转换矩阵合理性 (权重0.15) ---
+        if prev_situation is not None:
+            trans_prob = get_transition_prob(prev_situation, sit_id)
+            # 0=禁止, 1=低, 2=中, 3=高 → 映射到0~1
+            transition_score = trans_prob / 3.0
+        else:
+            transition_score = 0.5  # 无上下文时给中性分
+
+        # --- 加权总分 ---
+        total_score = (base_score * 0.50 +
+                       price_score * 0.25 +
+                       slope_score * 0.10 +
+                       transition_score * 0.15)
+
+        if total_score > best_score:
+            best_score = total_score
+            best_id = sit_id
+
+    return best_id, best_score
+
+
+def _smart_merge(splits: list, indicators: dict) -> list:
+    """
+    智能合并（基于情形置信度）：
+    1. 相邻段匹配同一情形 → 合并（贪心分组，严格受MAX_SEGMENT_DAYS约束）
+    2. 同阶段(phase)且至少一段短 → 合并后置信度不下降时合并
+    3. 短段(<MIN天)或低置信度段 → 尝试与邻段合并，只在合并后置信度不下降时执行
+    """
+    from analysis.situation_constants import get_phase
+
+    n_total = len(indicators["dates"])
+    if not splits:
+        return splits
+
+    MIN_SEGMENT_DAYS = 4
+    MAX_SEGMENT_DAYS = 30   # 单段上限，避免过度合并
+    MAX_ITERATIONS = 10
+
+    for iteration in range(MAX_ITERATIONS):
+        merged_any = False
+
+        # 构建当前段列表
+        boundaries = [0] + [s.index for s in splits] + [n_total - 1]
+        segments = []
+        for k in range(len(boundaries) - 1):
+            si, ei = boundaries[k], boundaries[k + 1]
+            if si < ei:
+                segments.append((si, ei))
+
+        if len(segments) <= 1:
+            break
+
+        # 为每段计算最佳情形（带前段上下文）
+        scores = []
+        for idx, (s, e) in enumerate(segments):
+            prev_sit = scores[idx - 1][0] if idx > 0 else None
+            scores.append(_score_segment(s, e, indicators, prev_situation=prev_sit))
+
+        # === Pass 1: 相邻同情形合并（贪心分组，防止级联超限）===
+        # 用顺序扫描代替集合标记，跟踪当前合并组的起始索引
+        to_remove = set()
+        group_start_idx = 0  # 当前合并组的起始段索引
+        for idx in range(len(segments) - 1):
+            sit_a, _ = scores[idx]
+            sit_b, _ = scores[idx + 1]
+            if sit_a == sit_b:
+                # 计算如果把 idx+1 加入当前组，总天数是否超限
+                group_total_days = segments[idx + 1][1] - segments[group_start_idx][0]
+                if group_total_days <= MAX_SEGMENT_DAYS:
+                    to_remove.add(idx)  # 删除idx和idx+1之间的切割点
+                    merged_any = True
+                else:
+                    # 超限了，开始新的合并组
+                    group_start_idx = idx + 1
+            else:
+                # 不同情形，重置组起点
+                group_start_idx = idx + 1
+
+        if to_remove:
+            for idx in sorted(to_remove, reverse=True):
+                if idx < len(splits):
+                    del splits[idx]
+            continue  # 重新计算
+
+        # === Pass 2: 同阶段(phase)短段合并 ===
+        phase_merged = False
+        for idx in range(len(segments) - 1):
+            sit_a, conf_a = scores[idx]
+            sit_b, conf_b = scores[idx + 1]
+            days_a = segments[idx][1] - segments[idx][0]
+            days_b = segments[idx + 1][1] - segments[idx + 1][0]
+            if get_phase(sit_a) == get_phase(sit_b) and (days_a < MIN_SEGMENT_DAYS or days_b < MIN_SEGMENT_DAYS):
+                merged_si = segments[idx][0]
+                merged_ei = segments[idx + 1][1]
+                merged_days = merged_ei - merged_si
+                if merged_days > MAX_SEGMENT_DAYS:
+                    continue
+                _, merged_conf = _score_segment(merged_si, merged_ei, indicators)
+                if merged_conf >= min(conf_a, conf_b) * 0.9:
+                    if idx < len(splits):
+                        del splits[idx]
+                    phase_merged = True
+                    merged_any = True
+                    break  # 每轮只合并一个，重新计算
+
+        if phase_merged:
+            continue
+
+        # === Pass 3: 短段/低置信度段合并 ===
+        best_merge = None
+        for idx, ((si, ei), (sit_id, conf)) in enumerate(zip(segments, scores)):
+            days = ei - si
+            if days >= MIN_SEGMENT_DAYS and conf >= 0.7:
+                continue
+
+            # 尝试向前合并
+            if idx > 0:
+                merged_si, merged_ei = segments[idx - 1][0], ei
+                merged_days = merged_ei - merged_si
+                if merged_days <= MAX_SEGMENT_DAYS:
+                    _, merged_conf = _score_segment(merged_si, merged_ei, indicators)
+                    prev_conf = scores[idx - 1][1]
+                    if merged_conf >= max(conf, prev_conf) * 0.95:
+                        if best_merge is None or merged_conf > best_merge[2]:
+                            best_merge = (idx, 'prev', merged_conf)
+
+            # 尝试向后合并
+            if idx < len(segments) - 1:
+                merged_si, merged_ei = si, segments[idx + 1][1]
+                merged_days = merged_ei - merged_si
+                if merged_days <= MAX_SEGMENT_DAYS:
+                    _, merged_conf = _score_segment(merged_si, merged_ei, indicators)
+                    next_conf = scores[idx + 1][1]
+                    if merged_conf >= max(conf, next_conf) * 0.95:
+                        if best_merge is None or merged_conf > best_merge[2]:
+                            best_merge = (idx, 'next', merged_conf)
+
+        if best_merge is None:
+            break
+
+        idx, direction, _ = best_merge
+        if direction == 'prev':
+            del splits[idx - 1]
+        else:
+            del splits[idx]
+        merged_any = True
+
+        if not merged_any:
+            break
+
+    return splits
 
 
 def compute_segment_summaries(splits: list, indicators: dict) -> list:

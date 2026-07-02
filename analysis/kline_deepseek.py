@@ -9,6 +9,7 @@ from analysis.situation_constants import (
 logger = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 40
+FORCE_OUTPUT_AFTER = 6   # 超过此轮数后禁用工具，强制输出结果
 
 
 def _get_api_key() -> str:
@@ -184,7 +185,8 @@ TOOL_SCHEMAS = [
 ]
 
 
-def _build_system_prompt(candidate_splits: list, segment_summaries: list) -> str:
+def _build_system_prompt(candidate_splits: list, segment_summaries: list,
+                         review_lessons: str = "") -> str:
     # 精简版情形列表
     sit_list = "\n".join(
         f"  {k}: {v}" for k, v in SITUATION_NAMES.items()
@@ -233,6 +235,11 @@ Python已预计算了候选切割点（基于MA交叉、MACD变号、量能突�
 ## 各候选区间汇总指标（start_snapshot/end_snapshot可通过get_momentum_at_point工具查询）
 {segs_text}
 
+{f"""## 历史复盘教训（该股票过去的预测偏差总结）
+{review_lessons}
+
+请在分析时注意避免重复以上错误。
+""" if review_lessons else ""}
 ## 输出格式（严格JSON，不要有其他文字）
 {{
   "stages": [
@@ -261,7 +268,7 @@ Python已预计算了候选切割点（基于MA交叉、MACD变号、量能突�
 
 
 def run_stage_identification(candidate_splits: list, segment_summaries: list,
-                              indicators: dict) -> dict:
+                              indicators: dict, review_lessons: str = "") -> dict:
     """
     DeepSeek tool_use 循环，返回阶段识别结果 dict。
     """
@@ -277,7 +284,7 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
         timeout=180,
     )
 
-    system_prompt = _build_system_prompt(candidate_splits, segment_summaries)
+    system_prompt = _build_system_prompt(candidate_splits, segment_summaries, review_lessons)
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": "请分析以上候选切割点，输出最终阶段划分JSON。"},
@@ -291,15 +298,24 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
         "get_situation_criteria": lambda args: _tool_get_situation_criteria(args["situation_id"]),
     }
 
+    empty_retries = 0
+    MAX_EMPTY_RETRIES = 2
+    tool_rounds_used = 0   # 实际执行了工具的轮数
+
     for round_num in range(MAX_TOOL_ROUNDS):
-        resp = client.chat.completions.create(
+        # 超过FORCE_OUTPUT_AFTER轮工具调用后，禁用工具迫使模型输出
+        use_tools = tool_rounds_used < FORCE_OUTPUT_AFTER
+        call_kwargs = dict(
             model="deepseek-v4-pro",
             messages=messages,
-            tools=TOOL_SCHEMAS,
-            tool_choice="auto",
-            max_tokens=4096,
+            max_tokens=8192,
             response_format={"type": "text"},
         )
+        if use_tools:
+            call_kwargs["tools"] = TOOL_SCHEMAS
+            call_kwargs["tool_choice"] = "auto"
+
+        resp = client.chat.completions.create(**call_kwargs)
         choice = resp.choices[0]
         msg = choice.message
         messages.append(msg.model_dump(exclude_none=True))
@@ -307,6 +323,18 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
         if not msg.tool_calls:
             # 最终回答
             content = msg.content or ""
+
+            # 空内容重试：模型在长对话后可能返回空content
+            if not content.strip():
+                empty_retries += 1
+                if empty_retries <= MAX_EMPTY_RETRIES:
+                    logger.warning(f"DeepSeek返回空内容(第{round_num+1}轮，重试{empty_retries}/{MAX_EMPTY_RETRIES})，追加提示重新获取...")
+                    messages.append({"role": "user", "content": "你的回复为空。请直接输出最终的阶段划分JSON结果，不要有任何工具调用或说明文字。"})
+                    continue
+                else:
+                    logger.error(f"DeepSeek连续{MAX_EMPTY_RETRIES}次返回空内容，放弃")
+                    return {"error": "模型返回空内容，请稍后重试"}
+
             # 提取JSON（支持多种格式）
             try:
                 text = content.strip()
