@@ -72,7 +72,8 @@ CHAINS = {
                     "万润股份",  # auto-added
                     "瑞联新材",  # auto-added
                     "天承科技",  # auto-added
-                    "宸展光电"],
+                    "宸展光电",  # auto-added
+                    "天华新能"],
             },
             "上游": {
                 "label": "材料（正极/负极/隔膜/电解液/铜箔）",
@@ -143,7 +144,28 @@ CHAINS = {
                     "金安国际",  # auto-added
                     "国际复材",  # auto-added
                     "元力股份",  # auto-added
-                    "汇成真空"],
+                    "汇成真空",  # auto-added
+                    "中导光电",  # auto-added
+                    "半导体设备板块",  # auto-added
+                    "微导纳米",  # auto-added
+                    "宝明科技",  # auto-added
+                    "方源新能源",  # auto-added
+                    "台新股份",  # auto-added
+                    "正帆科技",  # auto-added
+                    "先锋精科",  # auto-added
+                    "富创精密",  # auto-added
+                    "新莱应材",  # auto-added
+                    "隆达股份",  # auto-added
+                    "石大胜华",  # auto-added
+                    "永和股份",  # auto-added
+                    "楚江新材",  # auto-added
+                    "英伟达",  # auto-added
+                    "AMD",  # auto-added
+                    "汉钟精机",  # auto-added
+                    "中科仪",  # auto-added
+                    "联讯仪器",  # auto-added
+                    "精测电子",  # auto-added
+                    "东岳集团"],
             },
             "中游": {
                 "label": "动力电池 & 电机电控",
@@ -203,7 +225,13 @@ CHAINS = {
                     "通鼎互联",  # auto-added
                     "杭电股份",  # auto-added
                     "特发信息",  # auto-added
-                    "宏柏新材"],
+                    "宏柏新材",  # auto-added
+                    "东方国信",  # auto-added
+                    "大位科技",  # auto-added
+                    "奥飞数据",  # auto-added
+                    "万国数据",  # auto-added
+                    "世纪互联",  # auto-added
+                    "华盛昌"],
             },
             "下游": {
                 "label": "整车 & 零部件",
@@ -255,7 +283,18 @@ CHAINS = {
                     "新国都",  # auto-added
                     "云天励飞",  # auto-added
                     "海博思创",  # auto-added
-                    "新乡化纤"],
+                    "新乡化纤",  # auto-added
+                    "晋拓股份",  # auto-added
+                    "长信科技",  # auto-added
+                    "民爆光电",  # auto-added
+                    "国巨",  # auto-added
+                    "立中集团",  # auto-added
+                    "UMTC",  # auto-added
+                    "斯菱股份",  # auto-added
+                    "正强股份",  # auto-added
+                    "铁流股份",  # auto-added
+                    "福赛科技",  # auto-added
+                    "新泉股份"],
             },
             "设备": {
                 "label": "锂电设备",
@@ -1563,4 +1602,82 @@ STOCK_TAGS = {
     "博迈科": "news",  # auto-added
 
     "吉宏股份": "news",  # auto-added
+
+    "中导光电": "news",  # auto-added
+
+    "晋拓股份": "news",  # auto-added
+
+    "东方国信": "news",  # auto-added
+
+    "大位科技": "news",  # auto-added
+
+    "半导体设备板块": "news",  # auto-added
+
+    "长信科技": "news",  # auto-added
+
+    "微导纳米": "news",  # auto-added
+
+    "宝明科技": "news",  # auto-added
+
+    "方源新能源": "news",  # auto-added
+
+    "台新股份": "news",  # auto-added
+
+    "民爆光电": "news",  # auto-added
+
+    "国巨": "news",  # auto-added
+
+    "正帆科技": "news",  # auto-added
+
+    "先锋精科": "news",  # auto-added
+
+    "富创精密": "news",  # auto-added
+
+    "新莱应材": "news",  # auto-added
+
+    "隆达股份": "news",  # auto-added
+
+    "石大胜华": "news",  # auto-added
+
+    "永和股份": "news",  # auto-added
+
+    "楚江新材": "news",  # auto-added
+
+    "立中集团": "news",  # auto-added
+
+    "奥飞数据": "news",  # auto-added
+
+    "万国数据": "news",  # auto-added
+
+    "世纪互联": "news",  # auto-added
+
+    "英伟达": "news",  # auto-added
+
+    "AMD": "news",  # auto-added
+
+    "UMTC": "news",  # auto-added
+
+    "斯菱股份": "news",  # auto-added
+
+    "正强股份": "news",  # auto-added
+
+    "铁流股份": "news",  # auto-added
+
+    "福赛科技": "news",  # auto-added
+
+    "新泉股份": "news",  # auto-added
+
+    "汉钟精机": "news",  # auto-added
+
+    "中科仪": "news",  # auto-added
+
+    "华盛昌": "news",  # auto-added
+
+    "联讯仪器": "news",  # auto-added
+
+    "精测电子": "news",  # auto-added
+
+    "天华新能": "news",  # auto-added
+
+    "东岳集团": "news",  # auto-added
 }
