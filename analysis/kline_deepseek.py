@@ -8,8 +8,8 @@ from analysis.situation_constants import (
 
 logger = logging.getLogger(__name__)
 
-MAX_TOOL_ROUNDS = 40
-FORCE_OUTPUT_AFTER = 6   # 超过此轮数后禁用工具，强制输出结果
+MAX_TOOL_ROUNDS = 20
+FORCE_OUTPUT_AFTER = 3   # 超过此轮数后禁用工具，强制输出结果
 
 
 def _get_api_key() -> str:
@@ -203,6 +203,11 @@ def _build_system_prompt(candidate_splits: list, segment_summaries: list,
     ]
     segs_text = json.dumps(segs_slim, ensure_ascii=False)
 
+    # 历史复盘教训（条件拼接，避免 f-string 嵌套三引号在 Python 3.9 中的语法错误）
+    review_section = ""
+    if review_lessons:
+        review_section = f"""\n## 历史复盘教训（该股票过去的预测偏差总结）\n{review_lessons}\n\n请在分析时注意避免重复以上错误。\n"""
+
     return f"""你是股票技术分析专家，专注于威科夫/阶段分析框架。
 
 ## 17情形分类框架
@@ -221,7 +226,7 @@ Python已预计算了候选切割点（基于MA交叉、MACD变号、量能突�
 1. 从候选切割点中选择最终分割点（可以合并或跳过某些候选点）
 2. 为每段标注情形编号(1-17)和简要summary（20字以内）
 3. 分析最后一段（当前阶段）的退出条件
-4. 预测下一阶段Top 3场景
+4. 预测Top 3场景，每个场景必须包含 situation_id（目标情形编号1-17）
 
 ## 约束条件（必须遵守）
 - 每段时长1-30天（太短的段可以合并）
@@ -235,11 +240,7 @@ Python已预计算了候选切割点（基于MA交叉、MACD变号、量能突�
 ## 各候选区间汇总指标（start_snapshot/end_snapshot可通过get_momentum_at_point工具查询）
 {segs_text}
 
-{f"""## 历史复盘教训（该股票过去的预测偏差总结）
-{review_lessons}
-
-请在分析时注意避免重复以上错误。
-""" if review_lessons else ""}
+{review_section}
 ## 输出格式（严格JSON，不要有其他文字）
 {{
   "stages": [
@@ -260,9 +261,9 @@ Python已预计算了候选切割点（基于MA交叉、MACD变号、量能突�
     "days_in_stage": 5
   }},
   "predictions": [
-    {{"scenario": "场景描述", "probability": 0.5, "entry_conditions": "进入条件"}},
-    {{"scenario": "场景描述", "probability": 0.3, "entry_conditions": "进入条件"}},
-    {{"scenario": "场景描述", "probability": 0.2, "entry_conditions": "进入条件"}}
+    {{"situation_id": 5, "scenario": "场景描述", "probability": 0.5, "entry_conditions": "进入条件"}},
+    {{"situation_id": 7, "scenario": "场景描述", "probability": 0.3, "entry_conditions": "进入条件"}},
+    {{"situation_id": 3, "scenario": "场景描述", "probability": 0.2, "entry_conditions": "进入条件"}}
   ]
 }}"""
 
@@ -305,15 +306,19 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
     for round_num in range(MAX_TOOL_ROUNDS):
         # 超过FORCE_OUTPUT_AFTER轮工具调用后，禁用工具迫使模型输出
         use_tools = tool_rounds_used < FORCE_OUTPUT_AFTER
+
+        # 当工具轮次用尽，跳出循环用干净上下文重新请求
+        if not use_tools:
+            break
+
         call_kwargs = dict(
             model="deepseek-v4-pro",
             messages=messages,
             max_tokens=8192,
             response_format={"type": "text"},
+            tools=TOOL_SCHEMAS,
+            tool_choice="auto",
         )
-        if use_tools:
-            call_kwargs["tools"] = TOOL_SCHEMAS
-            call_kwargs["tool_choice"] = "auto"
 
         resp = client.chat.completions.create(**call_kwargs)
         choice = resp.choices[0]
@@ -324,16 +329,16 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
             # 最终回答
             content = msg.content or ""
 
-            # 空内容重试：模型在长对话后可能返回空content
-            if not content.strip():
+            # 空内容或无JSON重试
+            if not content.strip() or "{" not in content:
                 empty_retries += 1
                 if empty_retries <= MAX_EMPTY_RETRIES:
-                    logger.warning(f"DeepSeek返回空内容(第{round_num+1}轮，重试{empty_retries}/{MAX_EMPTY_RETRIES})，追加提示重新获取...")
-                    messages.append({"role": "user", "content": "你的回复为空。请直接输出最终的阶段划分JSON结果，不要有任何工具调用或说明文字。"})
+                    logger.warning(f"DeepSeek返回无效内容(第{round_num+1}轮，重试{empty_retries}/{MAX_EMPTY_RETRIES})，追加提示...")
+                    messages.append({"role": "user", "content": "你的回复不是合法JSON。请直接输出最终的阶段划分JSON结果，以 { 开头，不要有任何工具调用或说明文字。"})
                     continue
                 else:
-                    logger.error(f"DeepSeek连续{MAX_EMPTY_RETRIES}次返回空内容，放弃")
-                    return {"error": "模型返回空内容，请稍后重试"}
+                    logger.error(f"DeepSeek连续{MAX_EMPTY_RETRIES}次返回无效内容，放弃")
+                    return {"error": "模型未返回有效JSON，请稍后重试"}
 
             # 提取JSON（支持多种格式）
             try:
@@ -352,9 +357,24 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
                 brace_idx = text.find("{")
                 if brace_idx > 0:
                     text = text[brace_idx:]
+                # 截取到最后一个 } 结束
+                last_brace = text.rfind("}")
+                if last_brace > 0:
+                    text = text[:last_brace + 1]
                 return json.loads(text.strip())
             except json.JSONDecodeError as e:
-                logger.error(f"DeepSeek输出JSON解析失败: {e}\n内容: {content[:500]}")
+                # 容错重试：去尾逗号、修复常见格式问题
+                import re
+                try:
+                    fixed = text
+                    # 去除尾逗号 (,] 或 ,})
+                    fixed = re.sub(r',\s*([\]\}])', r'\1', fixed)
+                    # 去除行尾注释
+                    fixed = re.sub(r'//.*?$', '', fixed, flags=re.MULTILINE)
+                    return json.loads(fixed)
+                except json.JSONDecodeError:
+                    pass
+                logger.error(f"DeepSeek输出JSON解析失败: {e}\n内容: {content[:800]}")
                 return {"error": f"JSON解析失败: {e}", "raw": content}
 
         # 执行工具
@@ -371,23 +391,67 @@ def run_stage_identification(candidate_splits: list, segment_summaries: list,
                 "tool_call_id": tc.id,
                 "content": result,
             })
+        tool_rounds_used += 1
 
-    # 超过轮次：强制要求输出最终JSON
-    logger.warning(f"超过 {MAX_TOOL_ROUNDS} 轮，强制要求输出JSON...")
-    try:
-        messages.append({"role": "user", "content": "请立即停止工具调用，直接输出最终的JSON结果，不要有任何说明文字。"})
-        resp = client.chat.completions.create(
-            model="deepseek-v4-pro",
-            messages=messages,
-            max_tokens=4096,
-            response_format={"type": "text"},
-        )
-        content = resp.choices[0].message.content or ""
-        text = content.strip()
-        brace_idx = text.find("{")
-        if brace_idx >= 0:
-            text = text[brace_idx:]
-        return json.loads(text.strip())
-    except Exception as e:
-        logger.error(f"强制输出JSON失败: {e}")
-    return {"error": "超过最大工具调用轮次"}
+    # 工具轮结束，用精简上下文强制输出JSON
+    logger.info(f"工具轮结束({tool_rounds_used}轮)，请求最终JSON输出...")
+
+    # 构建condensed上下文：保留system prompt + 最后一次工具结果摘要 + 明确的JSON输出指令
+    # 从 messages 中提取工具调用摘要
+    tool_summary_parts = []
+    for m in messages:
+        if m.get("role") == "tool":
+            content_str = m.get("content", "")
+            # 截取工具返回的前200字符
+            tool_summary_parts.append(content_str[:200])
+    tool_context = "\n".join(tool_summary_parts[-6:])  # 只保留最后6条工具结果
+
+    final_messages = [
+        {"role": "system", "content": "你是股票技术分析专家。请根据以下数据输出阶段划分JSON。只输出JSON，不要有任何其他文字。"},
+        {"role": "user", "content": f"""候选切割点和区间指标如下：
+{system_prompt.split('## 候选切割点')[1] if '## 候选切割点' in system_prompt else system_prompt[-3000:]}
+
+工具查询结果摘要：
+{tool_context}
+
+请输出JSON，格式如下：
+{{
+  "stages": [{{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD","situation_id":1,"name":"情形名","summary":"描述","confidence":0.8}}],
+  "current_stage": {{"situation_id":4,"name":"当前情形","summary":"描述","exit_conditions":["退出信号"],"days_in_stage":5}},
+  "predictions": [{{"situation_id":5,"scenario":"场景","probability":0.5,"entry_conditions":"进入条件"}}]
+}}"""},
+    ]
+
+    for attempt in range(3):
+        try:
+            resp = client.chat.completions.create(
+                model="deepseek-v4-pro",
+                messages=final_messages,
+                max_tokens=8192,
+            )
+            content = resp.choices[0].message.content or ""
+            text = content.strip()
+            if not text or "{" not in text:
+                logger.warning(f"最终输出尝试{attempt+1}无效JSON，重试...")
+                final_messages.append({"role": "assistant", "content": content})
+                final_messages.append({"role": "user", "content": "你的回复不是JSON。请只输出一个JSON对象，以{开头}结尾，不要有其他文字。"})
+                continue
+            # 截取有效JSON范围
+            brace_idx = text.find("{")
+            if brace_idx > 0:
+                text = text[brace_idx:]
+            last_brace = text.rfind("}")
+            if last_brace > 0:
+                text = text[:last_brace + 1]
+            import re
+            text = re.sub(r',\s*([\]\}])', r'\1', text)
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.warning(f"最终输出尝试{attempt+1} JSON解析失败: {e}")
+            final_messages.append({"role": "assistant", "content": content})
+            final_messages.append({"role": "user", "content": "你的JSON格式有误，请修正后重新输出。确保所有key用双引号，无尾逗号。"})
+        except Exception as e:
+            logger.error(f"最终输出尝试{attempt+1}异常: {e}")
+            break
+
+    return {"error": "模型未能输出有效JSON，请稍后重试"}

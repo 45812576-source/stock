@@ -1272,6 +1272,139 @@ def api_stock_chain_mapping(stock_codes: str = ""):
     return {"ok": True, "mapping": mapping, "count": len(mapping)}
 
 
+# ── 兼容层：处理旧格式 baseline ─────────────────────────────────
+
+def _normalize_structure(structure: list) -> list:
+    """将旧 baseline 的 key_segments (字符串数组) 转为对象数组格式"""
+    for tier in structure:
+        segs = tier.get("key_segments", [])
+        if segs and isinstance(segs[0], str):
+            tier["key_segments"] = [{"name": s, "market_size_billion": None, "growth_rate_pct": None} for s in segs]
+        if "tier_market_size_billion" not in tier:
+            total = sum(s.get("market_size_billion") or 0 for s in tier["key_segments"])
+            tier["tier_market_size_billion"] = total if total > 0 else None
+    return structure
+
+
+# ── Treemap 数据 API ─────────────────────────────────────────────
+
+@router.get("/api/treemap-data")
+def api_treemap_data(name: str):
+    """返回产业链两层 treemap 数据(tiers + segments + 面积数值)"""
+    if name not in CHAINS:
+        return JSONResponse({"ok": False, "error": "产业链不存在"}, status_code=404)
+
+    # 尝试从 baseline 获取结构
+    row = execute_cloud_query(
+        "SELECT baseline_json FROM chain_baseline WHERE chain_name=%s ORDER BY version DESC LIMIT 1",
+        [name],
+    )
+    treemap_data = []
+    if row:
+        import json as _json
+        try:
+            bl = _json.loads(row[0]["baseline_json"]) if isinstance(row[0]["baseline_json"], str) else row[0]["baseline_json"]
+            structure = bl.get("structure", [])
+            structure = _normalize_structure(structure)
+            for tier in structure:
+                tier_label = tier.get("tier_label", tier.get("tier_key", ""))
+                tier_size = tier.get("tier_market_size_billion")
+                for seg in tier.get("key_segments", []):
+                    treemap_data.append({
+                        "tier_key": tier.get("tier_key", ""),
+                        "tier_label": tier_label,
+                        "segment": seg["name"],
+                        "market_size": seg.get("market_size_billion"),
+                        "growth_rate": seg.get("growth_rate_pct"),
+                        "tier_market_size": tier_size,
+                    })
+        except Exception as e:
+            logger.warning(f"解析baseline失败 [{name}]: {e}")
+
+    # Fallback: 无 baseline 或解析失败时从 chain_config 构造等分
+    if not treemap_data:
+        chain = CHAINS[name]
+        for tier_key, tier_info in chain["tiers"].items():
+            label = tier_info["label"]
+            stocks = tier_info.get("stocks", [])
+            # 用股票数作为面积的 fallback
+            treemap_data.append({
+                "tier_key": tier_key,
+                "tier_label": label,
+                "segment": label,
+                "market_size": None,
+                "growth_rate": None,
+                "tier_market_size": None,
+                "_stock_count": len(stocks),
+            })
+
+    return {"ok": True, "chain_name": name, "data": treemap_data}
+
+
+# ── Segment 详情 API ─────────────────────────────────────────────
+
+@router.get("/api/segment-detail")
+def api_segment_detail(name: str, tier_key: str, segment: str):
+    """返回指定环节的认知(drivers) + 关联个股列表"""
+    if name not in CHAINS:
+        return JSONResponse({"ok": False, "error": "产业链不存在"}, status_code=404)
+
+    cognition = None
+    key_companies = []
+    # 从 baseline 中取 drivers + structure
+    row = execute_cloud_query(
+        "SELECT baseline_json FROM chain_baseline WHERE chain_name=%s ORDER BY version DESC LIMIT 1",
+        [name],
+    )
+    if row:
+        import json as _json
+        try:
+            bl = _json.loads(row[0]["baseline_json"]) if isinstance(row[0]["baseline_json"], str) else row[0]["baseline_json"]
+            drivers = bl.get("drivers", [])
+            # 找到匹配 tier_key 的 driver
+            for d in drivers:
+                if d.get("tier_key") == tier_key:
+                    cognition = d
+                    break
+            # 从 structure 取 key_companies
+            for s in bl.get("structure", []):
+                if s.get("tier_key") == tier_key:
+                    key_companies = s.get("key_companies", [])
+                    break
+        except Exception as e:
+            logger.warning(f"解析baseline drivers失败 [{name}]: {e}")
+
+    # 个股列表：从 chain_config 获取该 tier 的股票
+    chain = CHAINS[name]
+    tier_info = chain["tiers"].get(tier_key, {})
+    stock_names = tier_info.get("stocks", [])
+
+    # 查询股票行情
+    stocks = []
+    if stock_names:
+        name_to_code = _resolve_stock_codes(stock_names)
+        codes = list(name_to_code.values())
+        if codes:
+            ph = ",".join(["%s"] * len(codes))
+            rows = execute_query(
+                f"SELECT stock_code, stock_name, close_price, pct_change, total_market_value "
+                f"FROM stock_daily_data WHERE stock_code IN ({ph}) "
+                f"AND trade_date=(SELECT MAX(trade_date) FROM stock_daily_data WHERE stock_code IN ({ph}))",
+                codes + codes,
+            ) or []
+            stocks = [dict(r) for r in rows]
+
+    return {
+        "ok": True,
+        "chain_name": name,
+        "tier_key": tier_key,
+        "segment": segment,
+        "cognition": cognition,
+        "key_companies": key_companies,
+        "stocks": stocks,
+    }
+
+
 # ── 明细页入口（必须放在所有 /api/* 之后） ───────────────────────
 
 @router.get("/{name}", response_class=HTMLResponse)

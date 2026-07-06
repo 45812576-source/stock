@@ -1,531 +1,352 @@
 {% extends "base.html" %}
-{% block title %}{{ chain_name }} — 产业链详情{% endblock %}
+{% block title %}{{ chain_name }} — 产业链全景{% endblock %}
 
 {% block extra_styles %}
 <style>
-/* 环节收起/展开行 */
-.tier-header {
-  display:flex; align-items:center; gap:10px; padding:12px 16px;
-  cursor:pointer; user-select:none;
-  background:#1a2233; border-radius:10px;
-  border:1px solid #2d3748; transition:border-color .15s;
-}
-.tier-header:hover { border-color:{{ chain_color }}44; }
-.tier-header.expanded { border-radius:10px 10px 0 0; border-bottom-color:transparent; }
-
-.tier-body {
-  background:#141c2e; border:1px solid #2d3748; border-top:none;
-  border-radius:0 0 10px 10px; overflow:hidden;
-}
-
-/* 列定义（复用在行和表头） */
-.stock-cols {
-  grid-template-columns: minmax(160px,2.5fr) 88px 88px minmax(170px,2.2fr) minmax(130px,1.6fr) 80px 80px 80px 68px;
-}
-
-/* 股票行 */
-.stock-row {
-  display:grid;
-  align-items:center; gap:0;
-  padding:14px 20px; border-bottom:1px solid #1a2234;
-  transition:background .15s; min-width:0;
-}
-.stock-row:last-child { border-bottom:none; }
-.stock-row:hover { background:rgba(30,39,56,.7); }
-
-/* 表头 */
-.stock-header {
-  display:grid;
-  align-items:center; gap:0;
-  padding:9px 20px;
-  background:#0c1422; border-bottom:1px solid #2d3748;
-}
-.stock-header span {
-  font-size:10px; font-weight:600; letter-spacing:.04em;
-  color:#475569; text-transform:uppercase;
-}
-
-/* 股票名称区 */
-.stock-name-cell { display:flex; flex-direction:column; gap:2px; min-width:0; }
-.stock-name-cell a { font-size:13px; font-weight:700; color:#93c5fd; text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.stock-name-cell a:hover { color:#bfdbfe; text-decoration:underline; }
-.stock-name-cell .code { font-size:10px; color:#475569; letter-spacing:.03em; }
-
-/* Tag 标签 */
-.tag-leader { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; background:rgba(234,179,8,.12); color:#d97706; border:1px solid rgba(234,179,8,.25); }
-.tag-news   { display:inline-block; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:700; background:rgba(59,130,246,.12); color:#60a5fa; border:1px solid rgba(59,130,246,.25); }
-
-/* K线小图 */
-.kline-mini { display:flex; align-items:flex-end; gap:2px; height:44px; padding:2px 0; }
-.kbar { width:10px; border-radius:1px 1px 0 0; min-height:2px; }
-.kbar.yang { background:#ef4444; }
-.kbar.yin  { background:#22c55e; }
-
-/* 涨幅数字 */
-.pct-pos  { color:#f87171; font-weight:700; font-size:12px; }
-.pct-neg  { color:#4ade80; font-weight:700; font-size:12px; }
-.pct-zero { color:#475569; font-size:12px; }
-
-/* 价格 */
-.price-val { font-size:13px; font-weight:600; color:#e2e8f0; font-variant-numeric:tabular-nums; }
-/* 今日涨跌 */
-.today-pct { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
-
-/* 全链资金流图 */
-.flow-bar-pos { background:#ef4444; border-radius:2px 2px 0 0; }
-.flow-bar-neg { background:#22c55e; border-radius:0 0 2px 2px; }
-
-/* Tab 切换按钮 */
-.chain-tab-btn {
-  padding:6px 14px; border-radius:8px; font-size:12px; font-weight:600;
-  color:#94a3b8; background:transparent; border:none; cursor:pointer;
-  transition:all .15s;
-}
-.chain-tab-btn:hover { color:#e2e8f0; background:#1e293b; }
-.chain-tab-btn.active { color:#fff; background:{{ chain_color }}; box-shadow:0 2px 8px {{ chain_color }}44; }
-
-/* 认知Tab卡片 */
-.cog-tier-badge {
-  display:inline-block; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:700;
-  background:{{ chain_color }}18; color:{{ chain_color }}; border:1px solid {{ chain_color }}33;
-}
-.diff-item {
-  background:#1a2233; border:1px solid #2d3748; border-radius:8px; padding:12px;
-  transition:border-color .15s;
-}
-.diff-item:hover { border-color:#475569; }
-.diff-item textarea {
-  width:100%; background:#0f172a; border:1px solid #334155; border-radius:6px;
-  color:#e2e8f0; padding:8px; font-size:12px; resize:vertical; min-height:60px;
-  margin-top:6px;
-}
-.diff-badge-add { background:#065f4622; color:#34d399; border:1px solid #065f4644; }
-.diff-badge-modify { background:#92400e22; color:#fbbf24; border:1px solid #92400e44; }
-.diff-badge-remove { background:#7f1d1d22; color:#f87171; border:1px solid #7f1d1d44; }
-.diff-badge-add,.diff-badge-modify,.diff-badge-remove {
-  display:inline-block; padding:1px 6px; border-radius:4px; font-size:10px; font-weight:700;
-}
+.left-panel{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;}
+.tier-row{display:flex;align-items:stretch;gap:0;border-radius:10px;overflow:hidden;border:1px solid #2d3748;min-height:80px;}
+.tier-label{writing-mode:vertical-rl;text-orientation:mixed;padding:8px 6px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;letter-spacing:2px;min-width:32px;flex-shrink:0;}
+.seg-block{position:relative;padding:12px 10px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;border-right:1px solid rgba(255,255,255,.06);min-width:60px;overflow:hidden;}
+.seg-block:last-child{border-right:none;}
+.seg-block:hover{filter:brightness(1.3);z-index:1;}
+.seg-block.active{outline:2px solid #fff;outline-offset:-2px;z-index:2;}
+.seg-name{font-size:12px;font-weight:700;color:#f1f5f9;line-height:1.3;word-break:break-all;}
+.seg-size{font-size:10px;color:rgba(255,255,255,.7);margin-top:3px;}
+.detail-panel{background:#111827;border:1px solid #2d3748;border-radius:12px;overflow:hidden;transition:all .3s ease;max-height:0;opacity:0;}
+.detail-panel.open{max-height:600px;opacity:1;}
+.cog-drawer{position:fixed;top:0;right:-480px;width:480px;height:100vh;background:#0f172a;border-left:1px solid #2d3748;z-index:1000;transition:right .3s ease;overflow-y:auto;padding:24px;}
+.cog-drawer.open{right:0;}
+.cog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:none;}
+.cog-backdrop.open{display:block;}
+.stock-tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.stock-tbl th{text-align:left;padding:6px 10px;color:#64748b;font-size:10px;font-weight:600;border-bottom:1px solid #1e293b;}
+.stock-tbl td{padding:6px 10px;border-bottom:1px solid #1e293b22;}
+.stock-tbl tr:hover td{background:#1e273844;}
+.el-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin:2px 3px 2px 0;}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="p-6">
+<div class="p-6 flex flex-col h-full overflow-hidden">
 
-  <!-- Breadcrumb + 标题 -->
-  <div class="flex items-center gap-3 mb-6">
-    <a href="/chain" class="flex items-center gap-1 text-slate-500 hover:text-slate-300 text-sm transition-colors">
-      <span class="material-icons-round text-base">arrow_back</span>
-      产业链全景
+  <!-- Header -->
+  <header class="flex items-center gap-4 mb-4 flex-shrink-0">
+    <a href="/chain" class="text-slate-500 hover:text-white transition-colors">
+      <span class="material-icons-round text-lg">arrow_back</span>
     </a>
-    <span class="text-slate-700">/</span>
-    <div class="flex items-center gap-2">
-      <div class="w-7 h-7 rounded-lg flex items-center justify-center" style="background:{{ chain_color }}22">
-        <span class="material-icons-round text-sm" style="color:{{ chain_color }}">{{ chain_icon }}</span>
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:{{ chain_color }}1a;">
+        <span class="material-icons-round text-base" style="color:{{ chain_color }};">{{ chain_icon }}</span>
       </div>
-      <h1 class="text-2xl font-extrabold tracking-tight">{{ chain_name }}</h1>
-    </div>
-  </div>
-
-  <!-- Tab 切换 -->
-  <div class="flex items-center gap-2 mb-6 bg-slate-800/60 rounded-xl p-1 border border-slate-700/40 w-fit">
-    <button class="chain-tab-btn active" data-tab="market" onclick="switchChainTab('market')">
-      <span class="material-icons-round text-sm align-middle mr-1">trending_up</span>产业链行情
-    </button>
-    <button class="chain-tab-btn" data-tab="cognition" onclick="switchChainTab('cognition')">
-      <span class="material-icons-round text-sm align-middle mr-1">psychology</span>产业链认知
-    </button>
-  </div>
-
-  <!-- Tab 1: 行情 -->
-  <div id="tab-market">
-  <!-- 全链资金流概览 -->
-  <div class="card p-5 mb-6" id="flowOverview">
-    <div class="flex items-center justify-between mb-3">
-      <span class="text-sm font-semibold text-slate-400">全链资金流（近15日）</span>
-      <span class="text-sm font-bold" id="totalFlowLabel" style="color:{{ chain_color }}">加载中…</span>
-    </div>
-    <div id="flowChart" class="flex items-end gap-1" style="height:48px;"></div>
-    <div id="flowDates" class="flex justify-between mt-1" style="font-size:10px;color:#475569;"></div>
-  </div>
-
-  <!-- 环节列表 -->
-  <div id="tiersContainer" class="space-y-3">
-    <div class="text-center py-10 text-slate-600">
-      <span class="material-icons-round text-3xl mb-2 block animate-spin" style="color:{{ chain_color }}">refresh</span>
-      加载产业链数据…
-    </div>
-  </div>
-  </div><!-- end tab-market -->
-
-  <!-- Tab 2: 认知 -->
-  <div id="tab-cognition" class="hidden">
-    <!-- 顶栏 -->
-    <div class="flex items-center justify-between mb-5">
-      <div class="flex items-center gap-3">
-        <span id="cog-version-label" class="text-sm text-slate-500">加载中...</span>
-      </div>
-      <div class="flex items-center gap-2">
-        <button onclick="triggerEnrich()" id="btn-enrich" class="bg-teal-600 hover:bg-teal-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
-          <span class="material-icons-round text-sm">sync</span>补充行业数据
-        </button>
-        <button onclick="triggerDiff()" id="btn-diff" class="bg-amber-600 hover:bg-amber-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
-          <span class="material-icons-round text-sm">difference</span>生成增量更新
-        </button>
-        <button onclick="triggerGenerate()" id="btn-generate" class="bg-primary hover:bg-primary/90 text-white rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
-          <span class="material-icons-round text-sm">auto_awesome</span>生成 Baseline
-        </button>
-        <button onclick="showHistory()" id="btn-history" class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold flex items-center gap-1 transition-colors hidden">
-          <span class="material-icons-round text-sm">history</span>版本历史
-        </button>
+      <div>
+        <h1 class="text-xl font-extrabold tracking-tight">{{ chain_name }}</h1>
+        <nav class="text-xs text-slate-500">产业链全景画布</nav>
       </div>
     </div>
+  </header>
 
-    <!-- 进度条 -->
-    <div id="cog-progress" class="hidden mb-5">
-      <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-        <div class="flex items-center gap-3 mb-2">
-          <span class="material-icons-round text-sm animate-spin" style="color:{{ chain_color }}">refresh</span>
-          <span id="cog-progress-msg" class="text-sm text-slate-400">处理中...</span>
+  <!-- Main body -->
+  <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
+
+    <!-- Left Panel -->
+    <div class="left-panel">
+      <div class="card p-4">
+        <div class="text-xs font-semibold text-slate-500 mb-2">近15日主力净流入</div>
+        <div id="fundFlowChart" style="height:80px;"></div>
+      </div>
+      <button onclick="openCognitionDrawer()" class="card p-3 text-left hover:border-primary transition-colors w-full">
+        <div class="flex items-center gap-2">
+          <span class="material-icons-round text-sm text-primary">psychology</span>
+          <span class="text-xs font-semibold">认知管理</span>
+          <span class="material-icons-round text-xs text-slate-600 ml-auto">chevron_right</span>
         </div>
-        <div class="w-full bg-slate-700 rounded-full h-1.5">
-          <div id="cog-progress-bar" class="h-1.5 rounded-full transition-all" style="width:0%;background:{{ chain_color }}"></div>
+        <div class="text-xs text-slate-500 mt-1" id="cogStatusLabel">点击管理 Baseline</div>
+      </button>
+    </div>
+
+    <!-- Right: Canvas + Detail -->
+    <div class="flex-1 flex flex-col gap-4 min-h-0 overflow-y-auto">
+      <!-- Canvas: 分层画布 -->
+      <div id="canvasArea" class="flex flex-col gap-3 flex-shrink-0">
+        <div id="canvasLoading" class="flex items-center justify-center py-20 text-slate-500 text-sm">
+          <span class="material-icons-round animate-spin mr-2">refresh</span>加载中…
         </div>
       </div>
-    </div>
 
-    <!-- Baseline 展示区 -->
-    <div id="cog-baseline" class="hidden space-y-5">
-      <!-- 产业链结构 -->
-      <div class="card p-5">
-        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-          <span class="material-icons-round text-base" style="color:{{ chain_color }}">account_tree</span>产业链结构
-        </h3>
-        <div id="bl-structure" class="space-y-2"></div>
-      </div>
-      <!-- 供需 Driver 矩阵 -->
-      <div class="card p-5">
-        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-          <span class="material-icons-round text-base" style="color:{{ chain_color }}">insights</span>供需 Driver 矩阵
-        </h3>
-        <div id="bl-drivers" class="space-y-3"></div>
-      </div>
-      <!-- 宏观关系 -->
-      <div class="card p-5">
-        <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2">
-          <span class="material-icons-round text-base" style="color:{{ chain_color }}">public</span>宏观关系图
-        </h3>
-        <div id="bl-macro" class="space-y-2"></div>
-      </div>
-    </div>
-
-    <!-- 无 Baseline 状态 -->
-    <div id="cog-empty" class="hidden text-center py-16">
-      <span class="material-icons-round text-5xl text-slate-700 mb-4 block">psychology</span>
-      <p class="text-slate-500 text-sm mb-3">该产业链尚未初始化行业认知</p>
-      <p class="text-slate-600 text-xs">点击“生成 Baseline”按钮开始</p>
-    </div>
-
-    <!-- Diff 审核区 -->
-    <div id="cog-diff" class="hidden mt-6">
-      <div class="card p-5 border-amber-600/30">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-bold text-amber-400 flex items-center gap-2">
-            <span class="material-icons-round text-base">difference</span>待审核变更
-          </h3>
-          <div class="flex gap-2">
-            <button onclick="mergeDiff()" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-xs font-semibold">确认合并到 Baseline</button>
-            <button onclick="rejectDiff()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg px-3 py-1.5 text-xs font-semibold">拒绝</button>
+      <!-- Detail Panel -->
+      <div class="detail-panel" id="detailPanel">
+        <div class="flex items-center justify-between px-5 py-3 bg-slate-800/50 border-b border-slate-700/40">
+          <div class="flex items-center gap-2">
+            <span class="material-icons-round text-sm text-primary">info</span>
+            <span class="text-sm font-bold" id="detailTitle">环节详情</span>
           </div>
-        </div>
-        <div id="diff-summary" class="text-xs text-slate-400 mb-3"></div>
-        <div id="diff-changes" class="space-y-2"></div>
-      </div>
-    </div>
-
-    <!-- 版本历史弹窗 -->
-    <div id="history-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div class="bg-slate-900 border border-slate-700 rounded-xl w-96 max-h-[60vh] overflow-auto p-5">
-        <div class="flex items-center justify-between mb-4">
-          <h3 class="font-bold text-sm">版本历史</h3>
-          <button onclick="document.getElementById('history-modal').classList.add('hidden')" class="text-slate-500 hover:text-white">
-            <span class="material-icons-round">close</span>
+          <button onclick="closeDetail()" class="text-slate-500 hover:text-slate-300">
+            <span class="material-icons-round text-lg">close</span>
           </button>
         </div>
-        <div id="history-list" class="space-y-2"></div>
+        <div class="p-5" id="detailContent"></div>
       </div>
     </div>
-  </div><!-- end tab-cognition -->
+  </div>
+</div>
 
+<!-- Cognition Management Drawer -->
+<div class="cog-backdrop" id="cogBackdrop" onclick="closeCognitionDrawer()"></div>
+<div class="cog-drawer" id="cogDrawer">
+  <div class="flex items-center justify-between mb-5">
+    <h2 class="text-lg font-bold">认知管理</h2>
+    <button onclick="closeCognitionDrawer()" class="text-slate-500 hover:text-white"><span class="material-icons-round">close</span></button>
+  </div>
+  <div id="cogDrawerContent">
+    <div class="flex items-center gap-2 mb-4"><span class="text-xs text-slate-500" id="cog-version-label">尚未初始化</span></div>
+    <div class="flex flex-wrap gap-2 mb-5">
+      <button id="btn-generate" onclick="triggerGenerate()" class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold">生成 Baseline</button>
+      <button id="btn-enrich" onclick="triggerEnrich()" class="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold hidden">补充数据</button>
+      <button id="btn-diff" onclick="triggerDiff()" class="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold hidden">生成 Diff</button>
+      <button id="btn-history" onclick="showHistory()" class="px-3 py-1.5 rounded-lg bg-slate-700 text-slate-300 text-xs font-semibold hidden">版本历史</button>
+    </div>
+    <div id="cog-progress" class="hidden mb-4">
+      <div class="text-xs text-slate-400 mb-1" id="cog-progress-msg">处理中…</div>
+      <div class="progress-bar"><div class="progress-fill bg-primary" id="cog-progress-bar" style="width:0%"></div></div>
+    </div>
+    <div id="cog-baseline" class="hidden space-y-4">
+      <div><div class="text-xs font-semibold text-slate-400 mb-2">产业结构</div><div id="bl-structure" class="space-y-2"></div></div>
+      <div><div class="text-xs font-semibold text-slate-400 mb-2">驱动因素</div><div id="bl-drivers" class="space-y-2"></div></div>
+      <div><div class="text-xs font-semibold text-slate-400 mb-2">宏观关联</div><div id="bl-macro" class="space-y-2"></div></div>
+    </div>
+    <div id="cog-diff" class="hidden mt-4 p-4 rounded-lg bg-slate-800 border border-slate-700/50">
+      <div class="flex items-center justify-between mb-3"><span class="text-xs font-bold text-amber-400">待审核变更</span>
+        <div class="flex gap-2"><button onclick="mergeDiff()" class="text-xs px-2 py-1 rounded bg-emerald-700 text-white">合并</button><button onclick="rejectDiff()" class="text-xs px-2 py-1 rounded bg-red-700/60 text-white">拒绝</button></div>
+      </div>
+      <div class="text-xs text-slate-400 mb-2" id="diff-summary"></div><div id="diff-changes" class="space-y-2"></div>
+    </div>
+    <div id="history-modal" class="hidden mt-4 p-4 rounded-lg bg-slate-800 border border-slate-700/50">
+      <div class="flex items-center justify-between mb-2"><span class="text-xs font-bold text-slate-300">版本历史</span><button onclick="document.getElementById('history-modal').classList.add('hidden')" class="text-xs text-slate-500">关闭</button></div>
+      <div id="history-list" class="space-y-2 max-h-60 overflow-y-auto"></div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-const CHAIN_NAME = {{ chain_name | tojson }};
-const CHAIN_COLOR = {{ chain_color | tojson }};
-const COL_DEF = 'minmax(160px,2.5fr) 88px 88px minmax(170px,2.2fr) minmax(130px,1.6fr) 80px 80px 80px 68px';
+const CHAIN_NAME = "{{ chain_name }}";
+let _currentDiffId = null, _currentBaseline = null, _activeSegEl = null;
 
-// 当前已展开的 tier
-const _expanded = new Set();
-// K线数据缓存
-const _klineCache = {};
-// 涨幅数据缓存
-const _perfCache = {};
-// 各 tier 的 codes 映射（避免 onclick 里 JSON 双引号冲突）
-const _tierCodes = {};
-
-// ── 入口 ───────────────────────────────────────────────────────────
-async function init() {
-  const r = await fetch(`/chain/api/detail-v2?name=${encodeURIComponent(CHAIN_NAME)}`);
-  const d = await r.json();
-  if (!d.ok) { document.getElementById('tiersContainer').innerHTML = `<p class="text-red-400 text-sm">${d.error}</p>`; return; }
-
-  renderFlowChart(d.flow_dates, d.flow_total);
-  renderTiers(d.tiers);
+const TIER_COLORS = [
+  {match:'上上游',bg:'#0e4a6e',border:'#0891b2'},
+  {match:'上游',bg:'#1e3a5f',border:'#3b82f6'},
+  {match:'中游',bg:'#2d1b69',border:'#8b5cf6'},
+  {match:'下游',bg:'#4a2c17',border:'#f59e0b'},
+  {match:'下下游',bg:'#4c1d1d',border:'#f43f5e'},
+  {match:'upstream',bg:'#1e3a5f',border:'#3b82f6'},
+  {match:'midstream',bg:'#2d1b69',border:'#8b5cf6'},
+  {match:'downstream',bg:'#4a2c17',border:'#f59e0b'},
+];
+function getTierStyle(key, label) {
+  const s = (key+' '+label).toLowerCase();
+  for (const t of TIER_COLORS) { if (s.includes(t.match)) return t; }
+  return {bg:'#1a2233',border:'#6366f1'};
 }
 
-// ── 资金流主图 ─────────────────────────────────────────────────────
-function renderFlowChart(dates, flows) {
-  const chartEl = document.getElementById('flowChart');
-  const dateEl = document.getElementById('flowDates');
-  const totalLabel = document.getElementById('totalFlowLabel');
+// ── Init ──
+(async function() { await loadCanvas(); loadFundFlow(); })();
 
-  if (!flows || flows.length === 0) {
-    chartEl.innerHTML = '<span class="text-slate-600 text-xs">暂无数据</span>';
-    return;
-  }
-
-  const total = flows.reduce((a, b) => a + b, 0);
-  totalLabel.textContent = (total >= 0 ? '+' : '') + total.toFixed(2) + ' 亿';
-  totalLabel.style.color = total >= 0 ? '#ef4444' : '#22c55e';
-
-  const maxAbs = Math.max(...flows.map(Math.abs), 0.01);
-  const maxH = 48;
-
-  chartEl.innerHTML = flows.map((v, i) => {
-    if (v >= 0) {
-      const h = Math.max(3, Math.round((v / maxAbs) * maxH * 0.9));
-      return `<div class="flex flex-col items-center flex-1" style="height:${maxH}px;justify-content:flex-end">
-        <div class="flow-bar-pos w-full" style="height:${h}px" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
-      </div>`;
-    } else {
-      const h = Math.max(3, Math.round((Math.abs(v) / maxAbs) * maxH * 0.9));
-      return `<div class="flex flex-col items-center flex-1" style="height:${maxH}px;justify-content:flex-start">
-        <div class="flow-bar-neg w-full" style="height:${h}px" title="${dates[i]||''}: ${v.toFixed(2)}亿"></div>
-      </div>`;
-    }
-  }).join('');
-
-  if (dates.length > 0) {
-    const step = Math.ceil(dates.length / 5);
-    dateEl.innerHTML = dates.filter((_,i) => i % step === 0 || i === dates.length-1)
-      .map(d => `<span>${String(d).slice(5)}</span>`).join('');
-  }
-}
-
-// ── 渲染环节列表 ───────────────────────────────────────────────────
-function renderTiers(tiers) {
-  const container = document.getElementById('tiersContainer');
-  tiers.forEach((tier, idx) => {
-    _tierCodes[idx] = tier.stocks.map(s => s.code);
-  });
-  container.innerHTML = tiers.map((tier, idx) => {
-    const flowSign = tier.tier_flow_15d >= 0 ? '+' : '';
-    const flowColor = tier.tier_flow_15d >= 0 ? '#ef4444' : '#22c55e';
-    return `
-    <div class="tier-section" id="tier-${idx}">
-      <div class="tier-header" onclick="toggleTier(${idx})">
-        <span class="material-icons-round text-sm transition-transform" id="chevron-${idx}" style="color:${CHAIN_COLOR}">chevron_right</span>
-        <div class="flex-1 flex items-center gap-3">
-          <span class="font-bold text-sm">${tier.key}</span>
-          <span class="text-xs text-slate-500">${tier.label}</span>
-        </div>
-        <span class="text-xs text-slate-500">${tier.stocks.length}只</span>
-        <span class="text-xs font-bold" style="color:${flowColor}; min-width:60px; text-align:right">${flowSign}${tier.tier_flow_15d.toFixed(2)}亿</span>
-      </div>
-      <div class="tier-body hidden" id="tierbody-${idx}">
-        ${buildStockTable(tier.stocks, idx)}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-// ── 收起/展开 ──────────────────────────────────────────────────────
-async function toggleTier(idx) {
-  const codes = _tierCodes[idx] || [];
-  const body = document.getElementById(`tierbody-${idx}`);
-  const chevron = document.getElementById(`chevron-${idx}`);
-  const header = body.previousElementSibling;
-  const isOpen = !body.classList.contains('hidden');
-
-  if (isOpen) {
-    body.classList.add('hidden');
-    chevron.style.transform = '';
-    header.classList.remove('expanded');
-    _expanded.delete(idx);
-  } else {
-    body.classList.remove('hidden');
-    chevron.style.transform = 'rotate(90deg)';
-    header.classList.add('expanded');
-    _expanded.add(idx);
-    // 懒加载K线 + 涨幅
-    await loadKlineForTier(idx, codes);
-  }
-}
-
-// ── 股票表格 ───────────────────────────────────────────────────────
-function buildStockTable(stocks, tierIdx) {
-  if (!stocks || stocks.length === 0) return '<div class="px-4 py-3 text-slate-600 text-xs">暂无股票数据</div>';
-
-  const headerCols = ['股票', '最新价', '今日', '月K（近6月）', '周K（近4周）', '1周', '1月', '3月', '标注'];
-  const header = `<div class="stock-header" style="grid-template-columns:${COL_DEF}">
-    ${headerCols.map(h => `<span>${h}</span>`).join('')}
-  </div>`;
-
-  const rows = stocks.map(s => buildStockRow(s, tierIdx)).join('');
-  return header + rows;
-}
-
-function buildStockRow(s, tierIdx) {
-  const pct = s.latest_pct;
-  const pctClass = pct === null ? 'pct-zero' : pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
-  const pctText = pct === null ? '—' : (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
-  const priceText = s.latest_price ? s.latest_price.toFixed(2) : '—';
-  const tagHtml = s.tag === 'leader'
-    ? `<span class="tag-leader">龙头</span>`
-    : s.tag === 'news'
-    ? `<span class="tag-news">News</span>`
-    : '<span class="text-slate-700">—</span>';
-
-  return `<div class="stock-row" id="srow-${s.code}" style="grid-template-columns:${COL_DEF}">
-    <div class="stock-name-cell">
-      <a href="/stock/${s.code}">${s.name}</a>
-      <span class="code">${s.code}</span>
-    </div>
-    <span class="price-val">${priceText}</span>
-    <span class="today-pct ${pctClass}">${pctText}</span>
-    <div class="kline-mini" id="monthly-${s.code}">
-      <div style="font-size:9px;color:#334155">…</div>
-    </div>
-    <div class="kline-mini" id="weekly-${s.code}">
-      <div style="font-size:9px;color:#334155">…</div>
-    </div>
-    <span id="perf1w-${s.code}" class="pct-zero">—</span>
-    <span id="perf1m-${s.code}" class="pct-zero">—</span>
-    <span id="perf3m-${s.code}" class="pct-zero">—</span>
-    <span>${tagHtml}</span>
-  </div>`;
-}
-
-// ── 懒加载K线数据 ──────────────────────────────────────────────────
-async function loadKlineForTier(tierIdx, codes) {
-  // 过滤已缓存的
-  const missing = codes.filter(c => !_klineCache[c]);
-  if (missing.length === 0) {
-    fillKlineUI(codes);
-    return;
-  }
-
+async function loadFundFlow() {
   try {
-    const r = await fetch('/chain/api/batch-kline', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({codes: missing})
-    });
-    const d = await r.json();
-    if (d.ok && d.data) {
-      Object.assign(_klineCache, d.data);
-    }
-  } catch(e) { console.error('kline load error', e); }
-
-  // 同时加载涨幅数据
-  await loadPerfForCodes(missing);
-  fillKlineUI(codes);
+    const r = await fetch('/chain/api/list'); const d = await r.json();
+    if (!d.ok) return;
+    const chain = d.chains.find(c => c.name === CHAIN_NAME);
+    if (chain) renderFundFlow(chain.daily_flows||[], chain.daily_dates||[]);
+  } catch(e) {}
+}
+function renderFundFlow(flows, dates) {
+  const el = document.getElementById('fundFlowChart');
+  if (!flows.length) { el.innerHTML='<span class="text-xs text-slate-600">暂无数据</span>'; return; }
+  const maxAbs = Math.max(...flows.map(Math.abs), 0.01), H=70, MID=35;
+  el.innerHTML = `<div style="display:flex;gap:1px;height:${H}px;position:relative;"><div style="position:absolute;left:0;right:0;top:${MID}px;height:1px;background:#334155;"></div>${flows.map((v,i)=>{
+    const barH=Math.max(2,Math.round((Math.abs(v)/maxAbs)*(MID-4)));
+    const [bg,top]=v>=0?['#ef4444',MID-barH]:['#22c55e',MID];
+    return `<div style="flex:1;position:relative;height:${H}px;"><div style="position:absolute;left:0;right:0;top:${top}px;height:${barH}px;background:${bg};border-radius:2px;opacity:.7;" title="${dates[i]||''}: ${v>=0?'+':''}${v.toFixed(2)}亿"></div></div>`;
+  }).join('')}</div>`;
 }
 
-// ── 拉取涨幅数据（用日线计算1W/1M/3M） ─────────────────────────────
-async function loadPerfForCodes(codes) {
-  const missing = codes.filter(c => !_perfCache[c]);
-  if (missing.length === 0) return;
-
+// ── Canvas ──
+async function loadCanvas() {
   try {
-    const r = await fetch('/chain/api/batch-perf', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({codes: missing})
-    });
+    const r = await fetch(`/chain/api/treemap-data?name=${encodeURIComponent(CHAIN_NAME)}`);
     const d = await r.json();
-    if (d.ok && d.data) {
-      Object.assign(_perfCache, d.data);
-    }
+    if (!d.ok) throw new Error(d.error||'加载失败');
+    renderCanvas(d.data);
   } catch(e) {
-    // 降级：不显示涨幅
+    document.getElementById('canvasLoading').innerHTML=`<span class="text-red-400 text-xs">${e.message}</span>`;
   }
 }
 
-// ── 填充K线 + 涨幅到 DOM ──────────────────────────────────────────
-function fillKlineUI(codes) {
-  codes.forEach(code => {
-    const kd = _klineCache[code];
-    const pd = _perfCache[code];
+function renderCanvas(data) {
+  // Group by tier, preserve order
+  const tierOrder = [];
+  const tierGroups = {};
+  data.forEach(d => {
+    if (!tierGroups[d.tier_key]) { tierGroups[d.tier_key]={label:d.tier_label,segs:[]}; tierOrder.push(d.tier_key); }
+    tierGroups[d.tier_key].segs.push(d);
+  });
 
-    if (kd) {
-      fillMiniKline(`monthly-${code}`, kd.monthly || []);
-      fillMiniKline(`weekly-${code}`, kd.weekly || []);
-    }
+  const area = document.getElementById('canvasArea');
+  area.innerHTML = '';
 
-    if (pd) {
-      fillPerf(`perf1w-${code}`, pd.pct_1w);
-      fillPerf(`perf1m-${code}`, pd.pct_1m);
-      fillPerf(`perf3m-${code}`, pd.pct_3m);
-    }
+  tierOrder.forEach(tk => {
+    const tier = tierGroups[tk];
+    const style = getTierStyle(tk, tier.label);
+    const totalSize = tier.segs.reduce((s,seg)=>s+(seg.market_size||seg._stock_count||1),0);
+
+    const row = document.createElement('div');
+    row.className = 'tier-row';
+    row.style.borderColor = style.border+'66';
+
+    // Tier label column
+    row.innerHTML = `<div class="tier-label" style="background:${style.bg};color:${style.border};">
+      <span>${tier.label.length > 6 ? tier.label.slice(0,6) : tier.label}</span>
+    </div>`;
+
+    // Segment blocks
+    tier.segs.forEach(seg => {
+      const val = seg.market_size || seg._stock_count || 1;
+      const pct = Math.max(8, (val / totalSize) * 100); // min 8% width
+      const sizeLabel = seg.market_size ? `${seg.market_size}亿` : '';
+      const block = document.createElement('div');
+      block.className = 'seg-block';
+      block.style.cssText = `flex:${val};background:${style.bg};`;
+      block.innerHTML = `<div class="seg-name">${seg.segment}</div>${sizeLabel ? `<div class="seg-size">${sizeLabel}</div>` : ''}`;
+      block.onclick = () => selectSegment(block, tk, seg.segment);
+      row.appendChild(block);
+    });
+
+    // Tier total badge
+    const badge = document.createElement('div');
+    badge.style.cssText = `padding:4px 8px;display:flex;align-items:center;background:${style.bg};border-left:1px solid ${style.border}33;`;
+    badge.innerHTML = `<span style="font-size:10px;color:${style.border};white-space:nowrap;writing-mode:vertical-rl;">${totalSize > 1 ? totalSize+'亿' : ''}</span>`;
+    row.appendChild(badge);
+
+    area.appendChild(row);
   });
 }
 
-function fillMiniKline(elId, bars) {
-  const el = document.getElementById(elId);
-  if (!el || !bars || bars.length === 0) return;
-
-  const maxH = 44;
-  const highs = bars.map(b => b.high);
-  const lows = bars.map(b => b.low);
-  const gHigh = Math.max(...highs);
-  const gLow = Math.min(...lows);
-  const range = gHigh - gLow || 1;
-
-  el.innerHTML = bars.map(b => {
-    const bodyTop = maxH - Math.round(((Math.max(b.open, b.close) - gLow) / range) * maxH);
-    const bodyBot = maxH - Math.round(((Math.min(b.open, b.close) - gLow) / range) * maxH);
-    const bodyH = Math.max(2, bodyBot - bodyTop);
-    const cls = b.yang ? 'yang' : 'yin';
-    return `<div class="kbar ${cls}" style="height:${bodyH}px;margin-top:${bodyTop}px" title="${b.label}: ${b.open.toFixed(2)}→${b.close.toFixed(2)}"></div>`;
-  }).join('');
+function selectSegment(el, tierKey, segment) {
+  if (_activeSegEl) _activeSegEl.classList.remove('active');
+  el.classList.add('active');
+  _activeSegEl = el;
+  loadSegmentDetail(tierKey, segment);
 }
 
-function fillPerf(elId, pct) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  if (pct === null || pct === undefined) { el.className = 'pct-zero'; el.textContent = '—'; return; }
-  const cls = pct > 0 ? 'pct-pos' : pct < 0 ? 'pct-neg' : 'pct-zero';
-  el.className = cls;
-  el.textContent = (pct > 0 ? '+' : '') + pct.toFixed(2) + '%';
+// ── Detail Panel ──
+async function loadSegmentDetail(tierKey, segment) {
+  try {
+    const r = await fetch(`/chain/api/segment-detail?name=${encodeURIComponent(CHAIN_NAME)}&tier_key=${encodeURIComponent(tierKey)}&segment=${encodeURIComponent(segment)}`);
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    renderDetail(d, segment);
+  } catch(e) { console.error(e); }
 }
 
-// ── 初始化 ─────────────────────────────────────────────────────────
-init();
+function renderDetail(data, segName) {
+  document.getElementById('detailTitle').textContent = `${segName}`;
+  const panel = document.getElementById('detailPanel');
+  panel.classList.add('open');
 
-// ══════════════════════════════════════════════════════════════════════
-// 产业链认知 Tab
-// ══════════════════════════════════════════════════════════════════════
-let _currentDiffId = null;
-let _currentBaseline = null;
+  const cog = data.cognition;
+  let html = '<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">';
 
-function switchChainTab(tab) {
-  document.querySelectorAll('.chain-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-  document.getElementById('tab-market').classList.toggle('hidden', tab !== 'market');
-  document.getElementById('tab-cognition').classList.toggle('hidden', tab !== 'cognition');
-  if (tab === 'cognition') loadCognition();
+  // Left column: Cognition
+  html += '<div class="space-y-4">';
+  if (cog) {
+    // Supply/Demand
+    if (cog.supply_factors || cog.demand_factors) {
+      html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+        <div class="text-xs font-bold text-slate-300 mb-2">供需因素</div>
+        ${cog.supply_factors ? `<div class="mb-2"><span class="text-xs text-blue-400 font-semibold">供给：</span><span class="text-xs text-slate-400">${cog.supply_factors.join('、')}</span></div>` : ''}
+        ${cog.demand_factors ? `<div><span class="text-xs text-emerald-400 font-semibold">需求：</span><span class="text-xs text-slate-400">${cog.demand_factors.join('、')}</span></div>` : ''}
+      </div>`;
+    }
+    // Cost elements
+    if (cog.cost_elements && cog.cost_elements.length) {
+      html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+        <div class="text-xs font-bold text-red-300 mb-2">成本结构</div>
+        <div class="space-y-1.5">${cog.cost_elements.map(el => {
+          if (typeof el === 'string') return `<span class="el-tag bg-red-900/30 text-red-300">${el}</span>`;
+          return `<div class="flex items-center justify-between text-xs">
+            <span class="text-slate-300 font-medium">${el.name}</span>
+            <div class="flex items-center gap-2">
+              ${el.share_pct ? `<span class="text-amber-400">${el.share_pct}</span>` : ''}
+              ${el.trend ? `<span class="text-slate-500">${el.trend}</span>` : ''}
+            </div>
+          </div>${el.driver ? `<div class="text-xs text-slate-500 pl-2 mb-1">${el.driver}</div>` : ''}`;
+        }).join('')}</div>
+      </div>`;
+    }
+    // Revenue elements
+    if (cog.revenue_elements && cog.revenue_elements.length) {
+      html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+        <div class="text-xs font-bold text-emerald-300 mb-2">收入驱动</div>
+        <div class="space-y-1.5">${cog.revenue_elements.map(el => {
+          if (typeof el === 'string') return `<span class="el-tag bg-emerald-900/30 text-emerald-300">${el}</span>`;
+          return `<div class="flex items-center justify-between text-xs">
+            <span class="text-slate-300 font-medium">${el.name}</span>
+            ${el.growth_rate ? `<span class="text-emerald-400">${el.growth_rate}</span>` : ''}
+          </div>
+          ${el.volume_driver ? `<div class="text-xs text-slate-500 pl-2">量：${el.volume_driver}</div>` : ''}
+          ${el.price_driver ? `<div class="text-xs text-slate-500 pl-2 mb-1">价：${el.price_driver}</div>` : ''}`;
+        }).join('')}</div>
+      </div>`;
+    }
+    // Competition
+    if (cog.competition) {
+      html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+        <div class="text-xs font-bold text-purple-300 mb-1">竞争格局</div>
+        <div class="text-xs text-slate-400">${cog.competition}</div>
+      </div>`;
+    }
+  } else {
+    html += '<div class="text-xs text-slate-600 py-4">暂无认知数据，请先生成 Baseline</div>';
+  }
+  html += '</div>';
+
+  // Right column: Key Companies + Stocks
+  html += '<div class="space-y-4">';
+  // Key companies (龙头)
+  if (data.key_companies && data.key_companies.length) {
+    html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
+      <div class="text-xs font-bold text-amber-300 mb-2">龙头公司</div>
+      <div class="flex flex-wrap gap-1">${data.key_companies.map(c => `<span class="el-tag bg-amber-900/30 text-amber-200">${c}</span>`).join('')}</div>
+    </div>`;
+  }
+  // Stock table
+  if (data.stocks && data.stocks.length) {
+    html += `<div class="text-xs font-bold text-slate-300 mb-2">相关个股 (${data.stocks.length})</div>
+    <table class="stock-tbl"><thead><tr><th>名称</th><th>代码</th><th>现价</th><th>涨跌</th><th>市值</th></tr></thead><tbody>
+    ${data.stocks.map(s => `<tr class="cursor-pointer" onclick="window.open('/stock/${s.stock_code}','_blank')">
+      <td class="text-slate-200 font-semibold">${s.stock_name||''}</td>
+      <td class="text-slate-500">${s.stock_code||''}</td>
+      <td>${s.close_price?s.close_price.toFixed(2):'—'}</td>
+      <td class="${(s.pct_change||0)>=0?'text-red-400':'text-green-400'}">${s.pct_change?s.pct_change.toFixed(2)+'%':'—'}</td>
+      <td class="text-slate-400">${s.total_market_value?(s.total_market_value/1e8).toFixed(0)+'亿':'—'}</td>
+    </tr>`).join('')}</tbody></table>`;
+  } else if (!data.key_companies || !data.key_companies.length) {
+    html += '<div class="text-xs text-slate-600 py-4">暂无关联个股数据</div>';
+  }
+  html += '</div></div>';
+
+  document.getElementById('detailContent').innerHTML = html;
 }
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  if (_activeSegEl) { _activeSegEl.classList.remove('active'); _activeSegEl=null; }
+}
+
+// ── Cognition Drawer (same as before) ──
+function openCognitionDrawer() { document.getElementById('cogDrawer').classList.add('open'); document.getElementById('cogBackdrop').classList.add('open'); loadCognition(); }
+function closeCognitionDrawer() { document.getElementById('cogDrawer').classList.remove('open'); document.getElementById('cogBackdrop').classList.remove('open'); }
 
 async function loadCognition() {
   try {
@@ -533,19 +354,16 @@ async function loadCognition() {
     const d = await r.json();
     if (d.ok && d.has_baseline && d.baseline) {
       _currentBaseline = d;
-      document.getElementById('cog-version-label').textContent = `版本 v${d.version}（${(d.created_at||'').slice(0,10)}）`;
-      renderBaseline(typeof d.baseline === 'string' ? JSON.parse(d.baseline) : d.baseline);
+      document.getElementById('cog-version-label').textContent = `v${d.version}（${(d.created_at||'').slice(0,10)}）`;
+      renderBaseline(typeof d.baseline==='string'?JSON.parse(d.baseline):d.baseline);
       document.getElementById('cog-baseline').classList.remove('hidden');
-      document.getElementById('cog-empty').classList.add('hidden');
       document.getElementById('btn-diff').classList.remove('hidden');
       document.getElementById('btn-enrich').classList.remove('hidden');
       document.getElementById('btn-generate').classList.add('hidden');
       document.getElementById('btn-history').classList.remove('hidden');
-      // 检查是否有待审核 Diff
       await loadLatestDiff();
     } else {
       document.getElementById('cog-baseline').classList.add('hidden');
-      document.getElementById('cog-empty').classList.remove('hidden');
       document.getElementById('cog-diff').classList.add('hidden');
       document.getElementById('cog-version-label').textContent = '尚未初始化';
       document.getElementById('btn-generate').classList.remove('hidden');
@@ -553,362 +371,41 @@ async function loadCognition() {
       document.getElementById('btn-enrich').classList.add('hidden');
       document.getElementById('btn-history').classList.add('hidden');
     }
-  } catch(e) {
-    console.error('loadCognition error', e);
-    document.getElementById('cog-version-label').textContent = '加载失败';
-  }
+  } catch(e) { document.getElementById('cog-version-label').textContent = '加载失败'; }
 }
-
 async function loadLatestDiff() {
   try {
     const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/latest`);
     const d = await r.json();
-    if (d.ok && d.diff && (d.diff.status === 'ready' || d.diff.status === 'editing')) {
-      _currentDiffId = d.diff.id;
-      renderDiff(d.diff);
-      document.getElementById('cog-diff').classList.remove('hidden');
-    } else {
-      document.getElementById('cog-diff').classList.add('hidden');
-      _currentDiffId = null;
-    }
-  } catch(e) { console.error('loadLatestDiff', e); }
+    if (d.ok && d.diff && (d.diff.status==='ready'||d.diff.status==='editing')) {
+      _currentDiffId = d.diff.id; renderDiff(d.diff); document.getElementById('cog-diff').classList.remove('hidden');
+    } else { document.getElementById('cog-diff').classList.add('hidden'); _currentDiffId=null; }
+  } catch(e) {}
 }
-
 function renderBaseline(bl) {
-  // Structure
-  const structEl = document.getElementById('bl-structure');
-  if (bl.structure && bl.structure.length) {
-    structEl.innerHTML = bl.structure.map(s => `
-      <div class="bg-slate-800/60 rounded-lg p-4 border border-slate-700/50">
-        <div class="flex items-center gap-2 mb-2">
-          <span class="cog-tier-badge">${s.tier_key}</span>
-          <span class="text-xs text-slate-400 font-semibold">${s.tier_label || ''}</span>
-          ${s.lifecycle_stage ? `<span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">${s.lifecycle_stage}</span>` : ''}
-          ${s.value_share ? `<span class="text-xs text-slate-500">价值占比: ${s.value_share}</span>` : ''}
-        </div>
-        ${s.description ? `<div class="text-xs text-slate-300 mb-2">${s.description}</div>` : ''}
-        <div class="grid grid-cols-2 gap-2 text-xs">
-          ${s.key_segments && s.key_segments.length ? `<div><span class="text-slate-500">细分赛道：</span><span class="text-slate-400">${s.key_segments.join('、')}</span></div>` : ''}
-          ${s.concentration ? `<div><span class="text-slate-500">集中度：</span><span class="text-slate-400">${s.concentration}</span></div>` : ''}
-          ${s.entry_barriers ? `<div class="col-span-2"><span class="text-slate-500">进入壁垒：</span><span class="text-slate-400">${s.entry_barriers}</span></div>` : ''}
-        </div>
-        ${s.key_companies && s.key_companies.length ? `<div class="text-xs text-slate-600 mt-2">代表公司：${s.key_companies.join('、')}</div>` : ''}
-      </div>
-    `).join('');
-  } else { structEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
-
-  // Drivers
-  const drvEl = document.getElementById('bl-drivers');
-  if (bl.drivers && bl.drivers.length) {
-    drvEl.innerHTML = bl.drivers.map(d => {
-      const costHtml = renderElementCards(d.cost_elements, 'cost');
-      const revHtml = renderElementCards(d.revenue_elements, 'revenue');
-      return `
-      <div class="bg-slate-800/60 rounded-lg p-4 border border-slate-700/50">
-        <div class="flex items-center gap-2 mb-3"><span class="cog-tier-badge">${d.tier_key}</span></div>
-        <div class="grid grid-cols-2 gap-3 text-xs mb-3">
-          <div><span class="text-slate-500 font-semibold">供给因素：</span><span class="text-slate-300">${(d.supply_factors||[]).join('、') || '—'}</span></div>
-          <div><span class="text-slate-500 font-semibold">需求因素：</span><span class="text-slate-300">${(d.demand_factors||[]).join('、') || '—'}</span></div>
-        </div>
-        <div class="mb-3">
-          <div class="text-xs font-semibold text-red-400/80 mb-1.5 flex items-center gap-1">
-            <span class="material-icons-round text-xs">payments</span>成本要素 <span class="text-slate-600 font-normal">(点击展开)</span>
-          </div>
-          <div class="space-y-1">${costHtml}</div>
-        </div>
-        <div class="mb-3">
-          <div class="text-xs font-semibold text-emerald-400/80 mb-1.5 flex items-center gap-1">
-            <span class="material-icons-round text-xs">trending_up</span>收入要素 <span class="text-slate-600 font-normal">(点击展开)</span>
-          </div>
-          <div class="space-y-1">${revHtml}</div>
-        </div>
-        ${d.competition ? `<div class="text-xs text-slate-500 border-t border-slate-700/50 pt-2 mt-2"><span class="font-semibold text-slate-400">竞争格局：</span>${d.competition}</div>` : ''}
-      </div>`;
-    }).join('');
-  } else { drvEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
-
-  // Macro relations
-  const macroEl = document.getElementById('bl-macro');
-  if (bl.macro_relations && bl.macro_relations.length) {
-    macroEl.innerHTML = bl.macro_relations.map(m => {
-      const dirColor = m.impact_direction === 'positive' ? '#34d399' : m.impact_direction === 'negative' ? '#f87171' : '#94a3b8';
-      const dirIcon = m.impact_direction === 'positive' ? 'trending_up' : m.impact_direction === 'negative' ? 'trending_down' : 'trending_flat';
-      return `
-      <div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50 cursor-pointer" onclick="this.querySelector('.macro-detail').classList.toggle('hidden')">
-        <div class="flex items-center gap-3">
-          <span class="material-icons-round text-sm" style="color:${dirColor}">${dirIcon}</span>
-          <div class="flex-1">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-semibold text-slate-300">${m.macro_indicator}</span>
-              ${m.indicator_category ? `<span class="text-xs px-1.5 py-0.5 rounded bg-slate-700/80 text-slate-500">${m.indicator_category}</span>` : ''}
-            </div>
-            <div class="text-xs text-slate-500 mt-0.5">${m.transmission_path || ''}</div>
-          </div>
-          <span class="text-xs px-2 py-0.5 rounded" style="background:${dirColor}22;color:${dirColor}">${m.confidence || ''}</span>
-          <span class="material-icons-round text-xs text-slate-600">expand_more</span>
-        </div>
-        <div class="macro-detail hidden mt-2 pt-2 border-t border-slate-700/50 text-xs space-y-1">
-          ${m.impact_mechanism ? `<div><span class="text-slate-500">影响机制：</span><span class="text-slate-400">${m.impact_mechanism}</span></div>` : ''}
-          ${m.affected_tiers ? `<div><span class="text-slate-500">受影响环节：</span><span class="text-slate-400">${(m.affected_tiers||[]).join('、')}</span></div>` : ''}
-          ${m.lag_periods ? `<div><span class="text-slate-500">时滞：</span><span class="text-slate-400">${m.lag_periods}</span></div>` : ''}
-          ${m.historical_evidence ? `<div><span class="text-slate-500">历史案例：</span><span class="text-slate-400">${m.historical_evidence}</span></div>` : ''}
-        </div>
-      </div>`;
-    }).join('');
-  } else { macroEl.innerHTML = '<p class="text-xs text-slate-600">暂无数据</p>'; }
+  const structEl=document.getElementById('bl-structure');
+  structEl.innerHTML = (bl.structure||[]).map(s=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${s.tier_key}</span> <span class="text-xs text-slate-400">${s.tier_label||''}</span>${s.tier_market_size_billion?` <span class="text-xs text-slate-500">${s.tier_market_size_billion}亿</span>`:''}</div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
+  const drvEl=document.getElementById('bl-drivers');
+  drvEl.innerHTML = (bl.drivers||[]).map(d=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${d.tier_key}</span><div class="text-xs text-slate-400 mt-1">供给：${(d.supply_factors||[]).join('、')||'—'}</div><div class="text-xs text-slate-400">需求：${(d.demand_factors||[]).join('、')||'—'}</div></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
+  const macroEl=document.getElementById('bl-macro');
+  macroEl.innerHTML = (bl.macro_relations||[]).map(m=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs text-slate-300">${m.macro_indicator}</span> <span class="text-xs text-slate-500">${m.transmission_path||''}</span></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
 }
-
-function renderElementCards(elements, type) {
-  if (!elements || !elements.length) return '<span class="text-xs text-slate-600">—</span>';
-  return elements.map(el => {
-    if (typeof el === 'string') {
-      return `<div class="inline-block text-xs px-2 py-1 rounded bg-slate-700/60 text-slate-400 mr-1 mb-1">${el}</div>`;
-    }
-    const trendColor = el.trend === '上升' ? '#f87171' : el.trend === '下降' ? '#34d399' : '#94a3b8';
-    const trendIcon = el.trend === '上升' ? '↑' : el.trend === '下降' ? '↓' : '→';
-    const dataHtml = renderIndustryData(el.industry_data);
-    if (type === 'cost') {
-      return `
-      <div class="element-card bg-slate-900/60 rounded-lg border border-slate-700/40 px-3 py-2 cursor-pointer" onclick="this.querySelector('.el-detail').classList.toggle('hidden')">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-300">${el.name}</span>
-          <div class="flex items-center gap-2">
-            ${el.share_pct ? `<span class="text-xs text-amber-400/80">${el.share_pct}</span>` : ''}
-            <span class="text-xs" style="color:${trendColor}">${trendIcon} ${el.trend||''}</span>
-            <span class="material-icons-round text-xs text-slate-600">expand_more</span>
-          </div>
-        </div>
-        <div class="el-detail hidden mt-2 pt-2 border-t border-slate-700/40 text-xs space-y-1">
-          ${el.driver ? `<div><span class="text-slate-500">驱动因素：</span><span class="text-slate-400">${el.driver}</span></div>` : ''}
-          ${dataHtml}
-        </div>
-      </div>`;
-    } else {
-      return `
-      <div class="element-card bg-slate-900/60 rounded-lg border border-slate-700/40 px-3 py-2 cursor-pointer" onclick="this.querySelector('.el-detail').classList.toggle('hidden')">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-medium text-slate-300">${el.name}</span>
-          <div class="flex items-center gap-2">
-            ${el.growth_rate ? `<span class="text-xs text-emerald-400/80">${el.growth_rate}</span>` : ''}
-            <span class="material-icons-round text-xs text-slate-600">expand_more</span>
-          </div>
-        </div>
-        <div class="el-detail hidden mt-2 pt-2 border-t border-slate-700/40 text-xs space-y-1">
-          ${el.volume_driver ? `<div><span class="text-slate-500">量驱动：</span><span class="text-slate-400">${el.volume_driver}</span></div>` : ''}
-          ${el.price_driver ? `<div><span class="text-slate-500">价驱动：</span><span class="text-slate-400">${el.price_driver}</span></div>` : ''}
-          ${dataHtml}
-        </div>
-      </div>`;
-    }
-  }).join('');
-}
-
-function renderIndustryData(data) {
-  if (!data) return '';
-  // 兼容旧格式：纯字符串
-  if (typeof data === 'string') {
-    return `<div class="bg-slate-800 rounded p-2 mt-1"><span class="text-slate-500">行业数据：</span><span class="text-blue-300/80">${data}</span></div>`;
-  }
-  // 新格式：结构化对象
-  if (!data.items || !data.items.length) {
-    if (data.llm_summary) {
-      return `<div class="bg-slate-800 rounded p-2 mt-1"><span class="text-slate-500">行业数据：</span><span class="text-blue-300/80">${data.llm_summary}</span></div>`;
-    }
-    return '';
-  }
-  const coverageCls = {
-    'L1': 'bg-emerald-900/40 text-emerald-400',
-    'L2': 'bg-blue-900/40 text-blue-400',
-    'L3': 'bg-amber-900/40 text-amber-400',
-    'LLM_only': 'bg-slate-700 text-slate-500',
-  }[data.coverage] || 'bg-slate-700 text-slate-500';
-  const itemsHtml = data.items.map(item => {
-    const changeColor = item.yoy_change && item.yoy_change.startsWith('-') ? 'text-emerald-400' : 'text-red-400';
-    return `
-    <div class="flex items-start gap-2 text-xs border-l-2 border-slate-600 pl-2 py-0.5">
-      <div class="flex-1 min-w-0">
-        <span class="text-slate-300 font-medium">${item.metric_name || ''}</span>
-        ${item.value ? `<span class="ml-1 text-blue-300">${item.value}</span>` : ''}
-        ${item.yoy_change ? `<span class="ml-1 ${changeColor}">${item.yoy_change}</span>` : ''}
-        ${item.period ? `<span class="ml-1 text-slate-600">(${item.period})</span>` : ''}
-      </div>
-      <span class="text-xs px-1 py-0.5 rounded bg-slate-900 text-slate-600 shrink-0">${item.source || ''}</span>
-    </div>
-    ${item.source_snippet ? `<div class="text-xs text-slate-500/70 pl-2 line-clamp-2 mt-0.5">${item.source_snippet.slice(0,120)}</div>` : ''}`;
-  }).join('');
-  return `
-  <div class="bg-slate-800 rounded p-2 mt-1 space-y-1.5">
-    <div class="flex items-center gap-2">
-      <span class="text-xs ${coverageCls} px-1.5 py-0.5 rounded">${data.coverage || 'N/A'}</span>
-      <span class="text-xs text-slate-600">${data.enriched_at ? data.enriched_at.slice(0,10) : ''}</span>
-    </div>
-    ${itemsHtml}
-    ${data.llm_summary ? `<div class="text-xs text-slate-500 italic pt-1 border-t border-slate-700/40">${data.llm_summary}</div>` : ''}
-  </div>`;
-}
-
 function renderDiff(diff) {
-  const changes = JSON.parse(diff.user_edited_json || diff.diff_json);
-  document.getElementById('diff-summary').textContent = changes.summary || '';
-  const container = document.getElementById('diff-changes');
-  if (!changes.changes || !changes.changes.length) {
-    container.innerHTML = '<p class="text-xs text-slate-600">无变更项</p>';
-    return;
-  }
-  container.innerHTML = changes.changes.map((c, i) => {
-    const badgeClass = c.change_type === 'add' ? 'diff-badge-add' : c.change_type === 'remove' ? 'diff-badge-remove' : 'diff-badge-modify';
-    const badgeText = c.change_type === 'add' ? '新增' : c.change_type === 'remove' ? '移除' : '修改';
-    return `
-    <div class="diff-item" data-idx="${i}">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="${badgeClass}">${badgeText}</span>
-        <span class="text-xs text-slate-400">${c.category} / ${c.tier_key || '全局'}</span>
-      </div>
-      <textarea data-field="detail" rows="2">${c.detail || ''}</textarea>
-      <div class="text-xs text-slate-600 mt-1">证据：${c.evidence || '—'}</div>
-    </div>`;
-  }).join('');
+  const changes=JSON.parse(diff.user_edited_json||diff.diff_json);
+  document.getElementById('diff-summary').textContent=changes.summary||'';
+  document.getElementById('diff-changes').innerHTML=(changes.changes||[]).map(c=>{
+    const cls=c.change_type==='add'?'text-emerald-400':c.change_type==='remove'?'text-red-400':'text-amber-400';
+    return `<div class="text-xs p-2 rounded bg-slate-900 border border-slate-700/40"><span class="${cls} font-bold">[${c.change_type==='add'?'新增':c.change_type==='remove'?'移除':'修改'}]</span> ${c.category||''}: ${c.detail||''}</div>`;
+  }).join('')||'<p class="text-xs text-slate-600">无变更</p>';
 }
-
-async function triggerGenerate() {
-  if (!confirm('将为此产业链生成初始 Baseline，需要1-2分钟，确认？')) return;
-  try {
-    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/generate`, {method:'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      showProgress('正在生成 Baseline…');
-      pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
-    } else { alert(d.error || '启动失败'); }
-  } catch(e) { alert('请求失败'); }
-}
-
-async function triggerEnrich() {
-  if (!confirm('将为现有 Baseline 重新检索行业数据，约1-3分钟，确认？')) return;
-  try {
-    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/enrich`, {method:'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      showProgress('正在补充行业数据…');
-      pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
-    } else { alert(d.error || '启动失败'); }
-  } catch(e) { alert('请求失败'); }
-}
-
-async function triggerDiff() {
-  if (!confirm('将基于最新数据生成增量 Diff，确认？')) return;
-  try {
-    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/generate`, {method:'POST'});
-    const d = await r.json();
-    if (d.ok) {
-      showProgress('正在生成增量更新…');
-      pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
-    } else { alert(d.error || '启动失败'); }
-  } catch(e) { alert('请求失败'); }
-}
-
-async function mergeDiff() {
-  if (!_currentDiffId) return;
-  // 收集用户编辑
-  const items = document.querySelectorAll('#diff-changes .diff-item');
-  const origData = JSON.parse((_currentBaseline ? document.querySelector('#diff-changes')?.dataset.origJson : null) || '{}');
-  const editedChanges = [];
-  items.forEach((item, i) => {
-    const ta = item.querySelector('textarea[data-field="detail"]');
-    editedChanges.push({...getOrigChange(i), detail: ta ? ta.value : ''});
-  });
-  // 先保存编辑
-  const editPayload = JSON.stringify({changes: editedChanges, summary: document.getElementById('diff-summary').textContent});
-  await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}`, {
-    method:'PUT', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({edited_json: editPayload})
-  });
-  // 合并
-  if (!confirm('确认将变更合并到 Baseline？')) return;
-  showProgress('正在合并…');
-  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/merge`, {method:'POST'});
-  const d = await r.json();
-  if (d.ok && d.task_id) {
-    pollTask(d.task_id, () => { hideProgress(); loadCognition(); });
-  } else {
-    hideProgress();
-    alert(d.error || '合并失败');
-  }
-}
-
-function getOrigChange(idx) {
-  // 从已渲染的 diff 取原始数据
-  const el = document.querySelectorAll('#diff-changes .diff-item')[idx];
-  if (!el) return {};
-  const badge = el.querySelector('[class*="diff-badge"]');
-  const catSpan = el.querySelector('.text-xs.text-slate-400');
-  const catText = catSpan ? catSpan.textContent : '';
-  const parts = catText.split(' / ');
-  let change_type = 'modify';
-  if (badge && badge.classList.contains('diff-badge-add')) change_type = 'add';
-  if (badge && badge.classList.contains('diff-badge-remove')) change_type = 'remove';
-  return {category: parts[0]||'', tier_key: parts[1]||'', change_type};
-}
-
-async function rejectDiff() {
-  if (!_currentDiffId) return;
-  if (!confirm('确认拒绝此 Diff？')) return;
-  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/reject`, {method:'POST'});
-  const d = await r.json();
-  if (d.ok) { _currentDiffId = null; document.getElementById('cog-diff').classList.add('hidden'); }
-  else { alert(d.error || '操作失败'); }
-}
-
-async function showHistory() {
-  const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/history`);
-  const d = await r.json();
-  const list = document.getElementById('history-list');
-  if (d.ok && d.history && d.history.length) {
-    list.innerHTML = d.history.map(h => `
-      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800 border border-slate-700/50">
-        <div>
-          <span class="text-xs font-bold text-slate-300">v${h.version}</span>
-          <span class="text-xs text-slate-500 ml-2">${h.created_at.slice(0,16)}</span>
-        </div>
-        <span class="text-xs text-slate-600">${h.source_summary ? h.source_summary.slice(0,30) : ''}</span>
-      </div>
-    `).join('');
-  } else {
-    list.innerHTML = '<p class="text-xs text-slate-600 text-center py-4">暂无历史版本</p>';
-  }
-  document.getElementById('history-modal').classList.remove('hidden');
-}
-
-function showProgress(msg) {
-  document.getElementById('cog-progress').classList.remove('hidden');
-  document.getElementById('cog-progress-msg').textContent = msg;
-  document.getElementById('cog-progress-bar').style.width = '10%';
-}
-function hideProgress() {
-  document.getElementById('cog-progress').classList.add('hidden');
-  document.getElementById('cog-progress-bar').style.width = '0%';
-}
-
-function pollTask(taskId, onDone) {
-  let progress = 10;
-  const iv = setInterval(async () => {
-    try {
-      const r = await fetch(`/chain/api/baseline-task/${taskId}`);
-      const d = await r.json();
-      if (d.status === 'done') {
-        clearInterval(iv);
-        document.getElementById('cog-progress-bar').style.width = '100%';
-        setTimeout(onDone, 400);
-      } else if (d.status === 'error') {
-        clearInterval(iv);
-        hideProgress();
-        alert('任务失败：' + (d.message || d.error || '未知错误'));
-      } else {
-        progress = Math.min(progress + 8, 90);
-        document.getElementById('cog-progress-bar').style.width = progress + '%';
-        if (d.message) document.getElementById('cog-progress-msg').textContent = d.message;
-      }
-    } catch(e) { /* retry */ }
-  }, 2000);
-}
+async function triggerGenerate() { if(!confirm('生成初始Baseline，需1-2分钟？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/generate`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('生成中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();loadCanvas();})} else alert(d.error||'失败'); }
+async function triggerEnrich() { if(!confirm('补充行业数据？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/enrich`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('补充中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();})} else alert(d.error||'失败'); }
+async function triggerDiff() { if(!confirm('生成增量Diff？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/generate`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('生成中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();})} else alert(d.error||'失败'); }
+async function mergeDiff() { if(!_currentDiffId||!confirm('合并到Baseline？'))return; showProgress('合并…'); const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/merge`,{method:'POST'}); const d=await r.json(); if(d.ok&&d.task_id){pollTask(d.task_id,()=>{hideProgress();loadCognition();loadCanvas();})}else{hideProgress();alert(d.error||'失败');} }
+async function rejectDiff() { if(!_currentDiffId||!confirm('拒绝Diff？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/${_currentDiffId}/reject`,{method:'POST'}); const d=await r.json(); if(d.ok){_currentDiffId=null;document.getElementById('cog-diff').classList.add('hidden');}else alert(d.error||'失败'); }
+async function showHistory() { const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/history`); const d=await r.json(); document.getElementById('history-list').innerHTML=(d.ok&&d.history?d.history:[]).map(h=>`<div class="flex justify-between p-2 rounded bg-slate-900 border border-slate-700/40"><span class="text-xs font-bold text-slate-300">v${h.version}</span><span class="text-xs text-slate-500">${h.created_at.slice(0,16)}</span></div>`).join('')||'<p class="text-xs text-slate-600 py-4">暂无</p>'; document.getElementById('history-modal').classList.remove('hidden'); }
+function showProgress(msg){document.getElementById('cog-progress').classList.remove('hidden');document.getElementById('cog-progress-msg').textContent=msg;document.getElementById('cog-progress-bar').style.width='10%';}
+function hideProgress(){document.getElementById('cog-progress').classList.add('hidden');document.getElementById('cog-progress-bar').style.width='0%';}
+function pollTask(taskId,onDone){let p=10;const iv=setInterval(async()=>{try{const r=await fetch(`/chain/api/baseline-task/${taskId}`);const d=await r.json();if(d.status==='done'){clearInterval(iv);document.getElementById('cog-progress-bar').style.width='100%';setTimeout(onDone,400);}else if(d.status==='error'){clearInterval(iv);hideProgress();alert('失败：'+(d.message||''));}else{p=Math.min(p+8,90);document.getElementById('cog-progress-bar').style.width=p+'%';if(d.message)document.getElementById('cog-progress-msg').textContent=d.message;}}catch(e){}},2000);}
 </script>
 {% endblock %}

@@ -434,7 +434,58 @@ def start_scheduler():
         name="K线预测监控检测",
     )
 
-    # 每天 07:00 + 17:00 — zsxq 采集 + daily intel scanner
+    # 每天 07:00 + 17:00 — zsxq 采集 + 自动提取清洗入管线 + daily intel scanner
+    def _auto_extract_and_pipe(scan_day: str):
+        """采集后自动提取+清洗+推入管线（全类型，无需人工审核）
+
+        - pending/failed（txt/mixed/image）: 调 _do_extract_and_save 提取+清洗
+        - extracted（PDF/xlsx/audio 采集时已即时提取）: 直接推管线
+        """
+        try:
+            from utils.db_utils import execute_cloud_query
+            from routers.datacollect import _do_extract_and_save
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+        except Exception as e:
+            logger.warning(f"[Scheduler] zsxq 自动清洗依赖导入失败 {scan_day}: {e}")
+            return
+        try:
+            rows = execute_cloud_query(
+                """SELECT id, doc_type, file_type, title, text_content, oss_url,
+                          extracted_text, extract_status
+                   FROM source_documents
+                   WHERE source='zsxq' AND DATE(publish_date)=%s
+                     AND extract_status IN ('pending','failed','extracted')""",
+                [scan_day],
+            ) or []
+        except Exception as e:
+            logger.warning(f"[Scheduler] zsxq 自动清洗查询失败 {scan_day}: {e}")
+            return
+
+        pipe_ids = []
+        extracted = 0
+        for r in rows:
+            d = dict(r)
+            if d.get("extract_status") in ("pending", "failed"):
+                try:
+                    _do_extract_and_save(d)
+                    extracted += 1
+                    pipe_ids.append(d["id"])
+                except Exception as e:
+                    logger.warning(f"[Scheduler] zsxq 自动提取失败 id={d['id']}: {e}")
+            else:
+                pipe_ids.append(d["id"])
+
+        pushed = 0
+        if pipe_ids:
+            try:
+                result = push_to_extracted_texts_by_ids(pipe_ids)
+                pushed = result.get("pushed", 0)
+            except Exception as e:
+                logger.warning(f"[Scheduler] zsxq 自动推入管线失败 {scan_day}: {e}")
+        logger.info(
+            f"[Scheduler] zsxq 自动清洗入管线 {scan_day}: 提取{extracted} 推入{pushed}/{len(pipe_ids)}"
+        )
+
     def _run_zsxq_and_scanner(scan_date: str = None):
         from datetime import date as _date
         day = scan_date or str(_date.today())
@@ -444,6 +495,8 @@ def start_scheduler():
             logger.info(f"[Scheduler] zsxq 采集完成 {day}: {result}")
         except Exception as e:
             logger.warning(f"[Scheduler] zsxq 采集失败 {day}: {e}")
+        # 采集后自动提取清洗入管线（全类型）
+        _auto_extract_and_pipe(day)
         try:
             from datetime import date as _date2
             from daily_intel.scanner import run_daily_intel_pipeline
@@ -525,7 +578,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():

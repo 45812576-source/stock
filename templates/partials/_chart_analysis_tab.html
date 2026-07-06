@@ -32,26 +32,18 @@
       <div id="ca-kline-chart" style="height:460px"></div>
     </div>
 
-    {# 右侧：结论面板（只保留当前阶段+预测） #}
-    <div class="w-72 flex-shrink-0 space-y-3" id="ca-conclusion-panel">
+    {# 右侧：结论面板（固定高度与K线图对齐，内部可滚动） #}
+    <div class="w-72 flex-shrink-0 rounded-xl border border-slate-700 bg-slate-800/50 p-3 flex flex-col" id="ca-conclusion-panel" style="height:460px">
       {# 当前阶段 #}
-      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+      <div class="mb-3 pb-3 border-b border-slate-700/50">
         <div class="text-xs text-slate-500 font-semibold mb-2">当前阶段</div>
         <div id="ca-current-stage">
-          <div class="text-slate-500 text-xs text-center py-4">点击“重新分析”生成阶段分析</div>
+          <div class="text-slate-500 text-xs text-center py-4">点击"重新分析"生成阶段分析</div>
         </div>
       </div>
-
-      {# 下一阶段预测（含转换信号） #}
-      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
-        <div class="text-xs text-slate-500 font-semibold mb-2">下一阶段预测</div>
-        <div id="ca-predictions">
-          <div class="text-slate-600 text-xs">—</div>
-        </div>
-      </div>
-
-      {# 监控条件进度 #}
-      <div class="rounded-xl border border-slate-700 bg-slate-800/50 p-3">
+    
+      {# 监控指标（可滚动） #}
+      <div class="flex-1 min-h-0 overflow-y-auto pr-1" id="ca-pred-monitor-scroll" style="scrollbar-width:thin;scrollbar-color:#475569 transparent">
         <div class="text-xs text-slate-500 font-semibold mb-2">监控指标</div>
         <div id="ca-monitor-progress">
           <div class="text-slate-600 text-xs">—</div>
@@ -351,26 +343,8 @@
       </div>
       <p class="text-xs text-slate-400 mb-2">${cur.summary || ''}</p>
       <div class="text-xs text-slate-500">已持续 <span class="text-white font-semibold">${cur.days_in_stage || '—'}</span> 天</div>
-    `;
-
-    // 退出信号（已合并到预测中，不再单独渲染）
-
-    // 预测（含转换信号）
-    document.getElementById('ca-predictions').innerHTML = preds.length
-      ? preds.map(p => {
-          const probPct = Math.round((p.probability||0)*100);
-          const probColor = probPct >= 80 ? '#f87171' : (probPct >= 50 ? '#fbbf24' : '#60a5fa');
-          return `
-          <div class="ca-pred-row" style="border-bottom:1px solid rgba(100,116,139,0.1);padding:8px 0">
-            <span class="ca-pred-prob" style="color:${probColor}">${probPct}%</span>
-            <div>
-              <div class="text-xs text-slate-200 font-medium">${p.scenario || ''}</div>
-              <div class="text-xs text-slate-500 mt-1">当出现: ${p.trigger || ''}</div>
-            </div>
-          </div>`;
-        }).join('')
-      : '<div class="text-slate-600 text-xs">—</div>';
-
+    ;
+    
     // 加载监控指标进度
     _loadMonitorProgress();
   }

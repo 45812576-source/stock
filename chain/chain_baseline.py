@@ -193,7 +193,11 @@ _BASELINE_SYSTEM = """你是产业链研究专家，精通 Porter 五力模型�
     {
       "tier_key": "环节key",
       "tier_label": "环节名称",
-      "key_segments": ["细分1", "细分2"],
+      "tier_market_size_billion": 350.0,
+      "key_segments": [
+        {"name": "细分赛道1", "market_size_billion": 85.0, "growth_rate_pct": 12},
+        {"name": "细分赛道2", "market_size_billion": 45.0, "growth_rate_pct": 8}
+      ],
       "description": "该环节详细概述(2-3句)",
       "key_companies": ["公司1", "公司2"],
       "entry_barriers": "进入壁垒说明",
@@ -245,6 +249,8 @@ _BASELINE_SYSTEM = """你是产业链研究专家，精通 Porter 五力模型�
 
 要求：
 - structure 完整覆盖产业链各环节，附详细描述、壁垒、集中度
+- key_segments 必须为对象数组，每个对象含 name(string)、market_size_billion(float,单位:亿元人民币,基于公开行业数据估算)、growth_rate_pct(float,近年CAGR%估算)
+- tier_market_size_billion 为该环节总市场规模(亿元)，应≈其 key_segments 市场规模之和
 - drivers 穷尽每个环节的供需-成本-收入-竞争五维分析；成本和收入必须是对象数组(含数据)
 - macro_relations 至少列出8个以上宏观指标及完整传导链
 - 基于通识+提供的实际数据，务实客观，尽量带具体数据/比例
