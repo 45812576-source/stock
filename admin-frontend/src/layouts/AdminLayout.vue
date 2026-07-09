@@ -127,9 +127,8 @@ const navGroups = [
   {
     title: '知识图谱',
     items: [
-      { key: 'kg-schema',   title: 'Schema',    icon: 'schema',        to: { path: '/kg', query: { tab: 'schema' } },        pathPrefix: '/kg', tab: 'schema' },
-      { key: 'kg-vis',      title: '可视化',    icon: 'hub',           to: { path: '/kg', query: { tab: 'visualization' } }, pathPrefix: '/kg', tab: 'visualization' },
       { key: 'kg-entities', title: '实体管理',  icon: 'category',      to: { path: '/kg', query: { tab: 'entities' } },      pathPrefix: '/kg', tab: 'entities' },
+      { key: 'kg-vis',      title: '可视化',    icon: 'hub',           to: { path: '/kg', query: { tab: 'visualization' } }, pathPrefix: '/kg', tab: 'visualization' },
       { key: 'kg-infer',    title: '推理引擎',  icon: 'psychology',    to: { path: '/kg', query: { tab: 'inference' } },     pathPrefix: '/kg', tab: 'inference' },
       { key: 'kg-inspect',  title: '巡检',      icon: 'monitor_heart', to: { path: '/kg', query: { tab: 'inspect' } },       pathPrefix: '/kg', tab: 'inspect' },
       { key: 'kg-review',   title: '审核工作台',icon: 'rule',          to: { path: '/kg', query: { tab: 'annotate' } },      pathPrefix: '/kg', tab: 'annotate' },
