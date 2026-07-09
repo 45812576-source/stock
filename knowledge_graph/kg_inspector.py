@@ -218,12 +218,14 @@ def conflict_cleanup(dry_run: bool = False) -> dict:
                 delete_relationship(remove_id)
             conflicts_removed += 1
 
-    # 2. 清理孤立实体（无任何关系）— 批量删除，避免逐条连接
+    # 2. 清理孤立实体（无任何关系）— 两个 NOT EXISTS 分别走索引
     orphans = execute_query(
         """SELECT e.id FROM kg_entities e
            WHERE NOT EXISTS (
-               SELECT 1 FROM kg_relationships r
-               WHERE r.source_entity_id = e.id OR r.target_entity_id = e.id
+               SELECT 1 FROM kg_relationships r WHERE r.source_entity_id = e.id
+           )
+           AND NOT EXISTS (
+               SELECT 1 FROM kg_relationships r WHERE r.target_entity_id = e.id
            )"""
     )
     orphans_removed = len(orphans)
