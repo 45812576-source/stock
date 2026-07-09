@@ -8,14 +8,11 @@
     </div>
 
     <el-tabs v-model="activeTab" class="kg-tabs" @tab-change="onTabChange">
-      <el-tab-pane label="Schema" name="schema">
-        <KgSchema v-if="meta" :meta="meta" />
+      <el-tab-pane label="实体管理" name="entities">
+        <KgEntities v-if="meta && activeTab === 'entities'" :meta="meta" />
       </el-tab-pane>
       <el-tab-pane label="可视化" name="visualization">
         <KgVisualization v-if="meta && activeTab === 'visualization'" :meta="meta" />
-      </el-tab-pane>
-      <el-tab-pane label="实体管理" name="entities">
-        <KgEntities v-if="meta && activeTab === 'entities'" :meta="meta" />
       </el-tab-pane>
       <el-tab-pane label="推理引擎" name="inference">
         <KgInference v-if="meta && activeTab === 'inference'" :meta="meta" />
@@ -34,14 +31,13 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as kgApi from '@/api/kg'
-import KgSchema from './kg/KgSchema.vue'
 import KgVisualization from './kg/KgVisualization.vue'
 import KgEntities from './kg/KgEntities.vue'
 import KgInference from './kg/KgInference.vue'
 import KgInspect from './kg/KgInspect.vue'
 import KgReview from './kg/KgReview.vue'
 
-const activeTab = ref('schema')
+const activeTab = ref('entities')
 const route = useRoute()
 const router = useRouter()
 watch(
