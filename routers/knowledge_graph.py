@@ -548,6 +548,44 @@ _kg_tasks = {}
 _kg_inspect_tasks = {}
 
 
+
+
+@router.get("/api/relationships", response_class=JSONResponse)
+def api_list_relationships(
+    relation_type: str = "",
+    limit: int = 100,
+    offset: int = 0,
+):
+    """按关系类型列出关系（含源/目标实体名称）"""
+    where = "WHERE 1=1"
+    params = []
+    if relation_type:
+        where += " AND r.relation_type = %s"
+        params.append(relation_type)
+    
+    count_sql = f"SELECT COUNT(*) as n FROM kg_relationships r {where}"
+    rows = execute_query(count_sql, params) or []
+    total = rows[0]["n"] if rows else 0
+    
+    sql = f"""SELECT r.id, r.relation_type,
+                     r.source_entity_id, se.entity_name as source_name, se.entity_type as source_type,
+                     r.target_entity_id, te.entity_name as target_name, te.entity_type as target_type,
+                     r.created_at
+              FROM kg_relationships r
+              LEFT JOIN kg_entities se ON r.source_entity_id = se.id
+              LEFT JOIN kg_entities te ON r.target_entity_id = te.id
+              {where}
+              ORDER BY r.created_at DESC
+              LIMIT %s OFFSET %s"""
+    params.extend([limit, offset])
+    items = execute_query(sql, params) or []
+    for item in items:
+        for k, v in list(item.items()):
+            if hasattr(v, 'isoformat'):
+                item[k] = v.isoformat()
+    return {"items": items, "total": total}
+
+
 @router.get("/inspect", response_class=HTMLResponse)
 def kg_inspect_page(request: Request):
     """KG 巡检"""

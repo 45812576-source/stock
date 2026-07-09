@@ -13,6 +13,10 @@ export const addEntity = (payload) => request.post('/kg/api/entity', payload)
 export const updateEntity = (id, payload) => request.put(`/kg/api/entity/${id}`, payload)
 export const deleteEntity = (id) => request.delete(`/kg/api/entity/${id}`)
 
+// ---- 关系查询 ----
+export const listRelationships = (relationType = '', limit = 100, offset = 0) =>
+  request.get('/kg/api/relationships', { params: { relation_type: relationType, limit, offset } })
+
 // ---- 关系 CRUD ----
 export const addRelationship = (payload) => request.post('/kg/api/relationship', payload)
 export const deleteRelationship = (id) => request.delete(`/kg/api/relationship/${id}`)

@@ -25,7 +25,13 @@
       </template>
 
       <div class="panel-title mt-12">关系类型（{{ relationList.length }}）</div>
-      <div v-for="rt in relationList" :key="rt.key" class="type-item rel">
+      <div
+        v-for="rt in relationList"
+        :key="rt.key"
+        class="type-item"
+        :class="{ active: filterRelType === rt.key }"
+        @click="onRelTypeClick(rt.key)"
+      >
         <span class="type-dot" :style="{ background: rt.cfg.color }" />
         <span class="type-label">{{ rt.cfg.label }}</span>
         <span class="type-count">{{ (stats.rel_by_type || {})[rt.key] || 0 }}</span>
@@ -40,6 +46,48 @@
         <el-button type="success" @click="openAdd">新增实体</el-button>
       </div>
 
+      <!-- 关系列表视图 -->
+      <template v-if="filterRelType">
+        <div class="filter-bar">
+          <el-tag type="warning">关系类型: {{ relLabel(filterRelType) }}</el-tag>
+          <span class="rel-total">共 {{ relListTotal }} 条</span>
+          <div class="spacer" />
+          <el-button size="small" @click="filterRelType = ''">返回实体列表</el-button>
+        </div>
+        <el-table :data="relList" v-loading="relListLoading" size="small" border>
+          <el-table-column label="源实体" min-width="180">
+            <template #default="{ row }">
+              <span class="dot" :style="{ background: colorOf(row.source_type) }" />
+              {{ row.source_name }}
+            </template>
+          </el-table-column>
+          <el-table-column label="关系" width="140">
+            <template #default="{ row }">{{ relLabel(row.relation_type) }}</template>
+          </el-table-column>
+          <el-table-column label="目标实体" min-width="180">
+            <template #default="{ row }">
+              <span class="dot" :style="{ background: colorOf(row.target_type) }" />
+              {{ row.target_name }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="70">
+            <template #default="{ row }">
+              <el-button link type="danger" size="small" @click="deleteRelFromList(row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-pagination
+          class="pager"
+          layout="total, prev, pager, next"
+          :total="relListTotal"
+          :page-size="100"
+          :current-page="relListPage"
+          @current-change="onRelPage"
+        />
+      </template>
+
+      <!-- 实体列表视图 -->
+      <template v-else>
       <el-table :data="list" v-loading="loading" size="small" border>
         <el-table-column label="实体" min-width="200">
           <template #default="{ row }">
@@ -71,6 +119,7 @@
         :current-page="page"
         @current-change="onPage"
       />
+      </template>
     </div>
 
     <!-- 实体编辑 Dialog（含关系管理） -->
@@ -184,6 +233,7 @@ const perPage = 50
 
 function onTypeClick(key) {
   filterType.value = filterType.value === key ? '' : key
+  filterRelType.value = ''  // 取消关系类型选中
   page.value = 1
   load()
 }
@@ -260,6 +310,42 @@ async function doDelete(row) {
   await kgApi.deleteEntity(row.id)
   ElMessage.success('已删除')
   load()
+}
+
+// ---- 关系列表（按类型浏览） ----
+const filterRelType = ref('')
+const relList = ref([])
+const relListTotal = ref(0)
+const relListLoading = ref(false)
+const relListPage = ref(1)
+
+function onRelTypeClick(key) {
+  filterRelType.value = filterRelType.value === key ? '' : key
+  filterType.value = ''  // 取消实体类型选中
+  if (filterRelType.value) {
+    relListPage.value = 1
+    loadRelList()
+  }
+}
+
+async function loadRelList() {
+  relListLoading.value = true
+  try {
+    const offset = (relListPage.value - 1) * 100
+    const data = await kgApi.listRelationships(filterRelType.value, 100, offset)
+    relList.value = data.items || []
+    relListTotal.value = data.total || 0
+  } finally {
+    relListLoading.value = false
+  }
+}
+function onRelPage(p) { relListPage.value = p; loadRelList() }
+
+async function deleteRelFromList(row) {
+  await ElMessageBox.confirm(`确定删除「${row.source_name} → ${row.target_name}」的关系？`, '确认', { type: 'warning' })
+  await kgApi.deleteRelationship(row.id)
+  ElMessage.success('关系已删除')
+  loadRelList()
 }
 
 // ---- 关系管理 ----
@@ -348,7 +434,6 @@ onMounted(load)
 }
 .type-item:hover { background: var(--secondary-bg, #fafafa); }
 .type-item.active { background: rgba(22, 119, 255, 0.08); }
-.type-item.rel { cursor: default; }
 .type-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .type-label { font-size: 13px; font-weight: 500; color: var(--text-main); }
 .type-count { margin-left: auto; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-main); }
@@ -360,6 +445,7 @@ onMounted(load)
 .ename { font-weight: 600; }
 .pager { margin-top: 14px; justify-content: flex-end; }
 .rel-section { margin-top: 8px; }
+.rel-total { font-size: 13px; color: var(--text-tertiary, #909399); margin-left: 8px; }
 .add-rel-bar {
   display: flex;
   gap: 8px;
