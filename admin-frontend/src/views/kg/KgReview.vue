@@ -36,18 +36,21 @@
 
     <el-table :data="list" v-loading="loading" size="small" border @selection-change="onSelect">
       <el-table-column type="selection" width="42" />
-      <el-table-column label="对象" min-width="260">
+      <el-table-column label="对象" min-width="280">
         <template #default="{ row }">
           <template v-if="row.target_type === 'entity'">
-            <el-tag size="small" effect="plain" :color="colorOf(row.entity_type)" style="color:#fff; border:none;">{{ entityLabel(row.entity_type) }}</el-tag>
+            <span class="dot" :style="{ background: colorOf(row.entity_type) }" />
+            <el-tag size="small" :style="{ color: colorOf(row.entity_type), borderColor: colorOf(row.entity_type) }">{{ entityLabel(row.entity_type) }}</el-tag>
             <span style="margin-left:6px;">{{ row.entity_name }}</span>
           </template>
           <template v-else-if="row.target_type === 'relationship'">
-            <el-tag size="small" effect="plain" :color="relColor(row.relation_type)" style="color:#fff; border:none;">{{ relLabel(row.relation_type) }}</el-tag>
+            <span class="dot" :style="{ background: relColor(row.relation_type) }" />
+            <el-tag size="small" :style="{ color: relColor(row.relation_type), borderColor: relColor(row.relation_type) }">{{ relLabel(row.relation_type) }}</el-tag>
             <span style="margin-left:6px;">{{ row.src_name }} → {{ row.tgt_name }}</span>
           </template>
           <template v-else>
-            <el-tag size="small" effect="plain">佐证</el-tag>
+            <span class="dot" style="background: #64748b;" />
+            <el-tag size="small">佐证</el-tag>
             <span style="margin-left:6px;">{{ row.src_name || row.entity_name }}</span>
           </template>
         </template>
@@ -222,7 +225,7 @@ onMounted(() => { loadStats(); load() })
 .sc-label { font-size: 12px; color: var(--text-tertiary); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
 .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; }
 .filter-bar .spacer { flex: 1; }
-.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin: 0 6px; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
 .rel { color: var(--text-tertiary); font-size: 12px; }
 .pager { margin-top: 14px; justify-content: flex-end; }
 .detail-body { display: flex; flex-direction: column; gap: 16px; }
