@@ -14,6 +14,12 @@
         <el-option label="关系" value="relationship" />
         <el-option label="佐证来源" value="triple_source" />
       </el-select>
+      <el-select v-if="filters.target_type === 'entity'" v-model="filters.entity_type" size="small" placeholder="全部实体类型" clearable style="width: 130px" @change="reload">
+        <el-option v-for="(cfg, key) in (meta.entity_colors || {})" :key="key" :label="cfg.label" :value="key" />
+      </el-select>
+      <el-select v-if="filters.target_type === 'relationship'" v-model="filters.relation_type" size="small" placeholder="全部关系类型" clearable style="width: 140px" @change="reload">
+        <el-option v-for="(cfg, key) in (meta.relation_labels || {})" :key="key" :label="cfg.label" :value="key" />
+      </el-select>
       <el-select v-model="filters.status" size="small" style="width: 130px" @change="reload">
         <el-option label="全部状态" value="all" />
         <el-option label="待审批" value="pending_approval" />
@@ -30,14 +36,19 @@
 
     <el-table :data="list" v-loading="loading" size="small" border @selection-change="onSelect">
       <el-table-column type="selection" width="42" />
-      <el-table-column label="对象" min-width="220">
+      <el-table-column label="对象" min-width="260">
         <template #default="{ row }">
-          <el-tag size="small" effect="plain">{{ typeName(row.target_type) }}</el-tag>
           <template v-if="row.target_type === 'entity'">
-            <span class="dot" :style="{ background: colorOf(row.entity_type) }" />{{ row.entity_name }}
+            <el-tag size="small" effect="plain" :color="colorOf(row.entity_type)" style="color:#fff; border:none;">{{ entityLabel(row.entity_type) }}</el-tag>
+            <span style="margin-left:6px;">{{ row.entity_name }}</span>
+          </template>
+          <template v-else-if="row.target_type === 'relationship'">
+            <el-tag size="small" effect="plain" :color="relColor(row.relation_type)" style="color:#fff; border:none;">{{ relLabel(row.relation_type) }}</el-tag>
+            <span style="margin-left:6px;">{{ row.src_name }} → {{ row.tgt_name }}</span>
           </template>
           <template v-else>
-            {{ row.src_name }} <span class="rel">—[{{ row.relation_type }}]→</span> {{ row.tgt_name }}
+            <el-tag size="small" effect="plain">佐证</el-tag>
+            <span style="margin-left:6px;">{{ row.src_name || row.entity_name }}</span>
           </template>
         </template>
       </el-table-column>
@@ -101,12 +112,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as kgApi from '@/api/kg'
 
 const props = defineProps({ meta: { type: Object, required: true } })
+const meta = computed(() => props.meta || {})
 function colorOf(t) { return props.meta.entity_colors?.[t]?.bg || '#64748b' }
+function entityLabel(t) { return props.meta.entity_colors?.[t]?.label || t }
+function relLabel(t) { return props.meta.relation_labels?.[t]?.label || t }
+function relColor(t) { return props.meta.relation_labels?.[t]?.color || '#64748b' }
 
 const TYPE_NAMES = { entity: '实体', relationship: '关系', triple_source: '佐证' }
 function typeName(t) { return TYPE_NAMES[t] || t }
@@ -122,7 +137,7 @@ const total = ref(0)
 const loading = ref(false)
 const page = ref(1)
 const pageSize = 50
-const filters = reactive({ target_type: 'all', status: 'all', keyword: '' })
+const filters = reactive({ target_type: 'all', status: 'all', keyword: '', entity_type: '', relation_type: '' })
 const multipleSelection = ref([])
 
 async function loadStats() {
@@ -135,6 +150,8 @@ async function load() {
     const res = await kgApi.getReviewQueue({
       target_type: filters.target_type,
       status: filters.status,
+      entity_type: filters.entity_type,
+      relation_type: filters.relation_type,
       keyword: filters.keyword,
       limit: pageSize,
       offset: (page.value - 1) * pageSize,
