@@ -82,6 +82,35 @@ def _wrap_job(job_id: str, job_name: str, func):
     return wrapped
 
 
+# ── 任务中心注册（让 scheduler 任务在前端 TaskCenter 可见）──────────────
+def _task_register(task_id: str, label: str, total: int = 0):
+    """注册一个 scheduler 任务到 UI 任务中心，供前端进度轮询"""
+    try:
+        from routers.datacollect import _bg_tasks
+        _bg_tasks[task_id] = {
+            "status": "running", "progress": 0, "total": total,
+            "current": f"初始化 {label}", "results": [],
+            "started_at": datetime.now().isoformat(),
+        }
+        return _bg_tasks[task_id]
+    except Exception:
+        return {"status": "running", "progress": 0, "total": total, "current": "", "results": []}
+
+
+def _task_finish(task_id: str, summary: str = None):
+    """标记任务完成"""
+    try:
+        from routers.datacollect import _bg_tasks
+        task = _bg_tasks.get(task_id)
+        if task:
+            task["status"] = "done"
+            task["progress"] = task.get("total", 0)
+            if summary:
+                task["current"] = summary
+    except Exception:
+        pass
+
+
 # 任务分组映射
 _JOB_GROUP_MAP = {
     # 数据采集
@@ -103,6 +132,11 @@ _JOB_GROUP_MAP = {
     "diagnose_failed_morning": "maintain",
     "diagnose_failed_evening": "maintain",
     "daily_sync_nightly": "maintain",
+    "pending_sweep_nightly": "maintain",
+    "auto_summarize_morning": "maintain",
+    "auto_summarize_evening": "maintain",
+    "auto_chunk_index_morning": "maintain",
+    "auto_chunk_index_evening": "maintain",
 }
 
 _JOB_GROUPS = [
@@ -923,12 +957,20 @@ def start_scheduler():
 
     # 每天 08:30 + 18:30 — 自动诊断 failed 记录 + 智能重试
     def _run_diagnose_failed():
+        import time as _time
+        tid = f"sched_diagnose_{int(_time.time())}"
+        task = _task_register(tid, "诊断failed重试")
         try:
             from ingestion.source_extractor import diagnose_and_retry_failed
+            task["total"] = 50
+            task["current"] = "诊断中..."
             result = diagnose_and_retry_failed(limit=50, source="zsxq")
+            summary = f"完成: {result}" if result else "完成"
             logger.info(f"[Scheduler] 自动诊断failed完成: {result}")
+            _task_finish(tid, str(summary)[:100])
         except Exception as e:
             logger.warning(f"[Scheduler] 自动诊断failed失败: {e}")
+            _task_finish(tid, f"失败: {e}")
 
     scheduler.add_job(
         _wrap_job("diagnose_failed_morning", "自动诊断failed+重试 早间", _run_diagnose_failed),
@@ -1003,10 +1045,217 @@ def start_scheduler():
         name="chain_sync + theme_merger 夜间兜底",
     )
 
+    # ── 每天 22:00 — pending sweep：补处理近7天内遗漏的 pending 文档 ────────
+    def _run_pending_sweep():
+        """扫描近7天内所有 pending 状态的 txt/mixed/image，统一提取+入管线"""
+        import time as _time
+        tid = f"sched_sweep_{int(_time.time())}"
+        task = _task_register(tid, "pending sweep")
+        try:
+            from datetime import date as _date, timedelta
+            from utils.db_utils import execute_cloud_query
+            from routers.datacollect import _do_extract_and_save
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+
+            today = _date.today()
+            start_day = (today - timedelta(days=7)).isoformat()
+
+            rows = execute_cloud_query(
+                """SELECT id, doc_type, file_type, title, text_content, oss_url,
+                          extracted_text, extract_status
+                   FROM source_documents
+                   WHERE source='zsxq' AND publish_date >= %s
+                     AND extract_status IN ('pending','failed')
+                     AND file_type IN ('txt','mixed','image')
+                   ORDER BY publish_date DESC
+                   LIMIT 200""",
+                [start_day],
+            ) or []
+
+            if not rows:
+                logger.info("[Scheduler] pending sweep: 无遗漏文档")
+                _task_finish(tid, "无遗漏文档")
+                return
+
+            task["total"] = len(rows) + 1  # +1 for push step
+            task["current"] = f"待处理 {len(rows)} 条"
+            pipe_ids = []
+            extracted = 0
+            for i, r in enumerate(rows):
+                d = dict(r)
+                try:
+                    _do_extract_and_save(d)
+                    extracted += 1
+                    pipe_ids.append(d["id"])
+                except Exception:
+                    pass
+                task["progress"] = i + 1
+                task["current"] = f"提取中 {i+1}/{len(rows)}"
+
+            pushed = 0
+            if pipe_ids:
+                task["current"] = f"推入管线 {len(pipe_ids)} 条"
+                try:
+                    result = push_to_extracted_texts_by_ids(pipe_ids)
+                    pushed = result.get("pushed", 0)
+                except Exception as e:
+                    logger.warning(f"[Scheduler] pending sweep push失败: {e}")
+
+            summary = f"完成: 处理{len(rows)} 提取{extracted} 推入{pushed}"
+            logger.info(f"[Scheduler] pending sweep {summary}")
+            _task_finish(tid, summary)
+        except Exception as e:
+            logger.warning(f"[Scheduler] pending sweep 失败: {e}")
+            _task_finish(tid, f"失败: {e}")
+
+    scheduler.add_job(
+        _wrap_job("pending_sweep_nightly", "pending sweep 夜间兜底", _run_pending_sweep),
+        CronTrigger(hour=22, minute=0),
+        id="pending_sweep_nightly", replace_existing=True,
+        name="pending sweep 夜间兜底(txt/mixed/image)",
+    )
+
+    # ── 每天 09:30 + 20:30 — 自动摘要生成 ──────────────────────────────────
+    def _run_auto_summarize():
+        """批量对 summary_status='pending' 的 extracted_texts 生成分族摘要"""
+        import time as _time
+        tid = f"sched_summarize_{int(_time.time())}"
+        task = _task_register(tid, "自动摘要生成")
+        try:
+            from cleaning.content_summarizer import summarize_single
+            from utils.db_utils import execute_cloud_query as _cq
+
+            rows = _cq(
+                """SELECT id FROM extracted_texts
+                   WHERE summary_status='pending'
+                     AND CHAR_LENGTH(TRIM(COALESCE(full_text,''))) >= 20
+                   ORDER BY id DESC
+                   LIMIT 1000""",
+                None,
+            ) or []
+
+            if not rows:
+                logger.info("[Scheduler] auto_summarize: 无待摘要文档")
+                _task_finish(tid, "无待摘要文档")
+                return
+
+            task["total"] = len(rows)
+            task["current"] = f"待摘要 {len(rows)} 条"
+            ok = fail = 0
+            for i, r in enumerate(rows):
+                try:
+                    result = summarize_single(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        fail += 1
+                except Exception as e:
+                    logger.debug(f"[Scheduler] summarize id={r['id']} 失败: {e}")
+                    fail += 1
+                task["progress"] = i + 1
+                task["current"] = f"摘要 {i+1}/{len(rows)} (成功{ok} 失败{fail})"
+
+            summary = f"完成: 成功{ok} 失败{fail} (共{len(rows)})"
+            logger.info(f"[Scheduler] auto_summarize {summary}")
+            _task_finish(tid, summary)
+        except Exception as e:
+            logger.warning(f"[Scheduler] auto_summarize 整体失败: {e}")
+            _task_finish(tid, f"失败: {e}")
+
+    scheduler.add_job(
+        _wrap_job("auto_summarize_morning", "自动摘要生成(上午)", _run_auto_summarize),
+        CronTrigger(hour=9, minute=30),
+        id="auto_summarize_morning", replace_existing=True,
+        name="自动摘要生成(上午)",
+    )
+    scheduler.add_job(
+        _wrap_job("auto_summarize_evening", "自动摘要生成(晚间)", _run_auto_summarize),
+        CronTrigger(hour=20, minute=30),
+        id="auto_summarize_evening", replace_existing=True,
+        name="自动摘要生成(晚间)",
+    )
+
+    # ── 每天 10:00 + 21:30 — 自动摘要 chunk 索引 ──────────────────────────────
+    def _run_auto_chunk_index():
+        """批量对 family=2 的新摘要建向量索引（Milvus + MySQL text_chunks）"""
+        import time as _time
+        tid = f"sched_chunk_{int(_time.time())}"
+        task = _task_register(tid, "chunk索引")
+        try:
+            from retrieval.summary_chunker import index_summary_chunk, SUMMARY_CHUNK_INDEX_OFFSET
+            from utils.db_utils import execute_cloud_query as _cq
+            from utils.db_utils import execute_query as _lq
+
+            cs_rows = _cq(
+                """SELECT cs.id FROM content_summaries cs
+                   WHERE cs.family = 2
+                   ORDER BY cs.id DESC
+                   LIMIT 2000""",
+                None,
+            ) or []
+
+            if not cs_rows:
+                logger.info("[Scheduler] auto_chunk_index: 无待索引摘要")
+                _task_finish(tid, "无待索引摘要")
+                return
+
+            # 过滤已索引的
+            existing = set()
+            try:
+                local_rows = _lq(
+                    f"SELECT chunk_index FROM text_chunks WHERE chunk_type='summary' AND chunk_index >= {SUMMARY_CHUNK_INDEX_OFFSET}"
+                ) or []
+                existing = {r["chunk_index"] for r in local_rows}
+            except Exception:
+                pass
+
+            pending = [r for r in cs_rows if (SUMMARY_CHUNK_INDEX_OFFSET + r["id"]) not in existing]
+
+            if not pending:
+                logger.info("[Scheduler] auto_chunk_index: 全部已索引")
+                _task_finish(tid, "全部已索引")
+                return
+
+            task["total"] = min(len(pending), 1000)
+            task["current"] = f"待索引 {len(pending)} 条"
+            ok = skip = fail = 0
+            for i, r in enumerate(pending[:1000]):
+                try:
+                    result = index_summary_chunk(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        skip += 1
+                except Exception as e:
+                    logger.debug(f"[Scheduler] chunk_index cs_id={r['id']} 失败: {e}")
+                    fail += 1
+                task["progress"] = i + 1
+                task["current"] = f"索引 {i+1}/{task['total']} (成功{ok} 失败{fail})"
+
+            summary = f"完成: 索引{ok} 跳过{skip} 失败{fail}"
+            logger.info(f"[Scheduler] auto_chunk_index {summary}")
+            _task_finish(tid, summary)
+        except Exception as e:
+            logger.warning(f"[Scheduler] auto_chunk_index 整体失败: {e}")
+            _task_finish(tid, f"失败: {e}")
+
+    scheduler.add_job(
+        _wrap_job("auto_chunk_index_morning", "自动摘要chunk索引(上午)", _run_auto_chunk_index),
+        CronTrigger(hour=10, minute=0),
+        id="auto_chunk_index_morning", replace_existing=True,
+        name="自动摘要chunk索引(上午)",
+    )
+    scheduler.add_job(
+        _wrap_job("auto_chunk_index_evening", "自动摘要chunk索引(晚间)", _run_auto_chunk_index),
+        CronTrigger(hour=21, minute=30),
+        id="auto_chunk_index_evening", replace_existing=True,
+        name="自动摘要chunk索引(晚间)",
+    )
+
     scheduler.start()
     # 加载用户自定义任务
     load_custom_jobs()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集, 08:30+18:30 诊断failed, 09:30+20:30 摘要生成, 10:00+21:30 chunk索引, 22:00 pending sweep, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():

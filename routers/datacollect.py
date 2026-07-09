@@ -1500,6 +1500,15 @@ def api_active_tasks():
         elif tid.startswith("import_"):        label = "导入SQL"
         elif tid.startswith("backfill_chunks_"): label = "向量回填"
         elif tid.startswith("backfill_summary_"): label = "摘要回填"
+        elif tid.startswith("sched_sweep_"):   label = "[定时] pending sweep"
+        elif tid.startswith("sched_summarize_"): label = "[定时] 摘要生成"
+        elif tid.startswith("sched_chunk_"):   label = "[定时] chunk索引"
+        elif tid.startswith("sched_diagnose_"): label = "[定时] 诊断重试"
+        elif tid.startswith("manual_push_"):   label = "批量入库"
+        elif tid.startswith("manual_summarize_"): label = "摘要生成"
+        elif tid.startswith("manual_chunk_"):  label = "chunk索引"
+        elif tid.startswith("manual_diagnose_"): label = "诊断重试"
+        elif tid.startswith("manual_sweep_"):  label = "pending sweep"
         tasks.append({
             "task_id": tid,
             "label": label,
@@ -1507,6 +1516,7 @@ def api_active_tasks():
             "progress": pct,
             "done": progress,
             "total": total,
+            "paused": t.get("paused", False),
         })
     return tasks
 
@@ -3169,3 +3179,352 @@ async def api_source_delete(request: Request):
     body = await request.json()
     ok, msg = delete_source(body.get("key", ""))
     return {"ok": ok, "msg": msg}
+
+
+# ==================== 手动触发一次性任务（任务中心可见） ====================
+
+@router.post("/api/run-manual-task", response_class=JSONResponse)
+async def api_run_manual_task(request: Request):
+    """手动触发一次性任务，支持: batch_push / summarize / chunk_index / diagnose / pending_sweep
+    
+    请求体: { "task_type": "summarize", "limit": 500 }
+    """
+    body = await request.json()
+    task_type = body.get("task_type", "")
+    limit = body.get("limit", 500)
+
+    if task_type == "batch_push":
+        return _manual_batch_push(limit)
+    elif task_type == "summarize":
+        return _manual_summarize(limit)
+    elif task_type == "chunk_index":
+        return _manual_chunk_index(limit)
+    elif task_type == "diagnose":
+        return _manual_diagnose(limit)
+    elif task_type == "pending_sweep":
+        return _manual_pending_sweep(limit)
+    else:
+        return JSONResponse({"error": f"未知任务类型: {task_type}"}, status_code=400)
+
+
+def _manual_batch_push(limit: int):
+    """手动批量 push 已提取文档到 extracted_texts"""
+    task_id = f"manual_push_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 0,
+        "current": "初始化批量入库", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from utils.db_utils import execute_cloud_query
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+
+            # 查询已提取但未入库的文档
+            rows = execute_cloud_query(
+                """SELECT sd.id FROM source_documents sd
+                   LEFT JOIN extracted_texts et ON sd.id = et.source_doc_id
+                   WHERE sd.extract_status = 'extracted'
+                     AND et.id IS NULL
+                     AND sd.extracted_text IS NOT NULL
+                     AND CHAR_LENGTH(TRIM(sd.extracted_text)) > 0
+                   ORDER BY sd.id DESC
+                   LIMIT %s""",
+                [limit],
+            ) or []
+
+            total = len(rows)
+            task["total"] = total if total > 0 else 1
+            task["current"] = f"待入库 {total} 条"
+
+            if not rows:
+                task["current"] = "无待入库文档"
+                task["status"] = "done"
+                task["progress"] = 1
+                return
+
+            doc_ids = [r["id"] for r in rows]
+            # 分批推入，每批100
+            pushed = skipped = failed = 0
+            batch_size = 100
+            for i in range(0, len(doc_ids), batch_size):
+                if task.get("cancelled"):
+                    break
+                batch = doc_ids[i:i+batch_size]
+                try:
+                    result = push_to_extracted_texts_by_ids(batch)
+                    pushed += result.get("pushed", 0)
+                    skipped += result.get("skipped", 0)
+                    failed += result.get("failed", 0)
+                except Exception as e:
+                    failed += len(batch)
+                    logger.error(f"manual_push batch error: {e}")
+                task["progress"] = min(i + batch_size, total)
+                task["current"] = f"入库 {task['progress']}/{total} (成功{pushed} 跳过{skipped})"
+
+            task["results"].append({
+                "source": "批量入库", "ok": True,
+                "count": f"推送{pushed} 跳过{skipped} 失败{failed}",
+            })
+        except Exception as e:
+            task["results"].append({"source": "批量入库", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "label": "批量入库"}
+
+
+def _manual_summarize(limit: int):
+    """手动触发摘要生成"""
+    task_id = f"manual_summarize_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 0,
+        "current": "初始化摘要生成", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from cleaning.content_summarizer import summarize_single
+            from utils.db_utils import execute_cloud_query
+
+            rows = execute_cloud_query(
+                """SELECT id FROM extracted_texts
+                   WHERE summary_status='pending'
+                     AND CHAR_LENGTH(TRIM(COALESCE(full_text,''))) >= 20
+                   ORDER BY id DESC
+                   LIMIT %s""",
+                [limit],
+            ) or []
+
+            total = len(rows)
+            task["total"] = total if total > 0 else 1
+            task["current"] = f"待摘要 {total} 条"
+
+            if not rows:
+                task["current"] = "无待摘要文档"
+                task["status"] = "done"
+                task["progress"] = 1
+                return
+
+            ok = fail = 0
+            for i, r in enumerate(rows):
+                if task.get("cancelled"):
+                    break
+                while task.get("paused"):
+                    import time; time.sleep(0.5)
+                try:
+                    result = summarize_single(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        fail += 1
+                except Exception:
+                    fail += 1
+                task["progress"] = i + 1
+                task["current"] = f"摘要 {i+1}/{total} (成功{ok} 失败{fail})"
+
+            task["results"].append({
+                "source": "摘要生成", "ok": True,
+                "count": f"成功{ok} 失败{fail} (共{total})",
+            })
+        except Exception as e:
+            task["results"].append({"source": "摘要生成", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "label": "摘要生成"}
+
+
+def _manual_chunk_index(limit: int):
+    """手动触发 chunk 索引"""
+    task_id = f"manual_chunk_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 0,
+        "current": "初始化chunk索引", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from retrieval.summary_chunker import index_summary_chunk, SUMMARY_CHUNK_INDEX_OFFSET
+            from utils.db_utils import execute_cloud_query, execute_query as local_q
+
+            cs_rows = execute_cloud_query(
+                """SELECT cs.id FROM content_summaries cs
+                   WHERE cs.family = 2
+                   ORDER BY cs.id DESC
+                   LIMIT %s""",
+                [limit],
+            ) or []
+
+            if not cs_rows:
+                task["current"] = "无待索引摘要"
+                task["status"] = "done"
+                task["total"] = 1
+                task["progress"] = 1
+                return
+
+            # 过滤已索引
+            existing = set()
+            try:
+                local_rows = local_q(
+                    f"SELECT chunk_index FROM text_chunks WHERE chunk_type='summary' AND chunk_index >= {SUMMARY_CHUNK_INDEX_OFFSET}"
+                ) or []
+                existing = {r["chunk_index"] for r in local_rows}
+            except Exception:
+                pass
+
+            pending = [r for r in cs_rows if (SUMMARY_CHUNK_INDEX_OFFSET + r["id"]) not in existing]
+
+            if not pending:
+                task["current"] = "全部已索引"
+                task["status"] = "done"
+                task["total"] = 1
+                task["progress"] = 1
+                return
+
+            total = len(pending)
+            task["total"] = total
+            task["current"] = f"待索引 {total} 条"
+
+            ok = skip = fail = 0
+            for i, r in enumerate(pending):
+                if task.get("cancelled"):
+                    break
+                while task.get("paused"):
+                    import time; time.sleep(0.5)
+                try:
+                    result = index_summary_chunk(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        skip += 1
+                except Exception:
+                    fail += 1
+                task["progress"] = i + 1
+                task["current"] = f"索引 {i+1}/{total} (成功{ok} 失败{fail})"
+
+            task["results"].append({
+                "source": "chunk索引", "ok": True,
+                "count": f"索引{ok} 跳过{skip} 失败{fail}",
+            })
+        except Exception as e:
+            task["results"].append({"source": "chunk索引", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "label": "chunk索引"}
+
+
+def _manual_diagnose(limit: int):
+    """手动触发诊断+重试"""
+    task_id = f"manual_diagnose_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": limit,
+        "current": "初始化诊断重试", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from ingestion.source_extractor import diagnose_and_retry_failed
+            task["current"] = "诊断+重试中..."
+            result = diagnose_and_retry_failed(limit=limit, source="zsxq")
+            task["results"].append({
+                "source": "诊断重试", "ok": True,
+                "count": str(result)[:200] if result else "完成",
+            })
+        except Exception as e:
+            task["results"].append({"source": "诊断重试", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "label": "诊断重试"}
+
+
+def _manual_pending_sweep(limit: int):
+    """手动触发 pending sweep"""
+    task_id = f"manual_sweep_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": 0,
+        "current": "初始化pending sweep", "results": [],
+        "started_at": datetime.now().isoformat(),
+    }
+
+    def _run():
+        task = _bg_tasks[task_id]
+        try:
+            from datetime import date as _date, timedelta
+            from utils.db_utils import execute_cloud_query
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+
+            today = _date.today()
+            start_day = (today - timedelta(days=7)).isoformat()
+
+            rows = execute_cloud_query(
+                """SELECT id, doc_type, file_type, title, text_content, oss_url,
+                          extracted_text, extract_status
+                   FROM source_documents
+                   WHERE source='zsxq' AND publish_date >= %s
+                     AND extract_status IN ('pending','failed')
+                     AND file_type IN ('txt','mixed','image')
+                   ORDER BY publish_date DESC
+                   LIMIT %s""",
+                [start_day, limit],
+            ) or []
+
+            total = len(rows)
+            task["total"] = total + 1 if total > 0 else 1
+            task["current"] = f"待处理 {total} 条"
+
+            if not rows:
+                task["current"] = "无遗漏文档"
+                task["status"] = "done"
+                task["progress"] = 1
+                return
+
+            pipe_ids = []
+            extracted = 0
+            for i, r in enumerate(rows):
+                if task.get("cancelled"):
+                    break
+                d = dict(r)
+                try:
+                    _do_extract_and_save(d)
+                    extracted += 1
+                    pipe_ids.append(d["id"])
+                except Exception:
+                    pass
+                task["progress"] = i + 1
+                task["current"] = f"提取 {i+1}/{total}"
+
+            pushed = 0
+            if pipe_ids:
+                task["current"] = f"推入管线 {len(pipe_ids)} 条"
+                try:
+                    result = push_to_extracted_texts_by_ids(pipe_ids)
+                    pushed = result.get("pushed", 0)
+                except Exception as e:
+                    logger.error(f"manual_sweep push error: {e}")
+
+            task["results"].append({
+                "source": "pending sweep", "ok": True,
+                "count": f"处理{total} 提取{extracted} 推入{pushed}",
+            })
+        except Exception as e:
+            task["results"].append({"source": "pending sweep", "error": str(e), "ok": False})
+        task["status"] = "done"
+        task["progress"] = task["total"]
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"task_id": task_id, "label": "pending sweep"}

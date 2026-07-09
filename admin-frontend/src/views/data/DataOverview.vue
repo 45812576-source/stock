@@ -62,6 +62,41 @@
       </div>
     </el-card>
 
+    <!-- 一键运行任务 -->
+    <el-card shadow="never" class="block-card">
+      <template #header>
+        <div class="card-header">
+          <span>一键运行</span>
+          <span class="header-tip">手动触发一次性管线任务，进度将实时显示在任务中心</span>
+        </div>
+      </template>
+      <div class="manual-tasks">
+        <div v-for="t in manualTasks" :key="t.key" class="manual-task-item">
+          <div class="task-info">
+            <span class="task-name">{{ t.label }}</span>
+            <span class="task-desc">{{ t.desc }}</span>
+          </div>
+          <div class="task-actions">
+            <el-input-number
+              v-model="t.limit"
+              :min="10" :max="5000" :step="100"
+              size="small"
+              style="width: 120px"
+              controls-position="right"
+            />
+            <el-button
+              type="primary"
+              size="small"
+              :loading="t.loading"
+              @click="triggerManualTask(t)"
+            >
+              运行
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-card>
+
     <!-- 批次运行详情 -->
     <el-card shadow="never" class="block-card">
       <template #header>
@@ -150,6 +185,27 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as dataApi from '@/api/data'
+
+// ---------- 手动一次性任务 ----------
+const manualTasks = reactive([
+  { key: 'batch_push', label: '批量入库', desc: '将已提取文档推入 extracted_texts', limit: 500, loading: false },
+  { key: 'summarize', label: '摘要生成', desc: '对 pending 文档生成分族摘要', limit: 1000, loading: false },
+  { key: 'chunk_index', label: 'Chunk索引', desc: '对 family=2 摘要建向量索引', limit: 2000, loading: false },
+  { key: 'diagnose', label: '诊断重试', desc: '诊断 failed 文档并智能重试', limit: 50, loading: false },
+  { key: 'pending_sweep', label: 'Pending Sweep', desc: '补处理近7天遗漏的 pending 文档', limit: 200, loading: false },
+])
+
+async function triggerManualTask(t) {
+  t.loading = true
+  try {
+    const res = await dataApi.runManualTask(t.key, t.limit)
+    ElMessage.success(`已触发「${t.label}」，可在任务中心查看进度`)
+  } catch (e) {
+    ElMessage.error(`触发失败: ${e.message || e}`)
+  } finally {
+    t.loading = false
+  }
+}
 
 // ---------- 统计看板 ----------
 const summary = ref({})
@@ -411,4 +467,22 @@ onMounted(() => {
 }
 .job-group-table { margin-bottom: 0; }
 .schedule-text { font-size: 12px; color: var(--admin-text-dim); }
+
+/* 一键运行样式 */
+.header-tip { font-size: 12px; color: var(--admin-text-dim); font-weight: 400; }
+.manual-tasks { display: flex; flex-direction: column; gap: 12px; }
+.manual-task-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.manual-task-item:hover { background: var(--admin-bg-card, #fafafa); }
+.task-info { display: flex; flex-direction: column; gap: 2px; }
+.task-name { font-size: 14px; font-weight: 500; color: var(--admin-text); }
+.task-desc { font-size: 12px; color: var(--admin-text-dim); }
+.task-actions { display: flex; align-items: center; gap: 10px; }
 </style>

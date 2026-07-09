@@ -42,6 +42,10 @@ export const cancelTask = (taskId) => request.post('/data/api/cancel-task', { ta
 export const pauseTask = (taskId) => request.post('/data/api/pause-task', { task_id: taskId })
 export const resumeTask = (taskId) => request.post('/data/api/resume-task', { task_id: taskId })
 
+// ---- 手动触发一次性任务 ----
+export const runManualTask = (taskType, limit = 500) =>
+  request.post('/data/api/run-manual-task', { task_type: taskType, limit })
+
 // ---- 审核台 ----
 export const extractPreview = (docIds) =>
   request.post('/data/api/extract-preview', { doc_ids: docIds })
