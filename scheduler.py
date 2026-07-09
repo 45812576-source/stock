@@ -576,7 +576,64 @@ def start_scheduler():
     import threading
     threading.Thread(target=_backfill_missing_scanner_days, daemon=True, name="backfill").start()
 
-    # 每天 23:00 — chain_sync + theme_merger 夜间兜底
+    # 每天 22:00 — pending sweep：补处理近7天内遗漏的 txt/mixed/image pending 文档
+    def _run_pending_sweep():
+        """扫描近7天内所有 pending 状态的 txt/mixed/image，统一提取+入管线"""
+        try:
+            from datetime import date as _date, timedelta
+            from utils.db_utils import execute_cloud_query
+            from routers.datacollect import _do_extract_and_save
+            from ingestion.source_extractor import push_to_extracted_texts_by_ids
+
+            today = _date.today()
+            start_day = (today - timedelta(days=7)).isoformat()
+
+            rows = execute_cloud_query(
+                """SELECT id, doc_type, file_type, title, text_content, oss_url,
+                          extracted_text, extract_status
+                   FROM source_documents
+                   WHERE source='zsxq' AND publish_date >= %s
+                     AND extract_status IN ('pending','failed')
+                     AND file_type IN ('txt','mixed','image')
+                   ORDER BY publish_date DESC
+                   LIMIT 200""",
+                [start_day],
+            ) or []
+
+            if not rows:
+                logger.info("[Scheduler] pending sweep: 无遗漏文档")
+                return
+
+            pipe_ids = []
+            extracted = 0
+            for r in rows:
+                d = dict(r)
+                try:
+                    _do_extract_and_save(d)
+                    extracted += 1
+                    pipe_ids.append(d["id"])
+                except Exception:
+                    pass
+
+            pushed = 0
+            if pipe_ids:
+                try:
+                    result = push_to_extracted_texts_by_ids(pipe_ids)
+                    pushed = result.get("pushed", 0)
+                except Exception as e:
+                    logger.warning(f"[Scheduler] pending sweep push失败: {e}")
+
+            logger.info(f"[Scheduler] pending sweep 完成: 处理{len(rows)} 提取{extracted} 推入{pushed}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] pending sweep 失败: {e}")
+
+    scheduler.add_job(
+        _run_pending_sweep, CronTrigger(hour=22, minute=0),
+        id="pending_sweep_nightly", replace_existing=True,
+        name="pending sweep 夜间兜底(txt/mixed/image)",
+    )
+
+        # 每天 23:00 — chain_sync + theme_merger 夜间兜底
     def _run_daily_sync_nightly():
         try:
             from config.chain_sync import run_chain_sync
@@ -598,7 +655,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 22:00 pending sweep兜底, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():
