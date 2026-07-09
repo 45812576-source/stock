@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from config import CHUNK_SIZE, CHUNK_OVERLAP
-from utils.db_utils import execute_query, execute_insert
+from utils.db_utils import execute_query, execute_insert, execute_cloud_insert
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,16 @@ def chunk_and_index(
         if cid:
             chunk_ids.append(cid)
             embeddings_pending.append((cid, chunk_text))
+            # 同步云端
+            try:
+                execute_cloud_insert(
+                    """INSERT INTO text_chunks (id, extracted_text_id, chunk_index, chunk_text, char_start, char_end, doc_type, publish_time, chunk_type)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'raw')
+                       ON DUPLICATE KEY UPDATE chunk_text=VALUES(chunk_text), doc_type=VALUES(doc_type)""",
+                    [cid, extracted_text_id, idx, chunk_text, char_start, char_end, doc_type or None, pt_str or None],
+                )
+            except Exception:
+                pass
         else:
             # ON DUPLICATE KEY UPDATE 不返回 new id，查回来
             existing = execute_query(
@@ -108,6 +118,15 @@ def chunk_and_index(
                 eid = existing[0]["id"]
                 chunk_ids.append(eid)
                 embeddings_pending.append((eid, chunk_text))
+                try:
+                    execute_cloud_insert(
+                        """INSERT INTO text_chunks (id, extracted_text_id, chunk_index, chunk_text, char_start, char_end, doc_type, publish_time, chunk_type)
+                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'raw')
+                           ON DUPLICATE KEY UPDATE chunk_text=VALUES(chunk_text), doc_type=VALUES(doc_type)""",
+                        [eid, extracted_text_id, idx, chunk_text, char_start, char_end, doc_type or None, pt_str or None],
+                    )
+                except Exception:
+                    pass
 
     # 写 Milvus embedding
     if write_milvus and embeddings_pending:

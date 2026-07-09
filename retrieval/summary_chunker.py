@@ -4,7 +4,7 @@ import logging
 from typing import Optional
 
 from config import MILVUS_HOST, MILVUS_PORT, EMBEDDING_DIM
-from utils.db_utils import execute_cloud_query, execute_insert, execute_query
+from utils.db_utils import execute_cloud_query, execute_cloud_insert, execute_insert, execute_query
 from retrieval.embedding import embed_texts
 
 logger = logging.getLogger(__name__)
@@ -419,6 +419,18 @@ def index_summary_chunk(content_summary_id: int) -> bool:
         return False
 
     chunk_db_id = int(chunk_db_id)
+
+    # 同步写云端 text_chunks（允许失败不阻断主流程）
+    try:
+        execute_cloud_insert(
+            """INSERT INTO text_chunks
+               (id, extracted_text_id, chunk_index, chunk_text, chunk_type, doc_type, publish_time)
+               VALUES (%s, %s, %s, %s, 'summary', %s, %s)
+               ON DUPLICATE KEY UPDATE chunk_text=VALUES(chunk_text), doc_type=VALUES(doc_type), publish_time=VALUES(publish_time)""",
+            [chunk_db_id, extracted_text_id, chunk_index, text, doc_type, publish_time],
+        )
+    except Exception as e:
+        logger.debug(f"云端 text_chunks 写入失败（非阻断）: {e}")
 
     # 生成 embedding
     try:
