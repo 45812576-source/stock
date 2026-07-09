@@ -654,8 +654,120 @@ def start_scheduler():
         name="chain_sync + theme_merger 夜间兜底",
     )
 
+
+    # ── 每天 09:30 + 20:30 — 自动摘要生成 ──────────────────────────────────
+    def _run_auto_summarize():
+        """批量对 summary_status='pending' 的 extracted_texts 生成分族摘要"""
+        try:
+            from cleaning.content_summarizer import summarize_single
+            from utils.db_utils import execute_cloud_query as _cq
+
+            rows = _cq(
+                """SELECT id FROM extracted_texts
+                   WHERE summary_status='pending'
+                     AND CHAR_LENGTH(TRIM(COALESCE(full_text,''))) >= 20
+                   ORDER BY id DESC
+                   LIMIT 200""",
+                None,
+            ) or []
+
+            if not rows:
+                logger.info("[Scheduler] auto_summarize: 无待摘要文档")
+                return
+
+            ok = fail = 0
+            for r in rows:
+                try:
+                    result = summarize_single(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        fail += 1
+                except Exception as e:
+                    logger.debug(f"[Scheduler] summarize id={r['id']} 失败: {e}")
+                    fail += 1
+
+            logger.info(f"[Scheduler] auto_summarize 完成: 成功{ok} 失败{fail} (共{len(rows)})")
+        except Exception as e:
+            logger.warning(f"[Scheduler] auto_summarize 整体失败: {e}")
+
+    scheduler.add_job(
+        _run_auto_summarize, CronTrigger(hour=9, minute=30),
+        id="auto_summarize_morning", replace_existing=True,
+        name="自动摘要生成(上午)",
+    )
+    scheduler.add_job(
+        _run_auto_summarize, CronTrigger(hour=20, minute=30),
+        id="auto_summarize_evening", replace_existing=True,
+        name="自动摘要生成(晚间)",
+    )
+
+    # ── 每天 10:00 + 21:30 — 自动摘要 chunk 索引 ──────────────────────────────
+    def _run_auto_chunk_index():
+        """批量对 family=2 的新摘要建向量索引（Milvus + MySQL text_chunks）"""
+        try:
+            from retrieval.summary_chunker import index_summary_chunk, SUMMARY_CHUNK_INDEX_OFFSET
+            from utils.db_utils import execute_cloud_query as _cq
+            from utils.db_utils import execute_query as _lq
+
+            # 找 family=2 且尚未索引的 content_summaries
+            cs_rows = _cq(
+                """SELECT cs.id FROM content_summaries cs
+                   WHERE cs.family = 2
+                   ORDER BY cs.id DESC
+                   LIMIT 300""",
+                None,
+            ) or []
+
+            if not cs_rows:
+                logger.info("[Scheduler] auto_chunk_index: 无待索引摘要")
+                return
+
+            # 过滤已索引的
+            existing = set()
+            try:
+                local_rows = _lq(
+                    f"SELECT chunk_index FROM text_chunks WHERE chunk_type='summary' AND chunk_index >= {SUMMARY_CHUNK_INDEX_OFFSET}"
+                ) or []
+                existing = {r["chunk_index"] for r in local_rows}
+            except Exception:
+                pass
+
+            pending = [r for r in cs_rows if (SUMMARY_CHUNK_INDEX_OFFSET + r["id"]) not in existing]
+
+            if not pending:
+                logger.info("[Scheduler] auto_chunk_index: 全部已索引")
+                return
+
+            ok = skip = fail = 0
+            for r in pending[:100]:  # 每批最多100条
+                try:
+                    result = index_summary_chunk(r["id"])
+                    if result:
+                        ok += 1
+                    else:
+                        skip += 1
+                except Exception as e:
+                    logger.debug(f"[Scheduler] chunk_index cs_id={r['id']} 失败: {e}")
+                    fail += 1
+
+            logger.info(f"[Scheduler] auto_chunk_index 完成: 索引{ok} 跳过{skip} 失败{fail} (待处理{len(pending)})")
+        except Exception as e:
+            logger.warning(f"[Scheduler] auto_chunk_index 整体失败: {e}")
+
+    scheduler.add_job(
+        _run_auto_chunk_index, CronTrigger(hour=10, minute=0),
+        id="auto_chunk_index_morning", replace_existing=True,
+        name="自动摘要chunk索引(上午)",
+    )
+    scheduler.add_job(
+        _run_auto_chunk_index, CronTrigger(hour=21, minute=30),
+        id="auto_chunk_index_evening", replace_existing=True,
+        name="自动摘要chunk索引(晚间)",
+    )
+
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 22:00 pending sweep兜底, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集, 08:30+18:30 诊断failed, 09:30+20:30 摘要生成, 10:00+21:30 chunk索引, 22:00 pending sweep, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():
