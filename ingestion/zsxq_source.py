@@ -401,13 +401,50 @@ class ZsxqSource:
                 cleaned = raw_text or ""
 
             new_doc_type = classify_doc_type(title, cleaned[:200]) if cleaned else doc_type
+            # 缺陷A修复：空转写标 failed，非空标 extracted
+            final_status = 'extracted' if cleaned and len(cleaned.strip()) >= 20 else 'failed'
+            # 事中捕获：记录失败原因到 review_notes
+            fail_reason = None
+            if final_status == 'failed':
+                if not raw_text or not raw_text.strip():
+                    fail_reason = "[empty_transcription] 转写返回空文本，音频可能无语音内容或转写引擎未能识别"
+                else:
+                    fail_reason = f"[empty_transcription] 转写文本过短({len((raw_text or '').strip())}字<20字阈值)"
             execute_cloud_insert(
-                "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
-                [cleaned, new_doc_type, doc_id],
+                "UPDATE source_documents SET extracted_text=%s, extract_status=%s, doc_type=%s, review_notes=%s WHERE id=%s",
+                [cleaned, final_status, new_doc_type, fail_reason, doc_id],
             )
-            logger.info(f"音频立即转录完成 doc_id={doc_id} title={title[:40]} ({len(cleaned)}字)")
+            # 缺陷C修复：转录成功后直接推入 extracted_texts
+            if final_status == 'extracted':
+                try:
+                    from ingestion.source_extractor import push_to_extracted_texts_by_ids
+                    push_to_extracted_texts_by_ids([doc_id])
+                except Exception as push_e:
+                    logger.warning(f"音频即时推入管线失败 doc_id={doc_id}: {push_e}")
+            logger.info(f"音频立即转录{'完成' if final_status == 'extracted' else '失败(空)'} doc_id={doc_id} title={title[:40]} ({len(cleaned)}字)")
         except Exception as e:
-            logger.warning(f"音频立即转录失败 doc_id={doc_id}: {e}")
+            # 事中捕获：分类异常原因
+            err_str = str(e)
+            if '429' in err_str or 'rate_limit' in err_str or 'RESOURCE_EXHAUSTED' in err_str:
+                fail_reason = f"[rate_limit] {err_str[:200]}"
+            elif 'timeout' in err_str.lower() or 'timed out' in err_str.lower():
+                fail_reason = f"[network_timeout] {err_str[:200]}"
+            elif '403' in err_str or '404' in err_str or 'Forbidden' in err_str or 'Not Found' in err_str:
+                fail_reason = f"[url_expired] {err_str[:200]}"
+            elif 'funasr' in err_str.lower() or 'sensevoice' in err_str.lower():
+                fail_reason = f"[funasr_error] {err_str[:200]}"
+            elif 'corrupt' in err_str.lower() or 'decode' in err_str.lower() or 'format' in err_str.lower():
+                fail_reason = f"[audio_corrupt] {err_str[:200]}"
+            else:
+                fail_reason = f"[unknown] {err_str[:200]}"
+            try:
+                execute_cloud_insert(
+                    "UPDATE source_documents SET extract_status='failed', review_notes=%s WHERE id=%s",
+                    [fail_reason, doc_id],
+                )
+            except Exception:
+                pass
+            logger.warning(f"音频立即转录失败 doc_id={doc_id} reason={fail_reason[:60]}: {e}")
 
     def _insert_and_extract_pdf(self, doc_id, doc_type, file_type, title, author,
                                 publish_date, oss_url, context_text=""):
@@ -458,11 +495,20 @@ class ZsxqSource:
                 cleaned = raw_text or ""
 
             new_doc_type = classify_doc_type(title, cleaned[:200]) if cleaned else doc_type
+            # 缺陷A修复：空提取标 failed，非空标 extracted
+            final_status = 'extracted' if cleaned and len(cleaned.strip()) >= 20 else 'failed'
             execute_cloud_insert(
-                "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
-                [cleaned, new_doc_type, doc_id],
+                "UPDATE source_documents SET extracted_text=%s, extract_status=%s, doc_type=%s WHERE id=%s",
+                [cleaned, final_status, new_doc_type, doc_id],
             )
-            logger.info(f"PDF 立即提取完成 doc_id={doc_id} title={title[:40]} ({len(cleaned)}字)")
+            # 缺陷C修复：提取成功后直接推入 extracted_texts
+            if final_status == 'extracted':
+                try:
+                    from ingestion.source_extractor import push_to_extracted_texts_by_ids
+                    push_to_extracted_texts_by_ids([doc_id])
+                except Exception as push_e:
+                    logger.warning(f"PDF即时推入管线失败 doc_id={doc_id}: {push_e}")
+            logger.info(f"PDF 立即提取{'完成' if final_status == 'extracted' else '失败(空)'} doc_id={doc_id} title={title[:40]} ({len(cleaned)}字)")
         except Exception as e:
             logger.warning(f"PDF 立即提取失败 doc_id={doc_id}: {e}")
 

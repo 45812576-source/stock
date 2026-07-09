@@ -795,15 +795,24 @@ def _get_audio_config() -> dict:
     return result
 
 
+_FUNASR_MODEL_CACHE = {}
+
+
 def _transcribe_funasr(audio_path: str, model_name: str = "iic/SenseVoiceSmall") -> str:
-    """用 FunASR 本地模型转写音频（无需 API key）"""
+    """用 FunASR 本地模型转写音频（无需 API key）
+
+    模型按 model_name 进程级缓存，避免每次调用都重新加载（加载耗时可达数十秒）。
+    """
     from funasr import AutoModel
-    model = AutoModel(
-        model=model_name,
-        vad_model="fsmn-vad",
-        punc_model="ct-punc",
-        disable_update=True,
-    )
+    model = _FUNASR_MODEL_CACHE.get(model_name)
+    if model is None:
+        model = AutoModel(
+            model=model_name,
+            vad_model="fsmn-vad",
+            punc_model="ct-punc",
+            disable_update=True,
+        )
+        _FUNASR_MODEL_CACHE[model_name] = model
     res = model.generate(input=audio_path, batch_size_s=300)
     if not res:
         return ""
@@ -1529,7 +1538,7 @@ def _extract_pdf_with_meta(row: dict) -> tuple:
                 with open(img_path, "rb") as _f:
                     img_bytes = _f.read()
                 ocr_text, _used_vision = _ocr_image_bytes_safe(
-                    img_bytes, f"{title} 第{page_num}页", timeout=60)
+                    img_bytes, f"{title} 第{page_num}页", timeout=300)
                 if _used_vision:
                     used_vision_any = True
                 if ocr_text:
@@ -2065,3 +2074,215 @@ def push_to_extracted_texts_by_ids(doc_ids: list[int]) -> dict:
     logger.info(f"定向灌入extracted_texts完成: total={total}, pushed={pushed}, "
                 f"skipped={skipped}, failed={failed}")
     return {"total": total, "pushed": pushed, "skipped": skipped, "failed": failed}
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Layer2: 事后诊断 — 自动排查 failed 记录的失败原因 + 智能重试
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 重试策略：reason → (可重试, 最大重试次数)
+_RETRY_POLICY = {
+    "rate_limit": (True, 3),
+    "network_timeout": (True, 2),
+    "funasr_error": (True, 1),
+    "url_expired": (False, 0),
+    "empty_transcription": (False, 0),  # 音频无内容，重试无意义
+    "audio_corrupt": (False, 0),
+    "unknown": (True, 1),
+}
+
+
+def _classify_error(err_str: str) -> str:
+    """根据错误信息分类失败原因"""
+    s = err_str.lower()
+    if '429' in err_str or 'rate_limit' in s or 'resource_exhausted' in s:
+        return "rate_limit"
+    if 'timeout' in s or 'timed out' in s:
+        return "network_timeout"
+    if '403' in err_str or '404' in err_str or 'forbidden' in s or 'not found' in s:
+        return "url_expired"
+    if 'funasr' in s or 'sensevoice' in s or 'model' in s:
+        return "funasr_error"
+    if 'corrupt' in s or 'decode' in s or 'invalid' in s:
+        return "audio_corrupt"
+    return "unknown"
+
+
+def _parse_retry_count(review_notes: str) -> int:
+    """从 review_notes 中提取已重试次数"""
+    import re
+    m = re.search(r'retry[: ]*(\d+)', review_notes or "")
+    return int(m.group(1)) if m else 0
+
+
+def diagnose_and_retry_failed(
+    limit: int = 50,
+    source: str = "zsxq",
+    file_types: tuple = ("audio", "mp3", "pdf", "xlsx"),
+) -> dict:
+    """诊断所有 failed 记录：排查原因 + 对可恢复类型智能重试
+
+    返回: {"total": N, "diagnosed": M, "retried": R, "recovered": S, "unrecoverable": U}
+    """
+    from datetime import datetime
+
+    rows = execute_cloud_query(
+        f"""SELECT id, title, file_type, oss_url, review_notes
+            FROM source_documents
+            WHERE extract_status = 'failed'
+              AND source = %s
+              AND file_type IN ({','.join(['%s']*len(file_types))})
+            ORDER BY publish_date DESC
+            LIMIT %s""",
+        [source, *file_types, limit],
+    ) or []
+
+    stats = {"total": len(rows), "diagnosed": 0, "retried": 0, "recovered": 0, "unrecoverable": 0}
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    for row in rows:
+        doc_id = row["id"]
+        oss_url = row.get("oss_url") or ""
+        file_type = row.get("file_type") or ""
+        old_notes = row.get("review_notes") or ""
+        title = (row.get("title") or "")[:50]
+
+        # 已有诊断且不可恢复 → 跳过
+        existing_reason = ""
+        for tag in _RETRY_POLICY:
+            if f"[{tag}]" in old_notes:
+                existing_reason = tag
+                break
+
+        if existing_reason:
+            can_retry, max_retries = _RETRY_POLICY.get(existing_reason, (False, 0))
+            retry_count = _parse_retry_count(old_notes)
+            if not can_retry or retry_count >= max_retries:
+                stats["unrecoverable"] += 1
+                continue
+        else:
+            # 尚未诊断 → 先诊断
+            reason = _diagnose_single(doc_id, file_type, oss_url)
+            new_notes = f"[{reason}] {now_str} 自动诊断"
+            execute_cloud_insert(
+                "UPDATE source_documents SET review_notes=%s WHERE id=%s",
+                [new_notes, doc_id],
+            )
+            stats["diagnosed"] += 1
+            can_retry, max_retries = _RETRY_POLICY.get(reason, (False, 0))
+            if not can_retry:
+                stats["unrecoverable"] += 1
+                logger.info(f"[Diagnose] id={doc_id} 不可恢复: [{reason}] {title}")
+                continue
+            existing_reason = reason
+            old_notes = new_notes
+
+        # 可重试 → 尝试重新提取
+        retry_count = _parse_retry_count(old_notes)
+        logger.info(f"[Diagnose] id={doc_id} 尝试重试({retry_count+1}/{max_retries}): [{existing_reason}] {title}")
+        stats["retried"] += 1
+
+        success = _retry_extract_single(doc_id, file_type, oss_url, title)
+        if success:
+            stats["recovered"] += 1
+            logger.info(f"[Diagnose] id={doc_id} ✓ 重试成功!")
+        else:
+            # 更新重试计数
+            updated_notes = f"{old_notes} | retry:{retry_count+1} {now_str}"
+            execute_cloud_insert(
+                "UPDATE source_documents SET review_notes=%s WHERE id=%s",
+                [updated_notes, doc_id],
+            )
+
+    logger.info(f"[Diagnose] 诊断完成: {stats}")
+    return stats
+
+
+def _diagnose_single(doc_id: int, file_type: str, oss_url: str) -> str:
+    """诊断单条 failed 记录的失败原因（不执行重试）"""
+    import requests
+
+    # 1. 无 URL → 标记为 url_expired
+    if not oss_url:
+        return "url_expired"
+
+    # 2. 尝试 HEAD 请求检测 URL 可达性
+    try:
+        resp = requests.head(oss_url, timeout=10, allow_redirects=True)
+        if resp.status_code >= 400:
+            return "url_expired"
+    except requests.Timeout:
+        return "network_timeout"
+    except Exception as e:
+        if '403' in str(e) or '404' in str(e):
+            return "url_expired"
+        return "network_timeout"
+
+    # 3. URL 可达 → 尝试下载小片段检测格式
+    if file_type in ("audio", "mp3"):
+        try:
+            resp = requests.get(oss_url, timeout=30, stream=True)
+            # 读前 1KB 检测格式
+            chunk = next(resp.iter_content(1024), b"")
+            resp.close()
+            if len(chunk) < 100:
+                return "audio_corrupt"
+            # 能下载 → 之前失败可能是转写引擎问题或内容为空
+            return "empty_transcription"
+        except requests.Timeout:
+            return "network_timeout"
+        except Exception:
+            return "audio_corrupt"
+
+    # PDF/xlsx: URL可达但提取失败 → 可能是内容解析问题
+    return "empty_transcription"
+
+
+def _retry_extract_single(doc_id: int, file_type: str, oss_url: str, title: str) -> bool:
+    """重试单条提取，成功则更新状态为 extracted 并推入管线，返回是否成功"""
+    try:
+        from ingestion.source_extractor import _semantic_clean
+        from config.doc_types import classify_doc_type
+
+        row = {"id": doc_id, "file_type": file_type, "oss_url": oss_url, "title": title, "text_content": ""}
+
+        if file_type in ("audio", "mp3"):
+            raw_text = _extract_audio(row)
+        elif file_type == "pdf":
+            raw_text, _ = _extract_pdf_with_meta(row)
+        else:
+            raw_text, _ = _extract_single_with_meta(row)
+
+        if not raw_text or len(raw_text.strip()) < 20:
+            return False
+
+        cleaned = _semantic_clean(raw_text, file_type, doc_id, needs_understanding=False)
+        if not cleaned or len(cleaned.strip()) < 20:
+            return False
+
+        new_doc_type = classify_doc_type(title, cleaned[:200])
+        from datetime import datetime
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        execute_cloud_insert(
+            "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s, review_notes=%s WHERE id=%s",
+            [cleaned, new_doc_type, f"[recovered] {now_str} 诊断重试成功 ({len(cleaned)}字)", doc_id],
+        )
+        # 推入管线
+        try:
+            push_to_extracted_texts_by_ids([doc_id])
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        err_reason = _classify_error(str(e))
+        from datetime import datetime
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+        try:
+            execute_cloud_insert(
+                "UPDATE source_documents SET review_notes=%s WHERE id=%s",
+                [f"[{err_reason}] {now_str} 重试失败: {str(e)[:150]}", doc_id],
+            )
+        except Exception:
+            pass
+        return False

@@ -1813,9 +1813,18 @@ def _do_extract_and_save(row: dict) -> tuple:
     # needs_reextract: 扫描件PDF或纯OCR图片，含碎片图表需要人工确认
     needs_reextract = needs_understanding and row.get("file_type") in ("pdf", "image", "mixed")
 
+    # 缺陷A修复：空提取标 failed，非空标 extracted
+    final_status = 'extracted' if text and len(text.strip()) >= 20 else 'failed'
+    # 事中捕获：记录失败原因到 review_notes
+    fail_reason = None
+    if final_status == 'failed':
+        if not text or not text.strip():
+            fail_reason = f"[empty_transcription] 提取返回空文本 (file_type={row.get('file_type')})"
+        else:
+            fail_reason = f"[empty_transcription] 提取文本过短({len(text.strip())}字<20字阈值)"
     execute_cloud_insert(
-        "UPDATE source_documents SET extracted_text=%s, extract_status='extracted', doc_type=%s WHERE id=%s",
-        [text, new_doc_type, row["id"]],
+        "UPDATE source_documents SET extracted_text=%s, extract_status=%s, doc_type=%s, review_notes=%s WHERE id=%s",
+        [text, final_status, new_doc_type, fail_reason, row["id"]],
     )
     _sd_cache_invalidate()
     return text or "", needs_reextract
@@ -2392,6 +2401,10 @@ async def api_get_source_documents(
     # 格式化结果
     items = []
     for r in rows or []:
+        # 缺陷B修复：content_preview 优先取 extracted_text（音频的 text_content 是占位符）
+        _et = (r.get("extracted_text") or "").strip()
+        _tc = (r.get("text_content") or "").strip()
+        content_preview = (_et if len(_et) > 10 else _tc)[:200]
         items.append({
             "id": str(r["id"]),  # 字符串，避免 JS Number 精度丢失
             "doc_type": r.get("doc_type") or "",
@@ -2410,6 +2423,7 @@ async def api_get_source_documents(
             "oss_url": r.get("oss_url") or "",
             "extracted_text": r.get("extracted_text") or "",
             "text_content": r.get("text_content") or "",
+            "content_preview": content_preview,
         })
 
     result = {

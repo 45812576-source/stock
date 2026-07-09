@@ -518,6 +518,26 @@ def start_scheduler():
         misfire_grace_time=8 * 3600,
     )
 
+    # 每天 08:30 + 18:30 — 自动诊断 failed 记录 + 智能重试
+    def _run_diagnose_failed():
+        try:
+            from ingestion.source_extractor import diagnose_and_retry_failed
+            result = diagnose_and_retry_failed(limit=50, source="zsxq")
+            logger.info(f"[Scheduler] 自动诊断failed完成: {result}")
+        except Exception as e:
+            logger.warning(f"[Scheduler] 自动诊断failed失败: {e}")
+
+    scheduler.add_job(
+        _run_diagnose_failed, CronTrigger(hour=8, minute=30),
+        id="diagnose_failed_morning", replace_existing=True,
+        name="自动诊断failed+重试 早间",
+    )
+    scheduler.add_job(
+        _run_diagnose_failed, CronTrigger(hour=18, minute=30),
+        id="diagnose_failed_evening", replace_existing=True,
+        name="自动诊断failed+重试 晚间",
+    )
+
     # 启动时 backfill：补跑过去7天内 zsxq 有数据但 scanner 未执行的日期
     def _backfill_missing_scanner_days():
         try:
@@ -578,7 +598,7 @@ def start_scheduler():
     )
 
     scheduler.start()
-    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+    logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 
 def stop_scheduler():
