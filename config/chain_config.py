@@ -30,6 +30,9 @@ CHAIN_ORDER = [
     "油气设备",  # auto-added
     "跨境电商",  # auto-added
     "金刚石散热",  # auto-added
+    "煤炭能源",  # auto-added
+    "交通基础设施",  # auto-added
+    "半导体工程配套",  # auto-added
 ]
 
 CHAINS = {
@@ -179,7 +182,9 @@ CHAINS = {
                     "尼康",  # auto-added
                     "骄成超声",  # auto-added
                     "龙电华鑫",  # auto-added
-                    "华创新材"],
+                    "华创新材",  # auto-added
+                    "中科飞测",  # auto-added
+                    "欣旺达"],
             },
             "中游": {
                 "label": "动力电池 & 电机电控",
@@ -273,7 +278,10 @@ CHAINS = {
                     "万润新能",  # auto-added
                     "多氟多",  # auto-added
                     "润建股份",  # auto-added
-                    "中通服"],
+                    "中通服",  # auto-added
+                    "锐捷网络",  # auto-added
+                    "磁谷科技",  # auto-added
+                    "睿创微纳"],
             },
             "下游": {
                 "label": "整车 & 零部件",
@@ -365,7 +373,9 @@ CHAINS = {
                     "隆盛科技",  # auto-added
                     "明新旭腾",  # auto-added
                     "美湖股份",  # auto-added
-                    "双环传动"],
+                    "双环传动",  # auto-added
+                    "彩虹股份",  # auto-added
+                    "中兴通讯"],
             },
             "设备": {
                 "label": "锂电设备",
@@ -432,7 +442,8 @@ CHAINS = {
                     "长江存储",  # auto-added
                     "信测标准",  # auto-added
                     "华虹半导体",  # auto-added
-                    "甬矽电子"],
+                    "甬矽电子",  # auto-added
+                    "华虹宏力"],
             },
             "下游": {
                 "label": "PCB & 被动元件",
@@ -860,6 +871,45 @@ CHAINS = {
             "材料制备": {
                 "label": "金刚石材料制备",
                 "stocks": ["国机精工"],  # auto-added
+            },
+        },
+    },
+
+    "煤炭能源": {
+        "icon": "grain",
+        "color": "#f59e0b",
+        "tiers": {
+            "采选": {
+                "label": "动力煤采选",
+                "stocks": ["晋控煤业",
+                    "昊华能源"],  # auto-added
+            },
+        },
+    },
+
+    "交通基础设施": {
+        "icon": "local_shipping",
+        "color": "#6366f1",
+        "tiers": {
+            "运营": {
+                "label": "高速公路运营",
+                "stocks": ["山东高速"],  # auto-added
+            },
+        },
+    },
+
+    "半导体工程配套": {
+        "icon": "precision_manufacturing",
+        "color": "#0ea5e9",
+        "tiers": {
+            "工程承包": {
+                "label": "洁净室工程承包",
+                "stocks": ["圣晖集成",
+                    "柏诚股份"],  # auto-added
+            },
+            "设备供应": {
+                "label": "洁净室设备供应",
+                "stocks": ["美埃科技"],  # auto-added
             },
         },
     },
@@ -1890,4 +1940,32 @@ STOCK_TAGS = {
     "美湖股份": "news",  # auto-added
 
     "双环传动": "news",  # auto-added
+
+    "锐捷网络": "news",  # auto-added
+
+    "磁谷科技": "news",  # auto-added
+
+    "彩虹股份": "news",  # auto-added
+
+    "中科飞测": "news",  # auto-added
+
+    "中兴通讯": "news",  # auto-added
+
+    "华虹宏力": "news",  # auto-added
+
+    "睿创微纳": "news",  # auto-added
+
+    "欣旺达": "news",  # auto-added
+
+    "晋控煤业": "news",  # auto-added
+
+    "昊华能源": "news",  # auto-added
+
+    "山东高速": "news",  # auto-added
+
+    "圣晖集成": "news",  # auto-added
+
+    "柏诚股份": "news",  # auto-added
+
+    "美埃科技": "news",  # auto-added
 }

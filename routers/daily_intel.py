@@ -36,7 +36,7 @@ _daily_sync_last_date: str = ""
 
 
 def _trigger_daily_sync_if_needed():
-    """当天首次打开页面时，后台并发运行 chain_sync + theme_merger"""
+    """当天首次打开页面时，后台运行 chain_sync + theme_merger + 回填近几天缺失主题"""
     global _daily_sync_last_date
     today = str(date.today())
     if _daily_sync_last_date == today:
@@ -44,6 +44,7 @@ def _trigger_daily_sync_if_needed():
     _daily_sync_last_date = today
 
     def _run():
+        # 1. 当天同步
         try:
             from config.chain_sync import run_chain_sync
             run_chain_sync(scan_date=today)
@@ -54,9 +55,48 @@ def _trigger_daily_sync_if_needed():
             run_theme_merge(scan_date=today)
         except Exception as e:
             logger.warning(f"[ThemeMerger] 后台归纳失败: {e}")
+        # 2. 回填近7天缺失主题的日期
+        try:
+            _backfill_missing_themes(days=7)
+        except Exception as e:
+            logger.warning(f"[ThemeMerger] 回填失败: {e}")
 
     threading.Thread(target=_run, daemon=True).start()
-    logger.info("[DailySync] 已在后台触发当天首次同步（chain_sync + theme_merger）")
+    logger.info("[DailySync] 已在后台触发当天同步 + 缺失主题回填")
+
+
+def _backfill_missing_themes(days: int = 7):
+    """检查近N天有情报但无主题的日期，自动补充生成主题"""
+    from datetime import timedelta
+    from daily_intel.theme_merger import run_theme_merge
+
+    today_d = date.today()
+    # 查有情报数据的日期
+    stock_dates = execute_cloud_query(
+        "SELECT DISTINCT scan_date FROM daily_intel_stocks WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
+        [days]
+    ) or []
+    # 查已有主题的日期
+    theme_dates = execute_cloud_query(
+        "SELECT DISTINCT scan_date FROM daily_intel_themes WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)",
+        [days]
+    ) or []
+
+    stock_date_set = {str(r["scan_date"]) for r in stock_dates}
+    theme_date_set = {str(r["scan_date"]) for r in theme_dates}
+    missing = sorted(stock_date_set - theme_date_set)
+
+    if not missing:
+        return
+
+    logger.info(f"[ThemeMerger] 回填缺失主题: {missing}")
+    for d in missing:
+        if d == str(today_d):  # 当天已在上面处理
+            continue
+        try:
+            run_theme_merge(scan_date=d)
+        except Exception as e:
+            logger.warning(f"[ThemeMerger] 回填 {d} 失败: {e}")
 
 
 def run_daily_intel_scan(scan_date: date = None):
@@ -104,26 +144,62 @@ async def daily_intel_page(request: Request):
 @router.get("/api/stocks")
 async def api_stocks(
     scan_date: str = "",
+    start_date: str = "",
+    end_date: str = "",
     event_type: str = "",
     industry: str = "",
     stock: str = "",
+    theme: str = "",
+    kline_strategy: str = "",
 ):
-    """查询 daily_intel_stocks（支持 date/event_type/industry/stock 筛选）"""
+    """查询 daily_intel_stocks（支持 日期区间/event_type/industry/stock/theme/kline 筛选）"""
     where = ["1=1"]
     params = []
 
-    if scan_date:
-        where.append("scan_date = %s")
-        params.append(scan_date)
+    # 日期区间（兼容旧 scan_date 单日参数）
+    _start = start_date or scan_date
+    _end = end_date or scan_date
+    if _start and _end:
+        where.append("scan_date BETWEEN %s AND %s")
+        params += [_start, _end]
+    elif _start:
+        where.append("scan_date >= %s")
+        params.append(_start)
+    elif _end:
+        where.append("scan_date <= %s")
+        params.append(_end)
+
     if event_type:
         where.append("event_type = %s")
         params.append(event_type)
     if industry:
-        where.append("industry = %s")
-        params.append(industry)
+        where.append("(industry LIKE %s OR event_summary LIKE %s)")
+        params += [f"%{industry}%", f"%{industry}%"]
     if stock:
         where.append("(stock_name LIKE %s OR stock_code LIKE %s)")
         params += [f"%{stock}%", f"%{stock}%"]
+
+    # Kline策略预筛选：以 end_date 为基准取最近一次扫描结果
+    kline_codes: set = set()
+    if kline_strategy:
+        match_type_map = {"月线三连阳": 1, "4月内3月阳": 2, "2月+3周阳": 3}
+        mt = match_type_map.get(kline_strategy)
+        if mt:
+            from utils.db_utils import execute_query as _lq
+            # 取 scan_date <= end_date 的最新扫描批次
+            kline_sql = """SELECT DISTINCT stock_code FROM robust_kline_candidates
+                           WHERE match_type=%s"""
+            kline_params = [mt]
+            if _end:
+                kline_sql += " AND scan_date <= %s"
+                kline_params.append(_end)
+            kl_rows = _lq(kline_sql, kline_params) or []
+            kline_codes = {r["stock_code"] for r in kl_rows if r.get("stock_code")}
+        if not kline_codes:
+            return JSONResponse({"total": 0, "items": []})
+        ph = ",".join(["%s"] * len(kline_codes))
+        where.append(f"stock_code IN ({ph})")
+        params += list(kline_codes)
 
     sql = f"""
         SELECT id, scan_date, source_type, source_title,
@@ -198,20 +274,33 @@ async def api_stocks(
                 return {"chain_name": cname, "chain_color": color}
         return {}
 
-    # daily_intel_themes: stock_name -> [theme_name]
+    # daily_intel_themes: stock_name -> [theme_name]（去重）
     theme_map: dict[str, list[str]] = {}
-    if scan_date:
-        theme_rows = execute_cloud_query(
-            "SELECT theme_name, stocks FROM daily_intel_themes WHERE scan_date=%s",
-            [scan_date]
-        ) or []
+    if _start or _end:
+        if _start and _end:
+            theme_rows = execute_cloud_query(
+                "SELECT theme_name, stocks FROM daily_intel_themes WHERE scan_date BETWEEN %s AND %s",
+                [_start, _end]
+            ) or []
+        elif _start:
+            theme_rows = execute_cloud_query(
+                "SELECT theme_name, stocks FROM daily_intel_themes WHERE scan_date >= %s",
+                [_start]
+            ) or []
+        else:
+            theme_rows = execute_cloud_query(
+                "SELECT theme_name, stocks FROM daily_intel_themes WHERE scan_date <= %s",
+                [_end]
+            ) or []
         for tr in theme_rows:
             try:
                 stocks_list = _json.loads(tr["stocks"]) if tr.get("stocks") else []
             except Exception:
                 stocks_list = []
+            tname = tr["theme_name"]
             for sname in stocks_list:
-                theme_map.setdefault(sname, []).append(tr["theme_name"])
+                if tname not in theme_map.get(sname, []):
+                    theme_map.setdefault(sname, []).append(tname)
 
     items = []
     for r in rows:
@@ -233,7 +322,63 @@ async def api_stocks(
             "chain_name": chain_info.get("chain_name", ""),
             "chain_color": chain_info.get("chain_color", ""),
         })
+
+    # 主题关键字模糊筛选（匹配 theme_name 或情报内容）
+    if theme:
+        theme_lower = theme.lower()
+        items = [
+            it for it in items
+            if any(theme_lower in t.lower() for t in it["themes"])
+            or theme_lower in (it.get("event_summary") or "").lower()
+            or theme_lower in (it.get("industry") or "").lower()
+        ]
+
     return JSONResponse({"total": len(items), "items": items})
+
+
+# ── API: 筛选选项 ─────────────────────────────────────────────
+
+@router.get("/api/filter-options")
+async def api_filter_options(scan_date: str = ""):
+    """返回可用的筛选选项（行业、主题、Kline策略）"""
+    # 行业列表（取最近30天的 distinct industry）
+    ind_rows = execute_cloud_query(
+        """SELECT DISTINCT industry FROM daily_intel_stocks
+           WHERE industry IS NOT NULL AND industry != ''
+             AND scan_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+           ORDER BY industry
+           LIMIT 200"""
+    ) or []
+    industries = [r["industry"] for r in ind_rows]
+
+    # 主题列表（取最近30天的 themes）
+    theme_rows = execute_cloud_query(
+        """SELECT DISTINCT theme_name FROM daily_intel_themes
+           WHERE scan_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+           ORDER BY theme_name
+           LIMIT 100"""
+    ) or []
+    themes = [r["theme_name"] for r in theme_rows]
+
+    # Kline 策略（静态配置 + 各策略当前匹配数量）
+    kline_strategies = [
+        {"key": "月线三连阳", "label": "月线三连阳", "match_type": 1},
+        {"key": "4月内3月阳", "label": "4月内3月阳线", "match_type": 2},
+        {"key": "2月+3周阳", "label": "2月+3周连阳", "match_type": 3},
+    ]
+    # 补充各策略当前匹配数
+    for s in kline_strategies:
+        cnt_rows = execute_query(
+            "SELECT COUNT(DISTINCT stock_code) AS cnt FROM robust_kline_candidates WHERE match_type=%s",
+            [s["match_type"]],
+        ) or []
+        s["count"] = cnt_rows[0]["cnt"] if cnt_rows else 0
+
+    return JSONResponse({
+        "industries": industries,
+        "themes": themes,
+        "kline_strategies": kline_strategies,
+    })
 
 
 # ── API: 爸爸备选 ─────────────────────────────────────────────────
@@ -406,8 +551,8 @@ async def api_kline(code: str, weeks: int = 3):
 # ── API: 批量K线（表格缩略图用）────────────────────────────────────
 
 @router.get("/api/kline-batch")
-async def api_kline_batch(codes: str = ""):
-    """批量拉取多股票月K(6月)+周K(4周)，从云端 stock_db.stock_data，codes 逗号分隔"""
+async def api_kline_batch(codes: str = "", end_date: str = ""):
+    """批量拉取多股票月K(6月)+周K(4周)，从stock_db.stock_data，codes逗号分隔，end_date截止日"""
     if not codes:
         return JSONResponse({})
     code_list = [c.strip() for c in codes.split(",") if c.strip()]
@@ -420,14 +565,21 @@ async def api_kline_batch(codes: str = ""):
     try:
         conn = _get_cloud_stockdb_conn()
         ph = ",".join(["%s"] * len(code_list))
+        # 以 end_date 为截止日向前取300天
+        if end_date:
+            date_cond = f"trade_date BETWEEN DATE_SUB(%s, INTERVAL 300 DAY) AND %s"
+            sql_params = code_list + [end_date, end_date]
+        else:
+            date_cond = "trade_date >= DATE_SUB(CURDATE(), INTERVAL 300 DAY)"
+            sql_params = code_list
         with conn.cursor() as cur:
             cur.execute(
                 f"""SELECT symbol, trade_date, open_price as open, high_price as high,
                            low_price as low, close_price as close, volume
                     FROM stock_data WHERE symbol IN ({ph})
-                    AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 300 DAY)
+                    AND {date_cond}
                     ORDER BY symbol, trade_date ASC""",
-                code_list
+                sql_params
             )
             rows = cur.fetchall()
         conn.close()

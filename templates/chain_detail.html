@@ -3,96 +3,104 @@
 
 {% block extra_styles %}
 <style>
-.left-panel{width:260px;flex-shrink:0;display:flex;flex-direction:column;gap:12px;}
-.tier-row{display:flex;align-items:stretch;gap:0;border-radius:10px;overflow:hidden;border:1px solid #2d3748;min-height:80px;}
-.tier-label{writing-mode:vertical-rl;text-orientation:mixed;padding:8px 6px;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;letter-spacing:2px;min-width:32px;flex-shrink:0;}
-.seg-block{position:relative;padding:12px 10px;cursor:pointer;transition:all .15s;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;border-right:1px solid rgba(255,255,255,.06);min-width:60px;overflow:hidden;}
-.seg-block:last-child{border-right:none;}
-.seg-block:hover{filter:brightness(1.3);z-index:1;}
-.seg-block.active{outline:2px solid #fff;outline-offset:-2px;z-index:2;}
-.seg-name{font-size:12px;font-weight:700;color:#f1f5f9;line-height:1.3;word-break:break-all;}
-.seg-size{font-size:10px;color:rgba(255,255,255,.7);margin-top:3px;}
-.detail-panel{background:#111827;border:1px solid #2d3748;border-radius:12px;overflow:hidden;transition:all .3s ease;max-height:0;opacity:0;}
-.detail-panel.open{max-height:600px;opacity:1;}
+.matrix-bg {
+  background-image: linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+.treemap-node {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+.treemap-node:hover {
+  filter: brightness(1.15);
+  transform: scale(0.997);
+}
+.treemap-node:active {
+  transform: scale(0.98);
+}
+.glass-panel {
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(24px);
+  border-left: 1px solid rgba(100, 116, 139, 0.2);
+}
+.custom-scrollbar::-webkit-scrollbar { width: 4px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: #0b0f1a; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 2px; }
 .cog-drawer{position:fixed;top:0;right:-480px;width:480px;height:100vh;background:#0f172a;border-left:1px solid #2d3748;z-index:1000;transition:right .3s ease;overflow-y:auto;padding:24px;}
 .cog-drawer.open{right:0;}
 .cog-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;display:none;}
 .cog-backdrop.open{display:block;}
-.stock-tbl{width:100%;border-collapse:collapse;font-size:12px;}
-.stock-tbl th{text-align:left;padding:6px 10px;color:#64748b;font-size:10px;font-weight:600;border-bottom:1px solid #1e293b;}
-.stock-tbl td{padding:6px 10px;border-bottom:1px solid #1e293b22;}
-.stock-tbl tr:hover td{background:#1e273844;}
-.el-tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:6px;margin:2px 3px 2px 0;}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="p-6 flex flex-col h-full overflow-hidden">
+<div class="flex flex-col h-full overflow-hidden matrix-bg">
 
-  <!-- Header -->
-  <header class="flex items-center gap-4 mb-4 flex-shrink-0">
-    <a href="/chain" class="text-slate-500 hover:text-white transition-colors">
-      <span class="material-icons-round text-lg">arrow_back</span>
-    </a>
-    <div class="flex items-center gap-3">
-      <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:{{ chain_color }}1a;">
-        <span class="material-icons-round text-base" style="color:{{ chain_color }};">{{ chain_icon }}</span>
+  <!-- Header Bar -->
+  <header class="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b border-border-dark bg-card-dark/80 backdrop-blur-xl">
+    <div class="flex items-center gap-4">
+      <a href="/chain" class="text-slate-500 hover:text-white transition-colors">
+        <span class="material-icons-round text-lg">arrow_back</span>
+      </a>
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="background:{{ chain_color }}1a;">
+          <span class="material-icons-round text-base" style="color:{{ chain_color }};">{{ chain_icon }}</span>
+        </div>
+        <div>
+          <h1 class="text-lg font-extrabold tracking-tight">{{ chain_name }}</h1>
+          <div class="flex items-center gap-2 text-xs text-slate-500">
+            <span>SECTORS</span>
+            <span class="material-icons-round text-[14px]">chevron_right</span>
+            <span class="text-primary font-semibold" id="breadcrumbName">{{ chain_name }}</span>
+          </div>
+        </div>
       </div>
-      <div>
-        <h1 class="text-xl font-extrabold tracking-tight">{{ chain_name }}</h1>
-        <nav class="text-xs text-slate-500">产业链全景画布</nav>
-      </div>
+    </div>
+    <div class="flex items-center gap-2">
+      <button onclick="triggerRefreshMarketSize()" class="flex items-center gap-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-400 hover:text-white transition-colors" id="btn-refresh">
+        <span class="material-icons-round text-sm" id="refresh-icon">refresh</span> Refresh
+      </button>
+      <span class="text-xs text-slate-500 hidden" id="refresh-status"></span>
+      <button onclick="openCognitionDrawer()" class="flex items-center gap-1 px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-xs text-slate-400 hover:text-white transition-colors">
+        <span class="material-icons-round text-sm">psychology</span> 认知管理
+      </button>
+      <span class="text-xs text-slate-600 ml-2" id="chainMeta"></span>
     </div>
   </header>
 
-  <!-- Main body -->
-  <div class="flex gap-4 flex-1 min-h-0 overflow-hidden">
+  <!-- Treemap Area -->
+  <div class="flex-1 p-5 overflow-auto relative">
+    <!-- Loading -->
+    <div id="treemapLoading" class="flex items-center justify-center text-slate-500 py-20">
+      <span class="material-icons-round animate-spin mr-2">refresh</span>加载中…
+    </div>
+    <!-- Grid -->
+    <div id="treemapGrid" class="grid gap-1.5 hidden"></div>
+  </div>
 
-    <!-- Left Panel -->
-    <div class="left-panel">
-      <div class="card p-4">
-        <div class="text-xs font-semibold text-slate-500 mb-2">近15日主力净流入</div>
-        <div id="fundFlowChart" style="height:80px;"></div>
+</div>
+
+<!-- Detail Overlay Panel (right slide) -->
+<aside class="fixed top-0 right-0 w-[420px] h-screen glass-panel z-[100] transform transition-transform duration-500 ease-in-out custom-scrollbar overflow-y-auto translate-x-full" id="detail-panel">
+  <div class="p-6">
+    <div class="flex justify-between items-start mb-5">
+      <div>
+        <h2 class="text-lg font-bold text-primary" id="panel-title">-</h2>
+        <p class="text-xs text-slate-500 mt-1 font-mono" id="panel-subtitle"></p>
       </div>
-      <button onclick="openCognitionDrawer()" class="card p-3 text-left hover:border-primary transition-colors w-full">
-        <div class="flex items-center gap-2">
-          <span class="material-icons-round text-sm text-primary">psychology</span>
-          <span class="text-xs font-semibold">认知管理</span>
-          <span class="material-icons-round text-xs text-slate-600 ml-auto">chevron_right</span>
-        </div>
-        <div class="text-xs text-slate-500 mt-1" id="cogStatusLabel">点击管理 Baseline</div>
+      <button class="p-1.5 hover:bg-slate-700 rounded text-slate-500" onclick="closeDetail()">
+        <span class="material-icons-round">close</span>
       </button>
     </div>
-
-    <!-- Right: Canvas + Detail -->
-    <div class="flex-1 flex flex-col gap-4 min-h-0 overflow-y-auto">
-      <!-- Canvas: 分层画布 -->
-      <div id="canvasArea" class="flex flex-col gap-3 flex-shrink-0">
-        <div id="canvasLoading" class="flex items-center justify-center py-20 text-slate-500 text-sm">
-          <span class="material-icons-round animate-spin mr-2">refresh</span>加载中…
-        </div>
-      </div>
-
-      <!-- Detail Panel -->
-      <div class="detail-panel" id="detailPanel">
-        <div class="flex items-center justify-between px-5 py-3 bg-slate-800/50 border-b border-slate-700/40">
-          <div class="flex items-center gap-2">
-            <span class="material-icons-round text-sm text-primary">info</span>
-            <span class="text-sm font-bold" id="detailTitle">环节详情</span>
-          </div>
-          <button onclick="closeDetail()" class="text-slate-500 hover:text-slate-300">
-            <span class="material-icons-round text-lg">close</span>
-          </button>
-        </div>
-        <div class="p-5" id="detailContent"></div>
-      </div>
+    <div id="panel-content">
+      <div class="text-slate-500 text-sm">点击 Treemap 节点查看详情</div>
     </div>
   </div>
-</div>
+</aside>
 
 <!-- Cognition Management Drawer -->
 <div class="cog-backdrop" id="cogBackdrop" onclick="closeCognitionDrawer()"></div>
-<div class="cog-drawer" id="cogDrawer">
+<div class="cog-drawer custom-scrollbar" id="cogDrawer">
   <div class="flex items-center justify-between mb-5">
     <h2 class="text-lg font-bold">认知管理</h2>
     <button onclick="closeCognitionDrawer()" class="text-slate-500 hover:text-white"><span class="material-icons-round">close</span></button>
@@ -131,220 +139,274 @@
 {% block scripts %}
 <script>
 const CHAIN_NAME = "{{ chain_name }}";
-let _currentDiffId = null, _currentBaseline = null, _activeSegEl = null;
+let _currentDiffId = null, _treemapData = [];
 
-const TIER_COLORS = [
-  {match:'上上游',bg:'#0e4a6e',border:'#0891b2'},
-  {match:'上游',bg:'#1e3a5f',border:'#3b82f6'},
-  {match:'中游',bg:'#2d1b69',border:'#8b5cf6'},
-  {match:'下游',bg:'#4a2c17',border:'#f59e0b'},
-  {match:'下下游',bg:'#4c1d1d',border:'#f43f5e'},
-  {match:'upstream',bg:'#1e3a5f',border:'#3b82f6'},
-  {match:'midstream',bg:'#2d1b69',border:'#8b5cf6'},
-  {match:'downstream',bg:'#4a2c17',border:'#f59e0b'},
-];
-function getTierStyle(key, label) {
-  const s = (key+' '+label).toLowerCase();
-  for (const t of TIER_COLORS) { if (s.includes(t.match)) return t; }
-  return {bg:'#1a2233',border:'#6366f1'};
+// ─── Tier Color Logic ────────────────────────────────────────────
+function getTierColor(tierKey, tierLabel, idx, total) {
+  const s = (tierKey + ' ' + tierLabel).toLowerCase();
+  if (s.includes('上上游') || s.includes('资源')) return { bg: '#1e3a8a', border: '#3b82f6', text: 'white' };
+  if (s.includes('上游') || s.includes('原料') || s.includes('材料')) return { bg: '#1d4ed8', border: '#60a5fa', text: 'white' };
+  if (s.includes('中游') || s.includes('制造') || s.includes('电池') || s.includes('组件') || s.includes('封装')) return { bg: '#b45309', border: '#f59e0b', text: 'white' };
+  if (s.includes('下游') || s.includes('应用') || s.includes('整车') || s.includes('终端')) return { bg: '#991b1b', border: '#ef4444', text: 'white' };
+  if (s.includes('下下游') || s.includes('运营') || s.includes('服务')) return { bg: '#7f1d1d', border: '#dc2626', text: 'white' };
+  if (s.includes('配套') || s.includes('设备') || s.includes('辅助')) return { bg: '#581c87', border: '#a855f7', text: 'white' };
+  // Positional gradient fallback
+  const ratio = total > 1 ? idx / (total - 1) : 0.5;
+  if (ratio < 0.25) return { bg: '#1e3a8a', border: '#3b82f6', text: 'white' };
+  if (ratio < 0.5) return { bg: '#1d4ed8', border: '#60a5fa', text: 'white' };
+  if (ratio < 0.75) return { bg: '#b45309', border: '#f59e0b', text: 'white' };
+  return { bg: '#991b1b', border: '#ef4444', text: 'white' };
 }
 
-// ── Init ──
-(async function() { await loadCanvas(); loadFundFlow(); })();
+// ─── Init ────────────────────────────────────────────────────────
+(async function() {
+  await loadCanvas();
+  loadMeta();
+})();
 
-async function loadFundFlow() {
+async function loadMeta() {
   try {
-    const r = await fetch('/chain/api/list'); const d = await r.json();
+    const r = await fetch('/chain/api/list');
+    const d = await r.json();
     if (!d.ok) return;
     const chain = d.chains.find(c => c.name === CHAIN_NAME);
-    if (chain) renderFundFlow(chain.daily_flows||[], chain.daily_dates||[]);
+    if (chain) {
+      document.getElementById('chainMeta').textContent =
+        `${chain.stock_count}只 · ${chain.tier_count}环节 · 近7日流入 ${chain.today_flow >= 0 ? '+' : ''}${chain.today_flow.toFixed(2)}亿`;
+    }
   } catch(e) {}
 }
-function renderFundFlow(flows, dates) {
-  const el = document.getElementById('fundFlowChart');
-  if (!flows.length) { el.innerHTML='<span class="text-xs text-slate-600">暂无数据</span>'; return; }
-  const maxAbs = Math.max(...flows.map(Math.abs), 0.01), H=70, MID=35;
-  el.innerHTML = `<div style="display:flex;gap:1px;height:${H}px;position:relative;"><div style="position:absolute;left:0;right:0;top:${MID}px;height:1px;background:#334155;"></div>${flows.map((v,i)=>{
-    const barH=Math.max(2,Math.round((Math.abs(v)/maxAbs)*(MID-4)));
-    const [bg,top]=v>=0?['#ef4444',MID-barH]:['#22c55e',MID];
-    return `<div style="flex:1;position:relative;height:${H}px;"><div style="position:absolute;left:0;right:0;top:${top}px;height:${barH}px;background:${bg};border-radius:2px;opacity:.7;" title="${dates[i]||''}: ${v>=0?'+':''}${v.toFixed(2)}亿"></div></div>`;
-  }).join('')}</div>`;
-}
 
-// ── Canvas ──
+// ─── Treemap Canvas ──────────────────────────────────────────────
 async function loadCanvas() {
+  const loading = document.getElementById('treemapLoading');
+  const grid = document.getElementById('treemapGrid');
+  loading.classList.remove('hidden');
+  grid.classList.add('hidden');
+
   try {
     const r = await fetch(`/chain/api/treemap-data?name=${encodeURIComponent(CHAIN_NAME)}`);
     const d = await r.json();
-    if (!d.ok) throw new Error(d.error||'加载失败');
-    renderCanvas(d.data);
+    if (!d.ok) throw new Error(d.error || '加载失败');
+    _treemapData = d.data || [];
+    renderTreemap(_treemapData);
   } catch(e) {
-    document.getElementById('canvasLoading').innerHTML=`<span class="text-red-400 text-xs">${e.message}</span>`;
+    loading.innerHTML = `<span class="text-red-400 text-xs">${e.message}</span>`;
   }
 }
 
-function renderCanvas(data) {
+function renderTreemap(data) {
+  const loading = document.getElementById('treemapLoading');
+  const grid = document.getElementById('treemapGrid');
+  loading.classList.add('hidden');
+  grid.classList.remove('hidden');
+
+  if (!data || data.length === 0) {
+    grid.innerHTML = '<div class="h-full flex items-center justify-center text-slate-500 text-sm">暂无 Treemap 数据，请先通过「认知管理」生成 Baseline</div>';
+    return;
+  }
+
   // Group by tier, preserve order
-  const tierOrder = [];
-  const tierGroups = {};
-  data.forEach(d => {
-    if (!tierGroups[d.tier_key]) { tierGroups[d.tier_key]={label:d.tier_label,segs:[]}; tierOrder.push(d.tier_key); }
-    tierGroups[d.tier_key].segs.push(d);
+  const tierMap = new Map();
+  data.forEach(item => {
+    const key = item.tier_key || item.tier_label;
+    if (!tierMap.has(key)) tierMap.set(key, { label: item.tier_label, segments: [], totalSize: 0 });
+    const entry = tierMap.get(key);
+    // market_size 作为面积权重；无数据时用 _stock_count 作 fallback
+    const size = item.market_size || item._stock_count || 1;
+    entry.segments.push({ ...item, _size: size });
+    entry.totalSize += size;
   });
 
-  const area = document.getElementById('canvasArea');
-  area.innerHTML = '';
+  const tiers = [...tierMap.entries()];
+  const totalTiers = tiers.length;
+  const grandTotal = tiers.reduce((sum, [, t]) => sum + t.totalSize, 0) || 1;
 
-  tierOrder.forEach(tk => {
-    const tier = tierGroups[tk];
-    const style = getTierStyle(tk, tier.label);
-    const totalSize = tier.segs.reduce((s,seg)=>s+(seg.market_size||seg._stock_count||1),0);
+  // Row heights: use fixed px based on proportional size, with minimum per row
+  const MIN_ROW_H = 90; // px — ensure text always visible
+  const BASE_H = 600;   // total desired height for average chains
+  const rowHeights = tiers.map(([, t]) => {
+    const proportional = (t.totalSize / grandTotal) * BASE_H;
+    return Math.max(MIN_ROW_H, Math.round(proportional));
+  });
+  const totalH = rowHeights.reduce((a, b) => a + b, 0);
+  grid.style.minHeight = `${totalH}px`;
+  grid.style.gridTemplateRows = rowHeights.map(h => `${h}px`).join(' ');
 
-    const row = document.createElement('div');
-    row.className = 'tier-row';
-    row.style.borderColor = style.border+'66';
+  let html = '';
+  tiers.forEach(([tierKey, tier], tierIdx) => {
+    const colors = getTierColor(tierKey, tier.label, tierIdx, totalTiers);
 
-    // Tier label column
-    row.innerHTML = `<div class="tier-label" style="background:${style.bg};color:${style.border};">
-      <span>${tier.label.length > 6 ? tier.label.slice(0,6) : tier.label}</span>
-    </div>`;
+    // Column widths: compress with cbrt + floor at 60% of max
+    // Keeps proportional feel while ensuring all text is readable
+    const rawFracs = tier.segments.map(s => Math.cbrt(s._size));
+    const maxFrac = Math.max(...rawFracs);
+    const minFrac = maxFrac * 0.6;  // no column less than 60% of widest
+    const segFracs = rawFracs.map(f => Math.max(minFrac, f));
+    const colTemplate = segFracs.map(f => `${f.toFixed(2)}fr`).join(' ');
+    // Ensure minimum 110px per column so Chinese text fits
+    const minRowWidth = tier.segments.length * 110 + (tier.segments.length - 1) * 6;
 
-    // Segment blocks
-    tier.segs.forEach(seg => {
-      const val = seg.market_size || seg._stock_count || 1;
-      const pct = Math.max(8, (val / totalSize) * 100); // min 8% width
+    // Find the largest segment for emphasis
+    const maxSize = Math.max(...tier.segments.map(s => s._size));
+
+    html += `<div class="grid gap-1.5" style="grid-template-columns:${colTemplate};min-width:${minRowWidth}px;">`;
+    tier.segments.forEach((seg) => {
+      const isLargest = seg._size === maxSize && tier.segments.length > 1;
       const sizeLabel = seg.market_size ? `${seg.market_size}亿` : '';
-      const block = document.createElement('div');
-      block.className = 'seg-block';
-      block.style.cssText = `flex:${val};background:${style.bg};`;
-      block.innerHTML = `<div class="seg-name">${seg.segment}</div>${sizeLabel ? `<div class="seg-size">${sizeLabel}</div>` : ''}`;
-      block.onclick = () => selectSegment(block, tk, seg.segment);
-      row.appendChild(block);
+      const growthLabel = seg.growth_rate ? `${seg.growth_rate > 0 ? '+' : ''}${seg.growth_rate}%` : '';
+      const yearLabel = seg.data_year ? `${seg.data_year}` : '';
+
+      html += `
+      <div class="treemap-node rounded-lg p-3 flex flex-col justify-between relative overflow-hidden group"
+           style="background:${colors.bg};border:1px solid ${colors.border}40;min-height:70px;"
+           onclick="openDetail('${tierKey}', '${seg.segment.replace(/'/g, "\\'")}')">
+        <div>
+          ${isLargest ? `<span class="material-icons-round text-white/30 text-sm float-right">monitoring</span>` : ''}
+          <div class="text-white ${isLargest ? 'font-bold text-sm' : 'text-xs font-semibold'} leading-tight">${seg.segment}</div>
+          <div class="text-white/40 text-[10px] mt-0.5">${tier.label}</div>
+        </div>
+        ${sizeLabel ? `<div class="font-mono text-white/70 text-[11px] mt-auto pt-1">${sizeLabel} <span class="text-emerald-300/80">${growthLabel}</span>${yearLabel ? ` <span class="text-white/30 text-[9px]">${yearLabel}</span>` : ''}</div>` : ''}
+      </div>`;
     });
-
-    // Tier total badge
-    const badge = document.createElement('div');
-    badge.style.cssText = `padding:4px 8px;display:flex;align-items:center;background:${style.bg};border-left:1px solid ${style.border}33;`;
-    badge.innerHTML = `<span style="font-size:10px;color:${style.border};white-space:nowrap;writing-mode:vertical-rl;">${totalSize > 1 ? totalSize+'亿' : ''}</span>`;
-    row.appendChild(badge);
-
-    area.appendChild(row);
+    html += `</div>`;
   });
+
+  grid.innerHTML = html;
 }
 
-function selectSegment(el, tierKey, segment) {
-  if (_activeSegEl) _activeSegEl.classList.remove('active');
-  el.classList.add('active');
-  _activeSegEl = el;
-  loadSegmentDetail(tierKey, segment);
-}
+// ─── Detail Panel (right slide) ──────────────────────────────────
+async function openDetail(tierKey, segment) {
+  const panel = document.getElementById('detail-panel');
+  const title = document.getElementById('panel-title');
+  const subtitle = document.getElementById('panel-subtitle');
+  const content = document.getElementById('panel-content');
 
-// ── Detail Panel ──
-async function loadSegmentDetail(tierKey, segment) {
+  title.textContent = segment;
+  subtitle.textContent = `${CHAIN_NAME} · ${tierKey}`;
+  content.innerHTML = '<div class="flex items-center gap-2 text-slate-500 text-sm"><span class="material-icons-round animate-spin text-sm">refresh</span> Loading...</div>';
+
+  panel.classList.remove('translate-x-full');
+  panel.classList.add('translate-x-0');
+
   try {
     const r = await fetch(`/chain/api/segment-detail?name=${encodeURIComponent(CHAIN_NAME)}&tier_key=${encodeURIComponent(tierKey)}&segment=${encodeURIComponent(segment)}`);
     const d = await r.json();
-    if (!d.ok) throw new Error(d.error);
-    renderDetail(d, segment);
-  } catch(e) { console.error(e); }
+    if (!d.ok) throw new Error(d.error || 'Failed');
+    renderDetail(d);
+  } catch(e) {
+    content.innerHTML = `<div class="text-red-400 text-xs">${e.message}</div>`;
+  }
 }
 
-function renderDetail(data, segName) {
-  document.getElementById('detailTitle').textContent = `${segName}`;
-  const panel = document.getElementById('detailPanel');
-  panel.classList.add('open');
+function renderDetail(data) {
+  const content = document.getElementById('panel-content');
+  let html = '';
 
+  // Cognition
   const cog = data.cognition;
-  let html = '<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">';
-
-  // Left column: Cognition
-  html += '<div class="space-y-4">';
   if (cog) {
-    // Supply/Demand
+    html += `<section class="mb-5">
+      <h3 class="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-700 pb-2 mb-3">Segment Intelligence</h3>
+      <div class="space-y-3">`;
+
     if (cog.supply_factors || cog.demand_factors) {
       html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
-        <div class="text-xs font-bold text-slate-300 mb-2">供需因素</div>
-        ${cog.supply_factors ? `<div class="mb-2"><span class="text-xs text-blue-400 font-semibold">供给：</span><span class="text-xs text-slate-400">${cog.supply_factors.join('、')}</span></div>` : ''}
-        ${cog.demand_factors ? `<div><span class="text-xs text-emerald-400 font-semibold">需求：</span><span class="text-xs text-slate-400">${cog.demand_factors.join('、')}</span></div>` : ''}
+        ${cog.supply_factors ? `<div class="mb-2"><span class="text-xs text-blue-400 font-semibold">供给：</span><span class="text-xs text-slate-400">${Array.isArray(cog.supply_factors) ? cog.supply_factors.join('、') : cog.supply_factors}</span></div>` : ''}
+        ${cog.demand_factors ? `<div><span class="text-xs text-emerald-400 font-semibold">需求：</span><span class="text-xs text-slate-400">${Array.isArray(cog.demand_factors) ? cog.demand_factors.join('、') : cog.demand_factors}</span></div>` : ''}
       </div>`;
     }
-    // Cost elements
     if (cog.cost_elements && cog.cost_elements.length) {
       html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
         <div class="text-xs font-bold text-red-300 mb-2">成本结构</div>
-        <div class="space-y-1.5">${cog.cost_elements.map(el => {
-          if (typeof el === 'string') return `<span class="el-tag bg-red-900/30 text-red-300">${el}</span>`;
-          return `<div class="flex items-center justify-between text-xs">
-            <span class="text-slate-300 font-medium">${el.name}</span>
-            <div class="flex items-center gap-2">
-              ${el.share_pct ? `<span class="text-amber-400">${el.share_pct}</span>` : ''}
-              ${el.trend ? `<span class="text-slate-500">${el.trend}</span>` : ''}
-            </div>
-          </div>${el.driver ? `<div class="text-xs text-slate-500 pl-2 mb-1">${el.driver}</div>` : ''}`;
+        <div class="space-y-1">${cog.cost_elements.map(el => {
+          if (typeof el === 'string') return `<span class="inline-block text-[11px] px-2 py-0.5 rounded bg-red-900/30 text-red-300 mr-1 mb-1">${el}</span>`;
+          return `<div class="flex justify-between text-xs"><span class="text-slate-300">${el.name}</span><span class="text-amber-400">${el.share_pct||''}</span></div>`;
         }).join('')}</div>
       </div>`;
     }
-    // Revenue elements
     if (cog.revenue_elements && cog.revenue_elements.length) {
       html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
         <div class="text-xs font-bold text-emerald-300 mb-2">收入驱动</div>
-        <div class="space-y-1.5">${cog.revenue_elements.map(el => {
-          if (typeof el === 'string') return `<span class="el-tag bg-emerald-900/30 text-emerald-300">${el}</span>`;
-          return `<div class="flex items-center justify-between text-xs">
-            <span class="text-slate-300 font-medium">${el.name}</span>
-            ${el.growth_rate ? `<span class="text-emerald-400">${el.growth_rate}</span>` : ''}
-          </div>
-          ${el.volume_driver ? `<div class="text-xs text-slate-500 pl-2">量：${el.volume_driver}</div>` : ''}
-          ${el.price_driver ? `<div class="text-xs text-slate-500 pl-2 mb-1">价：${el.price_driver}</div>` : ''}`;
+        <div class="space-y-1">${cog.revenue_elements.map(el => {
+          if (typeof el === 'string') return `<span class="inline-block text-[11px] px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-300 mr-1 mb-1">${el}</span>`;
+          return `<div class="flex justify-between text-xs"><span class="text-slate-300">${el.name}</span><span class="text-emerald-400">${el.growth_rate||''}</span></div>`;
         }).join('')}</div>
       </div>`;
     }
-    // Competition
     if (cog.competition) {
       html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
         <div class="text-xs font-bold text-purple-300 mb-1">竞争格局</div>
         <div class="text-xs text-slate-400">${cog.competition}</div>
       </div>`;
     }
-  } else {
-    html += '<div class="text-xs text-slate-600 py-4">暂无认知数据，请先生成 Baseline</div>';
+    html += `</div></section>`;
   }
-  html += '</div>';
 
-  // Right column: Key Companies + Stocks
-  html += '<div class="space-y-4">';
-  // Key companies (龙头)
-  if (data.key_companies && data.key_companies.length) {
-    html += `<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/40">
-      <div class="text-xs font-bold text-amber-300 mb-2">龙头公司</div>
-      <div class="flex flex-wrap gap-1">${data.key_companies.map(c => `<span class="el-tag bg-amber-900/30 text-amber-200">${c}</span>`).join('')}</div>
+  // Key Companies
+  if (data.key_companies && data.key_companies.length > 0) {
+    html += `<section class="mb-5">
+      <h3 class="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-700 pb-2 mb-3">Key Companies</h3>
+      <div class="space-y-2">`;
+    data.key_companies.slice(0, 6).forEach(c => {
+      const name = typeof c === 'string' ? c : (c.name || c.stock_name || '');
+      const role = typeof c === 'object' ? (c.role || c.description || '') : '';
+      html += `<div class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/40 hover:border-primary/50 transition-colors">
+        <div class="w-8 h-8 rounded bg-slate-700 flex items-center justify-center text-primary font-bold text-[10px]">${name.slice(0, 2)}</div>
+        <div>
+          <div class="text-sm font-semibold text-slate-200">${name}</div>
+          ${role ? `<div class="text-[10px] text-slate-500">${role}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div></section>`;
+  }
+
+  // Stocks
+  if (data.stocks && data.stocks.length > 0) {
+    html += `<section class="mb-5">
+      <h3 class="text-xs font-bold text-primary uppercase tracking-wider border-b border-slate-700 pb-2 mb-3">Leading Stocks (${data.stocks.length})</h3>
+      <div class="space-y-2">`;
+    data.stocks.slice(0, 8).forEach(s => {
+      const pct = s.pct_change != null ? s.pct_change : null;
+      const pctColor = pct != null ? (pct >= 0 ? 'text-red-400' : 'text-green-400') : 'text-slate-600';
+      const pctStr = pct != null ? `${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%` : '';
+      html += `<div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/40 hover:border-primary/50 transition-colors cursor-pointer" onclick="window.open('/stock/${s.stock_code}','_blank')">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded bg-slate-700 flex items-center justify-center text-primary font-bold text-[10px]">${(s.stock_name || '').slice(0, 2)}</div>
+          <div>
+            <div class="text-sm font-semibold text-slate-200">${s.stock_name || s.stock_code}</div>
+            <div class="text-[10px] text-slate-500 font-mono">${s.stock_code || ''}</div>
+          </div>
+        </div>
+        <div class="text-right">
+          ${s.close_price ? `<div class="text-sm font-mono text-slate-300">${s.close_price.toFixed(2)}</div>` : ''}
+          ${pctStr ? `<div class="text-[10px] font-mono ${pctColor}">${pctStr}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    html += `</div></section>`;
+  }
+
+  // Empty state
+  if (!cog && (!data.stocks || !data.stocks.length) && (!data.key_companies || !data.key_companies.length)) {
+    html = `<div class="text-center py-10 text-slate-500">
+      <span class="material-icons-round text-3xl block mb-2">info</span>
+      <div class="text-sm">暂无该环节的详细数据</div>
+      <div class="text-xs mt-1">请先通过「认知管理」生成 Baseline</div>
     </div>`;
   }
-  // Stock table
-  if (data.stocks && data.stocks.length) {
-    html += `<div class="text-xs font-bold text-slate-300 mb-2">相关个股 (${data.stocks.length})</div>
-    <table class="stock-tbl"><thead><tr><th>名称</th><th>代码</th><th>现价</th><th>涨跌</th><th>市值</th></tr></thead><tbody>
-    ${data.stocks.map(s => `<tr class="cursor-pointer" onclick="window.open('/stock/${s.stock_code}','_blank')">
-      <td class="text-slate-200 font-semibold">${s.stock_name||''}</td>
-      <td class="text-slate-500">${s.stock_code||''}</td>
-      <td>${s.close_price?s.close_price.toFixed(2):'—'}</td>
-      <td class="${(s.pct_change||0)>=0?'text-red-400':'text-green-400'}">${s.pct_change?s.pct_change.toFixed(2)+'%':'—'}</td>
-      <td class="text-slate-400">${s.total_market_value?(s.total_market_value/1e8).toFixed(0)+'亿':'—'}</td>
-    </tr>`).join('')}</tbody></table>`;
-  } else if (!data.key_companies || !data.key_companies.length) {
-    html += '<div class="text-xs text-slate-600 py-4">暂无关联个股数据</div>';
-  }
-  html += '</div></div>';
 
-  document.getElementById('detailContent').innerHTML = html;
+  content.innerHTML = html;
 }
 
 function closeDetail() {
-  document.getElementById('detailPanel').classList.remove('open');
-  if (_activeSegEl) { _activeSegEl.classList.remove('active'); _activeSegEl=null; }
+  const panel = document.getElementById('detail-panel');
+  panel.classList.remove('translate-x-0');
+  panel.classList.add('translate-x-full');
 }
 
-// ── Cognition Drawer (same as before) ──
+// ─── Cognition Drawer ────────────────────────────────────────────
 function openCognitionDrawer() { document.getElementById('cogDrawer').classList.add('open'); document.getElementById('cogBackdrop').classList.add('open'); loadCognition(); }
 function closeCognitionDrawer() { document.getElementById('cogDrawer').classList.remove('open'); document.getElementById('cogBackdrop').classList.remove('open'); }
 
@@ -353,7 +415,6 @@ async function loadCognition() {
     const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline`);
     const d = await r.json();
     if (d.ok && d.has_baseline && d.baseline) {
-      _currentBaseline = d;
       document.getElementById('cog-version-label').textContent = `v${d.version}（${(d.created_at||'').slice(0,10)}）`;
       renderBaseline(typeof d.baseline==='string'?JSON.parse(d.baseline):d.baseline);
       document.getElementById('cog-baseline').classList.remove('hidden');
@@ -373,6 +434,7 @@ async function loadCognition() {
     }
   } catch(e) { document.getElementById('cog-version-label').textContent = '加载失败'; }
 }
+
 async function loadLatestDiff() {
   try {
     const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/latest`);
@@ -382,22 +444,22 @@ async function loadLatestDiff() {
     } else { document.getElementById('cog-diff').classList.add('hidden'); _currentDiffId=null; }
   } catch(e) {}
 }
+
 function renderBaseline(bl) {
-  const structEl=document.getElementById('bl-structure');
-  structEl.innerHTML = (bl.structure||[]).map(s=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${s.tier_key}</span> <span class="text-xs text-slate-400">${s.tier_label||''}</span>${s.tier_market_size_billion?` <span class="text-xs text-slate-500">${s.tier_market_size_billion}亿</span>`:''}</div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
-  const drvEl=document.getElementById('bl-drivers');
-  drvEl.innerHTML = (bl.drivers||[]).map(d=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${d.tier_key}</span><div class="text-xs text-slate-400 mt-1">供给：${(d.supply_factors||[]).join('、')||'—'}</div><div class="text-xs text-slate-400">需求：${(d.demand_factors||[]).join('、')||'—'}</div></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
-  const macroEl=document.getElementById('bl-macro');
-  macroEl.innerHTML = (bl.macro_relations||[]).map(m=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs text-slate-300">${m.macro_indicator}</span> <span class="text-xs text-slate-500">${m.transmission_path||''}</span></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
+  document.getElementById('bl-structure').innerHTML = (bl.structure||[]).map(s=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${s.tier_key}</span> <span class="text-xs text-slate-400">${s.tier_label||''}</span>${s.tier_market_size_billion?` <span class="text-xs text-slate-500">${s.tier_market_size_billion}亿</span>`:''}</div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
+  document.getElementById('bl-drivers').innerHTML = (bl.drivers||[]).map(d=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs font-bold text-primary">${d.tier_key}</span><div class="text-xs text-slate-400 mt-1">供给：${(d.supply_factors||[]).join('、')||'—'}</div><div class="text-xs text-slate-400">需求：${(d.demand_factors||[]).join('、')||'—'}</div></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
+  document.getElementById('bl-macro').innerHTML = (bl.macro_relations||[]).map(m=>`<div class="bg-slate-800/60 rounded-lg p-3 border border-slate-700/50"><span class="text-xs text-slate-300">${m.macro_indicator}</span> <span class="text-xs text-slate-500">${m.transmission_path||''}</span></div>`).join('')||'<p class="text-xs text-slate-600">暂无</p>';
 }
+
 function renderDiff(diff) {
   const changes=JSON.parse(diff.user_edited_json||diff.diff_json);
   document.getElementById('diff-summary').textContent=changes.summary||'';
   document.getElementById('diff-changes').innerHTML=(changes.changes||[]).map(c=>{
     const cls=c.change_type==='add'?'text-emerald-400':c.change_type==='remove'?'text-red-400':'text-amber-400';
     return `<div class="text-xs p-2 rounded bg-slate-900 border border-slate-700/40"><span class="${cls} font-bold">[${c.change_type==='add'?'新增':c.change_type==='remove'?'移除':'修改'}]</span> ${c.category||''}: ${c.detail||''}</div>`;
-  }).join('')||'<p class="text-xs text-slate-600">无变更</p>';
+  }).join('')||'<p class="text-xs text-slate-600 py-4">无变更</p>';
 }
+
 async function triggerGenerate() { if(!confirm('生成初始Baseline，需1-2分钟？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/generate`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('生成中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();loadCanvas();})} else alert(d.error||'失败'); }
 async function triggerEnrich() { if(!confirm('补充行业数据？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/baseline/enrich`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('补充中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();})} else alert(d.error||'失败'); }
 async function triggerDiff() { if(!confirm('生成增量Diff？'))return; const r=await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/diff/generate`,{method:'POST'}); const d=await r.json(); if(d.ok){showProgress('生成中…');pollTask(d.task_id,()=>{hideProgress();loadCognition();})} else alert(d.error||'失败'); }
@@ -407,5 +469,55 @@ async function showHistory() { const r=await fetch(`/chain/${encodeURIComponent(
 function showProgress(msg){document.getElementById('cog-progress').classList.remove('hidden');document.getElementById('cog-progress-msg').textContent=msg;document.getElementById('cog-progress-bar').style.width='10%';}
 function hideProgress(){document.getElementById('cog-progress').classList.add('hidden');document.getElementById('cog-progress-bar').style.width='0%';}
 function pollTask(taskId,onDone){let p=10;const iv=setInterval(async()=>{try{const r=await fetch(`/chain/api/baseline-task/${taskId}`);const d=await r.json();if(d.status==='done'){clearInterval(iv);document.getElementById('cog-progress-bar').style.width='100%';setTimeout(onDone,400);}else if(d.status==='error'){clearInterval(iv);hideProgress();alert('失败：'+(d.message||''));}else{p=Math.min(p+8,90);document.getElementById('cog-progress-bar').style.width=p+'%';if(d.message)document.getElementById('cog-progress-msg').textContent=d.message;}}catch(e){}},2000);}
+
+// ─── Refresh Market Size ─────────────────────────────────────────
+async function triggerRefreshMarketSize() {
+  if (!confirm('刷新行业市场规模数据？\n（三层检索：指标库 → 知识库 → 问财，约1-3分钟）')) return;
+  const btn = document.getElementById('btn-refresh');
+  const icon = document.getElementById('refresh-icon');
+  const status = document.getElementById('refresh-status');
+  btn.disabled = true;
+  btn.classList.add('opacity-50');
+  icon.classList.add('animate-spin');
+  status.classList.remove('hidden');
+  status.textContent = '启动中...';
+
+  try {
+    const r = await fetch(`/chain/${encodeURIComponent(CHAIN_NAME)}/api/refresh-market-size`, {method: 'POST'});
+    const d = await r.json();
+    if (!d.ok) { alert(d.error || '启动失败'); resetRefreshBtn(); return; }
+    pollRefreshTask(d.task_id);
+  } catch(e) { alert('请求失败: ' + e.message); resetRefreshBtn(); }
+}
+
+function pollRefreshTask(taskId) {
+  const status = document.getElementById('refresh-status');
+  const iv = setInterval(async () => {
+    try {
+      const r = await fetch(`/chain/api/baseline-task/${taskId}`);
+      const d = await r.json();
+      if (d.message) status.textContent = d.message;
+      if (d.status === 'done') {
+        clearInterval(iv);
+        status.textContent = d.message || '刷新完成';
+        setTimeout(() => { resetRefreshBtn(); loadCanvas(); }, 1000);
+      } else if (d.status === 'error') {
+        clearInterval(iv);
+        status.textContent = '失败: ' + (d.message || '');
+        setTimeout(resetRefreshBtn, 3000);
+      }
+    } catch(e) {}
+  }, 2500);
+}
+
+function resetRefreshBtn() {
+  const btn = document.getElementById('btn-refresh');
+  const icon = document.getElementById('refresh-icon');
+  const status = document.getElementById('refresh-status');
+  btn.disabled = false;
+  btn.classList.remove('opacity-50');
+  icon.classList.remove('animate-spin');
+  setTimeout(() => { status.classList.add('hidden'); }, 5000);
+}
 </script>
 {% endblock %}

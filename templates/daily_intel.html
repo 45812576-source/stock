@@ -30,10 +30,16 @@
     <h1 class="text-3xl font-extrabold tracking-tight">每日情报</h1>
   </div>
   <div class="flex items-center gap-3">
-    <!-- 日期选择 -->
-    <input type="date" id="date-picker" value="{{ today }}"
-           class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none"
-           onchange="loadIntel()">
+    <!-- 日期区间 -->
+    <div class="flex items-center gap-1">
+      <input type="date" id="date-start" value="{{ today }}"
+             class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-[130px]"
+             onchange="loadIntel()">
+      <span class="text-slate-500 text-xs">—</span>
+      <input type="date" id="date-end" value="{{ today }}"
+             class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-[130px]"
+             onchange="loadIntel()">
+    </div>
     <!-- 手动扫描 -->
     <button id="scan-btn" onclick="triggerScan()"
             class="flex items-center gap-2 px-4 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-semibold transition-colors">
@@ -49,7 +55,7 @@
 </header>
 
 <!-- 筛选栏 -->
-<div class="flex items-center gap-3 mb-4 flex-shrink-0">
+<div class="flex items-center gap-3 mb-4 flex-shrink-0 flex-wrap">
   <select id="filter-event" onchange="loadIntel()"
           class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none">
     <option value="">全部事件类型</option>
@@ -61,8 +67,18 @@
     <option value="宏观">宏观</option>
     <option value="其他">其他</option>
   </select>
-  <input id="filter-stock" placeholder="搜索股票..." onkeyup="debounceLoad()"
+  <input id="filter-industry" placeholder="行业模糊搜索..." onkeyup="debounceLoad()" list="industry-list"
+         class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-32">
+  <datalist id="industry-list"></datalist>
+  <input id="filter-theme" placeholder="投资主题关键字..." onkeyup="debounceLoad()" list="theme-list"
          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-36">
+  <datalist id="theme-list"></datalist>
+  <select id="filter-kline" onchange="loadIntel()"
+          class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none">
+    <option value="">K线策略</option>
+  </select>
+  <input id="filter-stock" placeholder="搜索股票..." onkeyup="debounceLoad()"
+         class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:border-primary focus:outline-none w-28">
   <span id="result-count" class="text-xs text-slate-500 ml-auto"></span>
 </div>
 
@@ -180,7 +196,8 @@ function escH(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 const _intelCache = {};
-const _klineCache = {};
+let _klineCache = {};
+let _klineEndDate = '';
 let _debTimer = null;
 let _loadSeq = 0;
 function debounceLoad() { clearTimeout(_debTimer); _debTimer = setTimeout(loadIntel, 350); }
@@ -210,13 +227,21 @@ function renderMiniKline(bars, w, h) {
 
 // ── 加载情报列表 ──────────────────────────────────────────────────
 async function loadIntel() {
-  const date  = document.getElementById('date-picker').value;
+  const startD = document.getElementById('date-start').value;
+  const endD   = document.getElementById('date-end').value;
   const etype = document.getElementById('filter-event').value;
   const stock = document.getElementById('filter-stock').value.trim();
+  const industry = document.getElementById('filter-industry').value.trim();
+  const theme = document.getElementById('filter-theme').value.trim();
+  const kline = document.getElementById('filter-kline').value;
   const params = new URLSearchParams();
-  if (date)  params.set('scan_date', date);
+  if (startD) params.set('start_date', startD);
+  if (endD)   params.set('end_date', endD);
   if (etype) params.set('event_type', etype);
   if (stock) params.set('stock', stock);
+  if (industry) params.set('industry', industry);
+  if (theme) params.set('theme', theme);
+  if (kline) params.set('kline_strategy', kline);
 
   const seq = ++_loadSeq;
   const tbody = document.getElementById('intel-list');
@@ -283,6 +308,9 @@ async function loadIntel() {
 
 // ── 批量K线填充 ────────────────────────────────────────────────────
 async function loadKlineBatch(codes, items, seq) {
+  const endD = document.getElementById('date-end').value;
+  // 日期变化时清空缓存
+  if (endD !== _klineEndDate) { _klineCache = {}; _klineEndDate = endD; }
   // 分批：每批最多30个code，避免URL过长
   const BATCH = 30;
   for (let i = 0; i < codes.length; i += BATCH) {
@@ -292,7 +320,9 @@ async function loadKlineBatch(codes, items, seq) {
     const uncached = batch.filter(c => !_klineCache[c]);
     if (uncached.length) {
       try {
-        const data = await fetch('/daily-intel/api/kline-batch?codes=' + uncached.join(',')).then(r => r.json());
+        let url = '/daily-intel/api/kline-batch?codes=' + uncached.join(',');
+        if (endD) url += '&end_date=' + endD;
+        const data = await fetch(url).then(r => r.json());
         Object.assign(_klineCache, data);
       } catch(e) {}
     }
@@ -463,7 +493,7 @@ async function triggerScan() {
   icon.classList.add('scan-badge');
   label.textContent = '扫描中...';
   try {
-    const scanDate = document.getElementById('date-picker').value;
+    const scanDate = document.getElementById('date-end').value;
     const r = await fetch('/daily-intel/api/scan', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
@@ -525,16 +555,36 @@ async function submitManual() {
   } catch(e) { msg.textContent = '请求失败'; }
 }
 
+// ── 加载筛选选项 ──────────────────────────────────────────────────
+async function loadFilterOptions() {
+  try {
+    const data = await fetch('/daily-intel/api/filter-options').then(r => r.json());
+    // 行业 datalist
+    const indList = document.getElementById('industry-list');
+    indList.innerHTML = (data.industries || []).map(v => `<option value="${v}">`).join('');
+    // 主题 datalist
+    const thList = document.getElementById('theme-list');
+    thList.innerHTML = (data.themes || []).map(v => `<option value="${v}">`).join('');
+    // Kline策略下拉
+    const kSel = document.getElementById('filter-kline');
+    const kOpts = (data.kline_strategies || []).map(v => `<option value="${v.key}">${v.label}(${v.count})</option>`).join('');
+    kSel.innerHTML = '<option value="">K线策略</option>' + kOpts;
+  } catch(e) { console.warn('loadFilterOptions failed', e); }
+}
+
 // ── 初始化 ───────────────────────────────────────────────────────
 // 今天若无数据，自动切到最近有数据的日期
 (async () => {
   try {
     const { dates } = await fetch('/daily-intel/api/dates').then(r => r.json());
-    const picker = document.getElementById('date-picker');
-    if (dates && dates.length && !dates.includes(picker.value)) {
-      picker.value = dates[0];
+    const startEl = document.getElementById('date-start');
+    const endEl = document.getElementById('date-end');
+    if (dates && dates.length && !dates.includes(endEl.value)) {
+      startEl.value = dates[0];
+      endEl.value = dates[0];
     }
   } catch(e) {}
+  loadFilterOptions();
   loadIntel();
 })();
 

@@ -1128,6 +1128,34 @@ def api_enrich_baseline(name: str, background_tasks: BackgroundTasks):
     return {"ok": True, "task_id": task_id}
 
 
+@router.post("/{name}/api/refresh-market-size")
+def api_refresh_market_size(name: str, background_tasks: BackgroundTasks):
+    """触发行业市场规模三层降级刷新（后台任务）"""
+    task_id = f"mktsize_{name}_{int(time.time())}"
+    if any(t.get("status") == "running" and t.get("chain") == name for t in _baseline_tasks.values()):
+        return JSONResponse({"ok": False, "error": "该产业链已有任务运行中"}, status_code=409)
+
+    _baseline_tasks[task_id] = {"status": "running", "chain": name, "progress": 0, "message": "初始化市场规模刷新..."}
+
+    def _run():
+        from chain.market_size_refresher import refresh_market_size
+        try:
+            def _cb(msg, pct=None):
+                _baseline_tasks[task_id].update(message=msg)
+                if pct is not None:
+                    _baseline_tasks[task_id]["progress"] = pct
+            result = refresh_market_size(name, progress_callback=_cb)
+            _baseline_tasks[task_id].update(status="done", progress=100,
+                                            message=f"完成: 更新{result.get('updated',0)}个环节",
+                                            result=result)
+        except Exception as e:
+            logger.error(f"市场规模刷新失败[{name}]: {e}")
+            _baseline_tasks[task_id].update(status="error", message=str(e))
+
+    background_tasks.add_task(_run)
+    return {"ok": True, "task_id": task_id}
+
+
 @router.post("/{name}/api/diff/generate")
 def api_generate_diff(name: str, background_tasks: BackgroundTasks):
     """触发增量 Diff 生成（后台任务）"""
@@ -1317,6 +1345,8 @@ def api_treemap_data(name: str):
                         "market_size": seg.get("market_size_billion"),
                         "growth_rate": seg.get("growth_rate_pct"),
                         "tier_market_size": tier_size,
+                        "data_year": seg.get("_data_year"),
+                        "data_source": seg.get("_data_source"),
                     })
         except Exception as e:
             logger.warning(f"解析baseline失败 [{name}]: {e}")
