@@ -1,7 +1,7 @@
 """系统管理路由 - 用户管理/配额监控"""
 from datetime import datetime
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
@@ -12,16 +12,12 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
 
-@router.get("", response_class=HTMLResponse)
-def admin_page(request: Request, user: TokenData = Depends(require_super_admin)):
-    """管理后台首页"""
-    # 统计
+def _get_admin_overview() -> dict:
+    """管理后台首页统计（供 HTML 页与 JSON API 共用）"""
     total_users = execute_query("SELECT COUNT(*) as cnt FROM users")
     total_users = total_users[0]['cnt'] if total_users else 0
 
-    role_stats = execute_query("""
-        SELECT role, COUNT(*) as cnt FROM users GROUP BY role
-    """)
+    role_stats = execute_query("SELECT role, COUNT(*) as cnt FROM users GROUP BY role")
     role_distribution = {r['role']: r['cnt'] for r in role_stats}
 
     total_points = execute_query("SELECT SUM(points_balance) as total FROM users")
@@ -32,15 +28,25 @@ def admin_page(request: Request, user: TokenData = Depends(require_super_admin))
         WHERE DATE(created_at) = CURDATE()
     """)
 
-    ctx = {
-        "request": request,
-        "active_page": "admin",
+    return {
         "total_users": total_users,
         "role_distribution": role_distribution,
         "total_points": total_points,
         "active_today": active_today[0]['cnt'] if active_today else 0,
         "today": datetime.now().strftime("%Y-%m-%d"),
     }
+
+
+@router.get("/api/overview", response_class=JSONResponse)
+def api_admin_overview(user: TokenData = Depends(require_super_admin)):
+    """管理后台首页统计（JSON，供 SPA 使用）"""
+    return _get_admin_overview()
+
+
+@router.get("", response_class=HTMLResponse)
+def admin_page(request: Request, user: TokenData = Depends(require_super_admin)):
+    """管理后台首页"""
+    ctx = {"request": request, "active_page": "admin", **_get_admin_overview()}
     return templates.TemplateResponse("admin.html", ctx)
 
 

@@ -5,7 +5,9 @@
 - 每次构建完成后自动运行一次推理引擎
 - 手动触发构建完成后也自动跟一次推理
 """
+import json
 import logging
+import traceback
 from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -16,6 +18,395 @@ from utils.db_utils import execute_query, execute_insert
 logger = logging.getLogger(__name__)
 
 scheduler = BackgroundScheduler(timezone="Asia/Shanghai")
+
+
+# ── 运行日志 ──────────────────────────────────────────────────
+
+def _ensure_run_log_table():
+    execute_insert(
+        """CREATE TABLE IF NOT EXISTS scheduler_run_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            job_id VARCHAR(128) NOT NULL,
+            job_name VARCHAR(255) NOT NULL,
+            started_at DATETIME NOT NULL,
+            finished_at DATETIME DEFAULT NULL,
+            status VARCHAR(32) DEFAULT 'running',
+            result_summary TEXT DEFAULT NULL,
+            error_msg TEXT DEFAULT NULL,
+            INDEX idx_job_id (job_id),
+            INDEX idx_started (started_at)
+        )""", []
+    )
+
+_run_log_table_ready = False
+
+
+def _log_run_start(job_id: str, job_name: str) -> int:
+    """记录任务开始，返回 log id"""
+    global _run_log_table_ready
+    if not _run_log_table_ready:
+        _ensure_run_log_table()
+        _run_log_table_ready = True
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return execute_insert(
+        "INSERT INTO scheduler_run_log (job_id, job_name, started_at, status) VALUES (%s, %s, %s, 'running')",
+        [job_id, job_name, now],
+    )
+
+
+def _log_run_finish(log_id: int, status: str, result_summary: str = None, error_msg: str = None):
+    """记录任务结束"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    summary = result_summary[:2000] if result_summary and len(result_summary) > 2000 else result_summary
+    err = error_msg[:2000] if error_msg and len(error_msg) > 2000 else error_msg
+    execute_insert(
+        "UPDATE scheduler_run_log SET finished_at=%s, status=%s, result_summary=%s, error_msg=%s WHERE id=%s",
+        [now, status, summary, err, log_id],
+    )
+
+
+def _wrap_job(job_id: str, job_name: str, func):
+    """包装定时任务函数，自动记录运行日志"""
+    def wrapped(*args, **kwargs):
+        log_id = _log_run_start(job_id, job_name)
+        try:
+            result = func(*args, **kwargs)
+            summary = json.dumps(result, ensure_ascii=False, default=str) if result else None
+            _log_run_finish(log_id, 'success', result_summary=summary)
+            return result
+        except Exception as e:
+            _log_run_finish(log_id, 'failed', error_msg=f"{e}\n{traceback.format_exc()[-500:]}")
+            raise
+    wrapped.__name__ = func.__name__
+    wrapped.__doc__ = func.__doc__
+    return wrapped
+
+
+# 任务分组映射
+_JOB_GROUP_MAP = {
+    # 数据采集
+    "zsxq_scanner_morning": "collect",
+    "zsxq_scanner_afternoon": "collect",
+    "akshare_daily": "collect",
+    "macro_daily": "collect",
+    "macro_monthly": "collect",
+    "market_data_monthly": "collect",
+    "wencai_indicators_daily": "collect",
+    # 知识图谱
+    "kg_auto_morning": "kg",
+    "kg_auto_evening": "kg",
+    # 分析扫描
+    "robust_kline_morning": "analysis",
+    "robust_kline_afternoon": "analysis",
+    "prediction_monitor_daily": "analysis",
+    # 数据维护
+    "diagnose_failed_morning": "maintain",
+    "diagnose_failed_evening": "maintain",
+    "daily_sync_nightly": "maintain",
+}
+
+_JOB_GROUPS = [
+    {"key": "collect",  "label": "数据采集", "order": 1},
+    {"key": "kg",       "label": "知识图谱", "order": 2},
+    {"key": "analysis", "label": "分析扫描", "order": 3},
+    {"key": "maintain", "label": "数据维护", "order": 4},
+    {"key": "custom",   "label": "自定义",   "order": 5},
+]
+
+
+def get_scheduler_jobs() -> list:
+    """获取所有已注册的定时任务信息（分组 + 按下次执行时间排序）"""
+    global _custom_jobs_table_ready
+    if not _custom_jobs_table_ready:
+        _ensure_custom_jobs_table()
+        _custom_jobs_table_ready = True
+
+    custom_ids = set()
+    try:
+        rows = execute_query("SELECT job_id FROM custom_scheduler_jobs") or []
+        custom_ids = {r["job_id"] for r in rows}
+    except Exception:
+        pass
+
+    jobs = []
+    for job in scheduler.get_jobs():
+        trigger = job.trigger
+        schedule = str(trigger)
+        next_run = job.next_run_time.strftime("%Y-%m-%d %H:%M:%S") if job.next_run_time else None
+        paused = job.next_run_time is None
+        is_custom = job.id in custom_ids
+        group = "custom" if is_custom else _JOB_GROUP_MAP.get(job.id, "maintain")
+        jobs.append({
+            "job_id": job.id,
+            "name": job.name or job.id,
+            "group": group,
+            "schedule": schedule,
+            "next_run": next_run,
+            "paused": paused,
+            "is_custom": is_custom,
+            "description": (job.func.__doc__ or "").strip().split("\n")[0] if job.func else "",
+        })
+
+    # 按分组 order + 下次执行时间排序
+    group_order = {g["key"]: g["order"] for g in _JOB_GROUPS}
+    jobs.sort(key=lambda j: (group_order.get(j["group"], 99), j["next_run"] or "9999"))
+    return jobs
+
+
+def get_job_groups() -> list:
+    """获取任务分组定义"""
+    return _JOB_GROUPS
+
+
+def get_scheduler_run_history(limit: int = 50, job_id: str = None) -> list:
+    """获取最近的任务运行历史"""
+    global _run_log_table_ready
+    if not _run_log_table_ready:
+        _ensure_run_log_table()
+        _run_log_table_ready = True
+    if job_id:
+        rows = execute_query(
+            "SELECT * FROM scheduler_run_log WHERE job_id=%s ORDER BY started_at DESC LIMIT %s",
+            [job_id, limit],
+        )
+    else:
+        rows = execute_query(
+            "SELECT * FROM scheduler_run_log ORDER BY started_at DESC LIMIT %s",
+            [limit],
+        )
+    return rows or []
+
+
+# ── 可调用的管线函数注册表 ───────────────────────────────
+
+PIPELINE_REGISTRY = {
+    "kg_update": {
+        "label": "KG 增量构建 + 推理",
+        "desc": "增量构建KG，处理上次构建后新增的 cleaned_items，完成后自动跑推理",
+    },
+    "macro_daily": {
+        "label": "宏观日度采集",
+        "desc": "Shibor/融资余额/全A PE/陆股通/海外ETF + 同步到本地",
+    },
+    "macro_monthly": {
+        "label": "宏观月度采集",
+        "desc": "M2/社融/PMI + 同步到本地",
+    },
+    "market_data_monthly": {
+        "label": "市场增量数据同步",
+        "desc": "insider_trading/shareholder_count/institutional_holding/margin_trading/valuation_history/etf_constituent",
+    },
+    "akshare_daily": {
+        "label": "AKShare 行情采集+同步",
+        "desc": "A股日线行情数据采集并同步到本地",
+    },
+    "robust_kline": {
+        "label": "Robust Kline 扫描",
+        "desc": "扫描报告提及 → 月K线过滤 → 亮点填充",
+    },
+    "wencai_indicators": {
+        "label": "问财行业指标采集",
+        "desc": "从问财采集行业指标 → LLM提取 → 写入 industry_indicators",
+    },
+    "prediction_monitor": {
+        "label": "K线预测监控检测",
+        "desc": "检测所有活跃预测监控的触发条件是否满足",
+    },
+    "zsxq_scanner": {
+        "label": "zsxq采集+清洗+scanner",
+        "desc": "zsxq采集 + 自动提取清洗入管线 + daily intel scanner",
+    },
+    "diagnose_failed": {
+        "label": "自动诊断failed+重试",
+        "desc": "诊断 failed 状态记录并智能重试（限制 50 条）",
+    },
+    "daily_sync_nightly": {
+        "label": "chain_sync + theme_merger",
+        "desc": "夜间兖底：产业链同步 + 主题合并",
+    },
+}
+
+_PIPELINE_FUNC_MAP = {}  # 延迟初始化，避免循环导入
+
+
+def _get_pipeline_func(pipeline_key: str):
+    """获取管线函数（延迟导入）"""
+    if not _PIPELINE_FUNC_MAP:
+        _PIPELINE_FUNC_MAP.update({
+            "kg_update": run_kg_update,
+            "macro_daily": run_macro_daily,
+            "macro_monthly": run_macro_monthly,
+            "market_data_monthly": run_market_data_monthly,
+            "akshare_daily": run_akshare_daily,
+            "robust_kline": _run_robust_kline_daily,
+            "wencai_indicators": run_wencai_indicators,
+            "prediction_monitor": run_prediction_monitor_job,
+        })
+    return _PIPELINE_FUNC_MAP.get(pipeline_key)
+
+
+# ── 自定义任务 CRUD ─────────────────────────────────────
+
+def _ensure_custom_jobs_table():
+    execute_insert(
+        """CREATE TABLE IF NOT EXISTS custom_scheduler_jobs (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            job_id VARCHAR(128) UNIQUE NOT NULL,
+            job_name VARCHAR(255) NOT NULL,
+            pipeline_key VARCHAR(128) NOT NULL,
+            cron_expr VARCHAR(255) NOT NULL,
+            enabled TINYINT DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )""", []
+    )
+
+_custom_jobs_table_ready = False
+
+
+def _parse_cron(cron_expr: str) -> dict:
+    """解析 cron 表达式 (minute hour day month day_of_week) 为 CronTrigger 参数"""
+    parts = cron_expr.strip().split()
+    if len(parts) < 2:
+        raise ValueError(f"无效的 cron 表达式: {cron_expr}")
+    kwargs = {}
+    fields = ['minute', 'hour', 'day', 'month', 'day_of_week']
+    for i, part in enumerate(parts[:5]):
+        if part != '*':
+            kwargs[fields[i]] = part
+    return kwargs
+
+
+def create_custom_job(job_name: str, pipeline_key: str, cron_expr: str) -> dict:
+    """创建自定义定时任务"""
+    global _custom_jobs_table_ready
+    if not _custom_jobs_table_ready:
+        _ensure_custom_jobs_table()
+        _custom_jobs_table_ready = True
+
+    if pipeline_key not in PIPELINE_REGISTRY:
+        return {"ok": False, "error": f"未知管线: {pipeline_key}"}
+
+    job_id = f"custom_{pipeline_key}_{int(datetime.now().timestamp())}"
+
+    # 验证 cron
+    try:
+        cron_kwargs = _parse_cron(cron_expr)
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+    # 存 DB
+    execute_insert(
+        "INSERT INTO custom_scheduler_jobs (job_id, job_name, pipeline_key, cron_expr, enabled) VALUES (%s,%s,%s,%s,1)",
+        [job_id, job_name, pipeline_key, cron_expr],
+    )
+
+    # 注册到 scheduler
+    func = _get_pipeline_func(pipeline_key)
+    if func:
+        scheduler.add_job(
+            _wrap_job(job_id, job_name, func),
+            CronTrigger(**cron_kwargs),
+            id=job_id, replace_existing=True, name=job_name,
+        )
+
+    return {"ok": True, "job_id": job_id}
+
+
+def update_custom_job(job_id: str, job_name: str = None, cron_expr: str = None, enabled: bool = None) -> dict:
+    """编辑定时任务（自定义和系统任务均支持改调度规则）"""
+    global _custom_jobs_table_ready
+    if not _custom_jobs_table_ready:
+        _ensure_custom_jobs_table()
+        _custom_jobs_table_ready = True
+
+    # 检查是否是自定义任务
+    rows = execute_query("SELECT * FROM custom_scheduler_jobs WHERE job_id=%s", [job_id])
+    is_custom = bool(rows)
+
+    if cron_expr:
+        try:
+            cron_kwargs = _parse_cron(cron_expr)
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+        # 重新调度
+        try:
+            scheduler.reschedule_job(job_id, trigger=CronTrigger(**cron_kwargs))
+        except Exception as e:
+            return {"ok": False, "error": f"重新调度失败: {e}"}
+
+    if enabled is not None:
+        if enabled:
+            scheduler.resume_job(job_id)
+        else:
+            scheduler.pause_job(job_id)
+
+    # 如果是自定义任务，更新 DB
+    if is_custom:
+        updates = []
+        params = []
+        if job_name:
+            updates.append("job_name=%s")
+            params.append(job_name)
+        if cron_expr:
+            updates.append("cron_expr=%s")
+            params.append(cron_expr)
+        if enabled is not None:
+            updates.append("enabled=%s")
+            params.append(1 if enabled else 0)
+        if updates:
+            params.append(job_id)
+            execute_insert(f"UPDATE custom_scheduler_jobs SET {','.join(updates)} WHERE job_id=%s", params)
+
+    return {"ok": True}
+
+
+def delete_custom_job(job_id: str) -> dict:
+    """删除自定义任务"""
+    global _custom_jobs_table_ready
+    if not _custom_jobs_table_ready:
+        _ensure_custom_jobs_table()
+        _custom_jobs_table_ready = True
+
+    rows = execute_query("SELECT * FROM custom_scheduler_jobs WHERE job_id=%s", [job_id])
+    if not rows:
+        return {"ok": False, "error": "只能删除自定义任务"}
+
+    try:
+        scheduler.remove_job(job_id)
+    except Exception:
+        pass
+    execute_insert("DELETE FROM custom_scheduler_jobs WHERE job_id=%s", [job_id])
+    return {"ok": True}
+
+
+def load_custom_jobs():
+    """启动时加载自定义任务并注册到 scheduler"""
+    global _custom_jobs_table_ready
+    if not _custom_jobs_table_ready:
+        _ensure_custom_jobs_table()
+        _custom_jobs_table_ready = True
+
+    rows = execute_query("SELECT * FROM custom_scheduler_jobs WHERE enabled=1") or []
+    for row in rows:
+        func = _get_pipeline_func(row["pipeline_key"])
+        if not func:
+            continue
+        try:
+            cron_kwargs = _parse_cron(row["cron_expr"])
+            scheduler.add_job(
+                _wrap_job(row["job_id"], row["job_name"], func),
+                CronTrigger(**cron_kwargs),
+                id=row["job_id"], replace_existing=True, name=row["job_name"],
+            )
+        except Exception as e:
+            logger.warning(f"[Scheduler] 加载自定义任务 {row['job_id']} 失败: {e}")
+
+
+def get_pipeline_options() -> list:
+    """获取可选的管线列表供前端创建任务用"""
+    return [{"key": k, "label": v["label"], "desc": v["desc"]} for k, v in PIPELINE_REGISTRY.items()]
 
 # ── 状态追踪 ──────────────────────────────────────────────────
 
@@ -375,61 +766,71 @@ def start_scheduler():
 
     # 每天 06:00
     scheduler.add_job(
-        run_kg_update, CronTrigger(hour=6, minute=0),
+        _wrap_job("kg_auto_morning", "KG早间自动构建", run_kg_update),
+        CronTrigger(hour=6, minute=0),
         id="kg_auto_morning", replace_existing=True,
         name="KG早间自动构建",
     )
     # 每天 20:00
     scheduler.add_job(
-        run_kg_update, CronTrigger(hour=20, minute=0),
+        _wrap_job("kg_auto_evening", "KG晚间自动构建", run_kg_update),
+        CronTrigger(hour=20, minute=0),
         id="kg_auto_evening", replace_existing=True,
         name="KG晚间自动构建",
     )
 
     # 每天 18:30 — 宏观日度采集
     scheduler.add_job(
-        run_macro_daily, CronTrigger(hour=18, minute=30),
+        _wrap_job("macro_daily", "宏观日度采集", run_macro_daily),
+        CronTrigger(hour=18, minute=30),
         id="macro_daily", replace_existing=True,
         name="宏观日度采集",
     )
     # 每月 15 日 19:00 — 宏观月度采集
     scheduler.add_job(
-        run_macro_monthly, CronTrigger(day=15, hour=19, minute=0),
+        _wrap_job("macro_monthly", "宏观月度采集", run_macro_monthly),
+        CronTrigger(day=15, hour=19, minute=0),
         id="macro_monthly", replace_existing=True,
         name="宏观月度采集",
     )
     # 每月 5/15/25 日 20:30 — 市场增量数据同步
     scheduler.add_job(
-        run_market_data_monthly, CronTrigger(day="5,15,25", hour=20, minute=30),
+        _wrap_job("market_data_monthly", "市场增量数据月度同步", run_market_data_monthly),
+        CronTrigger(day="5,15,25", hour=20, minute=30),
         id="market_data_monthly", replace_existing=True,
         name="市场增量数据月度同步",
     )
     # 每天 19:00 — AKShare 行情数据采集 + 同步
     scheduler.add_job(
-        run_akshare_daily, CronTrigger(hour=19, minute=0),
+        _wrap_job("akshare_daily", "AKShare行情日度采集+同步", run_akshare_daily),
+        CronTrigger(hour=19, minute=0),
         id="akshare_daily", replace_existing=True,
         name="AKShare行情日度采集+同步",
     )
     # 每天 06:00 + 16:00 — Robust Kline 扫描
     scheduler.add_job(
-        _run_robust_kline_daily, CronTrigger(hour=6, minute=0),
+        _wrap_job("robust_kline_morning", "Robust Kline 早间扫描", _run_robust_kline_daily),
+        CronTrigger(hour=6, minute=0),
         id="robust_kline_morning", replace_existing=True,
         name="Robust Kline 早间扫描",
     )
     scheduler.add_job(
-        _run_robust_kline_daily, CronTrigger(hour=16, minute=0),
+        _wrap_job("robust_kline_afternoon", "Robust Kline 午后扫描", _run_robust_kline_daily),
+        CronTrigger(hour=16, minute=0),
         id="robust_kline_afternoon", replace_existing=True,
         name="Robust Kline 午后扫描",
     )
     # 每天 21:00 — 问财行业指标采集
     scheduler.add_job(
-        run_wencai_indicators, CronTrigger(hour=21, minute=0),
+        _wrap_job("wencai_indicators_daily", "问财行业指标采集", run_wencai_indicators),
+        CronTrigger(hour=21, minute=0),
         id="wencai_indicators_daily", replace_existing=True,
         name="问财行业指标采集",
     )
     # 每交易日 19:30 — 预测监控检测（日线数据入库后）
     scheduler.add_job(
-        run_prediction_monitor_job, CronTrigger(hour=19, minute=30, day_of_week='mon-fri'),
+        _wrap_job("prediction_monitor_daily", "K线预测监控检测", run_prediction_monitor_job),
+        CronTrigger(hour=19, minute=30, day_of_week='mon-fri'),
         id="prediction_monitor_daily", replace_existing=True,
         name="K线预测监控检测",
     )
@@ -506,13 +907,15 @@ def start_scheduler():
             logger.warning(f"[Scheduler] daily intel scanner 失败 {day}: {e}")
 
     scheduler.add_job(
-        _run_zsxq_and_scanner, CronTrigger(hour=7, minute=0),
+        _wrap_job("zsxq_scanner_morning", "zsxq采集+daily intel scanner 早间", _run_zsxq_and_scanner),
+        CronTrigger(hour=7, minute=0),
         id="zsxq_scanner_morning", replace_existing=True,
         name="zsxq采集+daily intel scanner 早间",
         misfire_grace_time=8 * 3600,  # 断线8小时内重连仍补跑
     )
     scheduler.add_job(
-        _run_zsxq_and_scanner, CronTrigger(hour=17, minute=0),
+        _wrap_job("zsxq_scanner_afternoon", "zsxq采集+daily intel scanner 午后", _run_zsxq_and_scanner),
+        CronTrigger(hour=17, minute=0),
         id="zsxq_scanner_afternoon", replace_existing=True,
         name="zsxq采集+daily intel scanner 午后",
         misfire_grace_time=8 * 3600,
@@ -528,12 +931,14 @@ def start_scheduler():
             logger.warning(f"[Scheduler] 自动诊断failed失败: {e}")
 
     scheduler.add_job(
-        _run_diagnose_failed, CronTrigger(hour=8, minute=30),
+        _wrap_job("diagnose_failed_morning", "自动诊断failed+重试 早间", _run_diagnose_failed),
+        CronTrigger(hour=8, minute=30),
         id="diagnose_failed_morning", replace_existing=True,
         name="自动诊断failed+重试 早间",
     )
     scheduler.add_job(
-        _run_diagnose_failed, CronTrigger(hour=18, minute=30),
+        _wrap_job("diagnose_failed_evening", "自动诊断failed+重试 晚间", _run_diagnose_failed),
+        CronTrigger(hour=18, minute=30),
         id="diagnose_failed_evening", replace_existing=True,
         name="自动诊断failed+重试 晚间",
     )
@@ -592,12 +997,15 @@ def start_scheduler():
             logger.warning(f"[Scheduler] theme_merger 夜间失败: {e}")
 
     scheduler.add_job(
-        _run_daily_sync_nightly, CronTrigger(hour=23, minute=0),
+        _wrap_job("daily_sync_nightly", "chain_sync + theme_merger 夜间兜底", _run_daily_sync_nightly),
+        CronTrigger(hour=23, minute=0),
         id="daily_sync_nightly", replace_existing=True,
         name="chain_sync + theme_merger 夜间兜底",
     )
 
     scheduler.start()
+    # 加载用户自定义任务
+    load_custom_jobs()
     logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集+自动清洗入管线+scanner, 08:30+18:30 诊断failed+重试, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
 
 

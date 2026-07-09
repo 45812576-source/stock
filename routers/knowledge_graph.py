@@ -169,6 +169,17 @@ def kg_inference_page(request: Request):
 
 # ==================== API 路由 ====================
 
+@router.get("/api/meta", response_class=JSONResponse)
+def api_kg_meta():
+    """返回 KG 元数据（实体配色 / 关系标签 / Schema / 统计），供 SPA 使用"""
+    return {
+        "entity_colors": ENTITY_COLORS,
+        "relation_labels": RELATION_LABELS,
+        "entity_schema": ENTITY_SCHEMA,
+        "stats": get_kg_stats(),
+    }
+
+
 @router.get("/api/graph-data", response_class=JSONResponse)
 def api_graph_data(center_id: int = 0, depth: int = 2):
     """获取图谱数据（vis-network 格式）"""

@@ -1,7 +1,7 @@
 """认证依赖 - 用于保护需要登录的路由"""
 import os
 from typing import Optional
-from fastapi import Depends, HTTPException, Cookie, Request
+from fastapi import Depends, HTTPException, Cookie, Header, Request
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
@@ -35,30 +35,47 @@ def decode_token(token: str) -> Optional[TokenData]:
         return None
 
 
-def get_current_user(access_token: Optional[str] = Cookie(None)) -> TokenData:
+def _extract_token(access_token: Optional[str], authorization: Optional[str]) -> Optional[str]:
+    """优先取 cookie，其次取 Authorization: Bearer（供独立域名 SPA 使用）"""
+    if access_token:
+        return access_token
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization[7:].strip()
+    return None
+
+
+def get_current_user(
+    access_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+) -> TokenData:
     """获取当前登录用户 - 必须登录"""
     if AUTH_DISABLED:
         return DEV_USER
 
-    if not access_token:
+    token = _extract_token(access_token, authorization)
+    if not token:
         raise HTTPException(status_code=401, detail="请先登录", headers={"Location": "/auth/login"})
 
-    token_data = decode_token(access_token)
+    token_data = decode_token(token)
     if not token_data:
         raise HTTPException(status_code=401, detail="登录已过期，请重新登录", headers={"Location": "/auth/login"})
 
     return token_data
 
 
-def get_optional_user(access_token: Optional[str] = Cookie(None)) -> Optional[TokenData]:
+def get_optional_user(
+    access_token: Optional[str] = Cookie(None),
+    authorization: Optional[str] = Header(None),
+) -> Optional[TokenData]:
     """获取当前登录用户 - 可选（未登录返回 None）"""
     if AUTH_DISABLED:
         return DEV_USER
 
-    if not access_token:
+    token = _extract_token(access_token, authorization)
+    if not token:
         return None
 
-    return decode_token(access_token)
+    return decode_token(token)
 
 
 def require_role(*allowed_roles: str):

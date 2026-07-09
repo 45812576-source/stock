@@ -39,3 +39,5 @@ env/
 # Secrets / keys
 *.pem
 *.key
+node_modules/
+.npm-cache/

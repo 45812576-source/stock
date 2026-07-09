@@ -1,0 +1,47 @@
+# ===================================================================
+# 运营后台 SPA + 后端 API 同域反代（生产环境示例）
+# ===================================================================
+# 部署思路：
+#   - SPA 静态产物（admin-frontend/dist）挂到 /admin-app/ 路径
+#   - 所有后端 API 路径反代到 FastAPI(默认 8501)，与 SPA 同域，httponly cookie 正常携带
+#   - 前台 Jinja2 页面同样由该后端提供（/ 根路径）
+#
+# 构建产物：
+#   cd admin-frontend && npm run build   # 产出 dist/，base=/admin-app/
+#   将 dist/ 部署到 /var/www/admin-app/ （或下方 root 指定目录）
+# ===================================================================
+
+upstream stock_backend {
+    server 127.0.0.1:8501;
+}
+
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    # ---- 运营后台 SPA ----
+    location /admin-app/ {
+        alias /var/www/admin-app/;
+        index index.html;
+        try_files $uri $uri/ /admin-app/index.html;
+    }
+
+    # ---- 后端 API（与 SPA 同域，cookie 正常携带）----
+    location ~ ^/(data|kg|settings|admin|auth|stock|hotspot|static)/ {
+        proxy_pass http://stock_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # ---- 前台 Jinja2 页面（根路径交给后端）----
+    location / {
+        proxy_pass http://stock_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

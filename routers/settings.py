@@ -190,6 +190,88 @@ def settings_strategy_page(request: Request):
     return templates.TemplateResponse("settings.html", ctx)
 
 
+# ==================== 页面上下文聚合 API（供 SPA）====================
+
+@router.get("/api/page-context", response_class=JSONResponse)
+def api_page_context(tab: str = "api"):
+    """返回设置页各 tab 所需上下文（原模板注入的变量），供 SPA 使用"""
+    ctx = {"tab": tab, "db_stats": _db_stats()}
+
+    if tab == "api":
+        ctx["api_usage"] = _safe_json(execute_query(
+            """SELECT api_name, call_date, call_count, input_tokens, output_tokens, cost_usd
+               FROM api_usage ORDER BY call_date DESC LIMIT 30""") or [])
+        ctx["pipeline_logs"] = _safe_json(execute_query(
+            "SELECT * FROM pipeline_runs ORDER BY id DESC LIMIT 20") or [])
+        try:
+            ctx["model_configs"] = _safe_json(execute_query("SELECT * FROM model_configs ORDER BY id") or [])
+        except Exception:
+            ctx["model_configs"] = []
+        ctx["config"] = {
+            "claude_api_key": get_config("claude_api_key") or os.getenv("ANTHROPIC_API_KEY", "") or os.getenv("ANTHROPIC_AUTH_TOKEN", ""),
+            "claude_base_url": get_config("claude_base_url") or os.getenv("ANTHROPIC_BASE_URL", ""),
+            "claude_model": get_config("claude_model") or "claude-sonnet-4-20250514",
+        }
+        stored_keys = {}
+        try:
+            for r in execute_query("SELECT config_key, value FROM system_config") or []:
+                if "_api_key" in r["config_key"] or r["config_key"] == "claude_api_key":
+                    v = r["value"] or ""
+                    stored_keys[r["config_key"]] = (v[:8] + "..." + v[-4:] if len(v) > 12 else v[:4] + "...") if v else ""
+        except Exception:
+            pass
+        ctx["stored_keys"] = stored_keys
+
+    elif tab == "structured":
+        try:
+            ctx["monitor_rules"] = _safe_json(execute_query(
+                "SELECT * FROM data_monitor_rules ORDER BY module_name, data_type") or [])
+        except Exception:
+            ctx["monitor_rules"] = []
+        freshness = {}
+        for key, sql in [
+            ("daily",      "SELECT MAX(trade_date) as latest FROM stock_daily"),
+            ("capital",    "SELECT MAX(trade_date) as latest FROM capital_flow"),
+            ("financial",  "SELECT MAX(report_period) as latest FROM financial_reports"),
+            ("northbound", "SELECT MAX(trade_date) as latest FROM northbound_flow"),
+        ]:
+            try:
+                rows = execute_query(sql)
+                freshness[key] = str(rows[0]["latest"]) if rows and rows[0]["latest"] else None
+            except Exception:
+                freshness[key] = None
+        ctx["data_freshness"] = freshness
+        try:
+            ctx["watchlist"] = _safe_json(execute_query(
+                """SELECT w.stock_code, COALESCE(s.stock_name, '') as stock_name
+                   FROM watchlist w LEFT JOIN stock_info s ON w.stock_code=s.stock_code
+                   ORDER BY w.added_at DESC""") or [])
+        except Exception:
+            ctx["watchlist"] = []
+        ctx["last_daily_date"] = freshness.get("daily")
+        ctx["now_date"] = datetime.now().strftime("%Y-%m-%d")
+
+    elif tab == "skills":
+        ctx["registry"] = get_analysis_registry()
+
+    elif tab == "strategy":
+        from config.stock_selection_presets import RULE_CATEGORIES
+        ctx["rule_categories"] = RULE_CATEGORIES
+        try:
+            rows = execute_query(
+                "SELECT * FROM stock_selection_rules WHERE is_active=1 ORDER BY is_system DESC, sort_order, id") or []
+            rules = [dict(r) for r in rows]
+            ctx["rules"] = _safe_json(rules)
+            ctx["system_count"] = sum(1 for r in rules if r["is_system"])
+            ctx["custom_count"] = sum(1 for r in rules if not r["is_system"])
+        except Exception:
+            ctx["rules"] = []
+            ctx["system_count"] = 0
+            ctx["custom_count"] = 0
+
+    return ctx
+
+
 # ==================== 多模型配置 API ====================
 
 @router.get("/api/model-configs")
@@ -620,138 +702,13 @@ def struct_task_status(task_id: str):
     })
 
 
-# ==================== 清洗管线手动触发 ====================
-_pipeline_tasks: dict = {}
+# ==================== 提取任务 ====================
 _extract_tasks: dict = {}
 
 
-def _pipeline_task_run(task_id: str, mode: str, batch_size: int):
-    task = _pipeline_tasks[task_id]
-    try:
-        if mode == "a":
-            from cleaning.content_summarizer import summarize_single
-            from utils.db_utils import execute_cloud_query as _cq
-            pending = _cq(
-                """SELECT et.id FROM extracted_texts et
-                   LEFT JOIN content_summaries cs ON et.id = cs.extracted_text_id
-                   WHERE cs.id IS NULL ORDER BY et.id LIMIT %s""",
-                [batch_size],
-            )
-            task["total"] = len(pending)
-            ok = fail = 0
-            for i, row in enumerate(pending):
-                import time
-                while task.get("paused"):
-                    if task.get("cancel"): break
-                    time.sleep(1)
-                if task.get("cancel"):
-                    task["status"] = "cancelled"
-                    break
-                task["progress"] = i + 1
-                task["current"] = f"id={row['id']}"
-                try:
-                    summarize_single(row["id"])
-                    ok += 1
-                except Exception as e:
-                    fail += 1
-                    logger.warning(f"Pipeline A id={row['id']}: {e}")
-            task["result"] = {"ok": ok, "fail": fail}
 
-        elif mode == "c":
-            from cleaning.unified_pipeline import _run_pipeline_c, _get_deepseek
-            from utils.db_utils import execute_cloud_query as _cq
-            pending = _cq(
-                """SELECT id, full_text FROM extracted_texts
-                   WHERE kg_status != 'done' OR kg_status IS NULL
-                   ORDER BY id LIMIT %s""",
-                [batch_size],
-            )
-            task["total"] = len(pending)
-            _get_deepseek()  # warm up client
-            total = 0
-            for i, row in enumerate(pending):
-                import time
-                while task.get("paused"):
-                    if task.get("cancel"): break
-                    time.sleep(1)
-                if task.get("cancel"):
-                    task["status"] = "cancelled"
-                    break
-                task["progress"] = i + 1
-                task["current"] = f"id={row['id']}"
-                try:
-                    n = _run_pipeline_c(row["id"], row["full_text"] or "")
-                    total += n
-                except Exception as e:
-                    logger.warning(f"Pipeline C id={row['id']}: {e}")
-            task["result"] = {"kg_rels": total}
-
-        elif mode == "abc":
-            from cleaning.unified_pipeline import process_pending
-            task["current"] = "查询待处理..."
-
-            def _on_progress(done, total, et_id, r):
-                task["total"] = total
-                task["progress"] = done
-                if et_id and r:
-                    a_ok = "✓" if r.get("summary_id") else "–"
-                    task["current"] = f"id={et_id}  A:{a_ok}  B:{r.get('mentions',0)}  C:{r.get('kg_rels',0)}"
 
             
-            def _check_cancel():
-                import time
-                while task.get("paused"):
-                    if task.get("cancel"): return True
-                    time.sleep(1)
-                return task.get("cancel", False)
-
-            result = process_pending(
-                batch_size=batch_size,
-                should_cancel=_check_cancel,
-                on_progress=_on_progress,
-            )
-            task["progress"] = result["processed"]
-            task["result"] = result
-            import time
-            while task.get("paused"):
-                if task.get("cancel"): break
-                time.sleep(1)
-            if task.get("cancel"):
-                task["status"] = "cancelled"
-                return
-
-        if task.get("status") != "cancelled":
-            task["status"] = "done"
-    except Exception as e:
-        task["status"] = "error"
-        task["result"] = {"error": str(e)}
-        logger.error(f"管线任务失败 mode={mode}: {e}")
-
-
-@router.post("/api/pipeline-run", response_class=JSONResponse)
-async def run_pipeline(request: Request):
-    """手动触发清洗管线"""
-    data = await request.json()
-    mode = data.get("mode", "ac")           # a / c / ac
-    batch_size = int(data.get("batch_size", 20))
-    task_id = f"pipeline_{mode}_{int(datetime.now().timestamp())}"
-    _pipeline_tasks[task_id] = {
-        "status": "running", "mode": mode,
-        "progress": 0, "total": batch_size, "current": "初始化...",
-        "result": None, "cancel": False, "started_at": datetime.now().isoformat(),
-    }
-    import threading
-    threading.Thread(target=_pipeline_task_run, args=(task_id, mode, batch_size), daemon=True).start()
-    return JSONResponse({"ok": True, "task_id": task_id})
-
-
-@router.get("/api/pipeline-run/{task_id}", response_class=JSONResponse)
-def pipeline_run_status(task_id: str):
-    task = _pipeline_tasks.get(task_id)
-    if not task:
-        return JSONResponse({"error": "任务不存在"}, status_code=404)
-    return JSONResponse(_safe_task(task))
-
 @router.post("/api/extract-run", response_class=JSONResponse)
 async def run_extract(request: Request):
     """手动触发 source_documents → extracted_texts 提取"""
@@ -879,33 +836,6 @@ def extract_run_status(task_id: str):
         return JSONResponse({"error": "任务不存在"}, status_code=404)
     return JSONResponse(_safe_task(task))
 
-
-
-@router.post("/api/pipeline-pause/{task_id}", response_class=JSONResponse)
-def pause_pipeline(task_id: str):
-    task = _pipeline_tasks.get(task_id)
-    if not task:
-        return JSONResponse({"error": "任务不存在"}, status_code=404)
-    task["paused"] = True
-    return JSONResponse({"ok": True})
-
-
-@router.post("/api/pipeline-resume/{task_id}", response_class=JSONResponse)
-def resume_pipeline(task_id: str):
-    task = _pipeline_tasks.get(task_id)
-    if not task:
-        return JSONResponse({"error": "任务不存在"}, status_code=404)
-    task["paused"] = False
-    return JSONResponse({"ok": True})
-
-
-@router.post("/api/pipeline-cancel/{task_id}", response_class=JSONResponse)
-def cancel_pipeline(task_id: str):
-    task = _pipeline_tasks.get(task_id)
-    if not task:
-        return JSONResponse({"error": "任务不存在"}, status_code=404)
-    task["cancel"] = True
-    return JSONResponse({"ok": True})
 
 
 @router.get("/api/cleaning-logs", response_class=JSONResponse)

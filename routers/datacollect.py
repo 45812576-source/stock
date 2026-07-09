@@ -486,6 +486,17 @@ def data_browse(request: Request, status: str = "", source: str = "",
 
 # ==================== API 操作 ====================
 
+@router.get("/api/page-context", response_class=JSONResponse)
+def api_page_context():
+    """返回数据管理页所需的静态上下文（doc_types / 信息源配置 / 调度参数），供 SPA 使用"""
+    from config.doc_types import DOC_TYPES
+    ctx = {
+        "doc_types": [{"key": k, "label": l, "icon": ic} for k, l, ic in DOC_TYPES],
+    }
+    ctx.update(_get_source_context())
+    return ctx
+
+
 @router.post("/sync-all", response_class=JSONResponse)
 def sync_all():
     """一键全量采集"""
@@ -1304,6 +1315,28 @@ async def api_cancel_task(request: Request):
     task["cancelled"] = True
     task["status"] = "done"
     task["current"] = "已取消"
+    return {"ok": True}
+
+
+@router.post("/api/pause-task", response_class=JSONResponse)
+async def api_pause_task(request: Request):
+    """暂停后台任务（软暂停：停止推进新任务，在途批次会跑完）"""
+    body = await request.json()
+    task = _bg_tasks.get(body.get("task_id", ""))
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    task["paused"] = True
+    return {"ok": True}
+
+
+@router.post("/api/resume-task", response_class=JSONResponse)
+async def api_resume_task(request: Request):
+    """恢复被暂停的后台任务"""
+    body = await request.json()
+    task = _bg_tasks.get(body.get("task_id", ""))
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    task["paused"] = False
     return {"ok": True}
 
 
@@ -2967,3 +3000,172 @@ def api_zsxq_token_status():
         "intel_rows_today": intel_rows,
         "past_open": past_open,
     }
+
+
+# ==================== 定时任务管理 API ====================
+
+@router.get("/api/scheduler-jobs", response_class=JSONResponse)
+async def api_scheduler_jobs():
+    """获取所有定时任务列表及状态（分组排序）"""
+    try:
+        from scheduler import get_scheduler_jobs, get_job_groups
+        jobs = get_scheduler_jobs()
+        groups = get_job_groups()
+        return {"jobs": jobs, "groups": groups}
+    except Exception as e:
+        return {"jobs": [], "groups": [], "error": str(e)}
+
+
+@router.get("/api/scheduler-runs", response_class=JSONResponse)
+async def api_scheduler_runs(request: Request):
+    """获取定时任务运行历史"""
+    from scheduler import get_scheduler_run_history
+    limit = int(request.query_params.get("limit", 50))
+    job_id = request.query_params.get("job_id") or None
+    try:
+        runs = get_scheduler_run_history(limit=limit, job_id=job_id)
+        # 确保 datetime 可 JSON 序列化
+        for r in runs:
+            for k, v in r.items():
+                if hasattr(v, 'isoformat'):
+                    r[k] = v.isoformat()
+        return {"runs": runs}
+    except Exception as e:
+        return {"runs": [], "error": str(e)}
+
+
+@router.get("/api/scheduler-pipelines", response_class=JSONResponse)
+async def api_scheduler_pipelines():
+    """获取可选管线列表（创建任务时用）"""
+    from scheduler import get_pipeline_options
+    return {"pipelines": get_pipeline_options()}
+
+
+@router.post("/api/scheduler-job/create", response_class=JSONResponse)
+async def api_scheduler_job_create(request: Request):
+    """创建自定义定时任务"""
+    from scheduler import create_custom_job
+    body = await request.json()
+    result = create_custom_job(
+        job_name=body.get("job_name", ""),
+        pipeline_key=body.get("pipeline_key", ""),
+        cron_expr=body.get("cron_expr", ""),
+    )
+    return result
+
+
+@router.post("/api/scheduler-job/update", response_class=JSONResponse)
+async def api_scheduler_job_update(request: Request):
+    """编辑定时任务（调度规则/启停）"""
+    from scheduler import update_custom_job
+    body = await request.json()
+    result = update_custom_job(
+        job_id=body.get("job_id", ""),
+        job_name=body.get("job_name"),
+        cron_expr=body.get("cron_expr"),
+        enabled=body.get("enabled"),
+    )
+    return result
+
+
+@router.post("/api/scheduler-job/delete", response_class=JSONResponse)
+async def api_scheduler_job_delete(request: Request):
+    """删除自定义定时任务"""
+    from scheduler import delete_custom_job
+    body = await request.json()
+    result = delete_custom_job(body.get("job_id", ""))
+    return result
+
+
+@router.get("/api/source-config", response_class=JSONResponse)
+async def api_source_config():
+    """获取数据来源配置（信息源 + Token 状态 + 获取规则）"""
+    from utils.sys_config import get_config
+    try:
+        settings = load_fetch_settings()
+        source_groups = []
+        for gkey, gcfg in SOURCE_GROUPS.items():
+            sources = []
+            for skey, scfg in settings["sources"].items():
+                if scfg["group"] == gkey:
+                    sources.append({
+                        "key": skey,
+                        "label": scfg["label"],
+                        "enabled": scfg.get("enabled", False),
+                        "desc": scfg.get("desc", ""),
+                        "icon": scfg.get("icon", "article"),
+                        "fetcher_type": scfg.get("fetcher_type", ""),
+                        "limit": scfg.get("limit"),
+                        "max_pages": scfg.get("max_pages"),
+                    })
+            source_groups.append({
+                "key": gkey, "label": gcfg["label"],
+                "icon": gcfg["icon"], "color": gcfg["color"],
+                "sources": sources,
+            })
+
+        # Token 状态
+        zsxq_cookie = get_config("zsxq_cookie") or ""
+        zsxq_group_ids = get_config("zsxq_group_ids") or ""
+
+        return {
+            "source_groups": source_groups,
+            "news_hours": settings.get("news_hours", 24),
+            "zsxq_cookie": zsxq_cookie[:20] + "..." if len(zsxq_cookie) > 20 else zsxq_cookie,
+            "zsxq_cookie_set": bool(zsxq_cookie),
+            "zsxq_group_ids": zsxq_group_ids,
+            "scheduler_params": settings.get("scheduler_params", {}),
+        }
+    except Exception as e:
+        return {"source_groups": [], "error": str(e)}
+
+
+@router.post("/api/source/add", response_class=JSONResponse)
+async def api_source_add(request: Request):
+    """新增自定义数据来源"""
+    from utils.fetch_config import add_custom_source
+    body = await request.json()
+    ok, msg = add_custom_source(
+        key=body.get("key", ""),
+        label=body.get("label", ""),
+        group=body.get("group", "news"),
+        desc=body.get("desc", ""),
+        icon=body.get("icon", "article"),
+        fetcher_type=body.get("fetcher_type", "jasper"),
+        limit=body.get("limit"),
+        max_pages=body.get("max_pages"),
+    )
+    return {"ok": ok, "msg": msg}
+
+
+@router.post("/api/source/update", response_class=JSONResponse)
+async def api_source_update(request: Request):
+    """编辑数据来源配置"""
+    body = await request.json()
+    key = body.get("key")
+    if not key:
+        return {"ok": False, "msg": "key 不能为空"}
+    settings = load_fetch_settings()
+    if key not in settings["sources"]:
+        return {"ok": False, "msg": f"源 {key} 不存在"}
+    src = settings["sources"][key]
+    for field in ("label", "desc", "icon", "fetcher_type", "group"):
+        if field in body and body[field] is not None:
+            src[field] = body[field]
+    if "enabled" in body:
+        src["enabled"] = bool(body["enabled"])
+    if "limit" in body:
+        src["limit"] = int(body["limit"]) if body["limit"] else None
+    if "max_pages" in body:
+        src["max_pages"] = int(body["max_pages"]) if body["max_pages"] else None
+    save_fetch_settings(settings)
+    return {"ok": True}
+
+
+@router.post("/api/source/delete", response_class=JSONResponse)
+async def api_source_delete(request: Request):
+    """删除数据来源"""
+    from utils.fetch_config import delete_source
+    body = await request.json()
+    ok, msg = delete_source(body.get("key", ""))
+    return {"ok": ok, "msg": msg}

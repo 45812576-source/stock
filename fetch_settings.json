@@ -102,6 +102,14 @@
       "desc": "stock_db.stock_analysis → source_documents 同步",
       "fetcher_type": "stock_db",
       "enabled": true
+    },
+    "futu": {
+      "label": "富途行情",
+      "group": "market",
+      "icon": "show_chart",
+      "desc": "富途OpenAPI实时行情(A股+港股)",
+      "fetcher_type": "futu",
+      "enabled": false
     }
   }
 }

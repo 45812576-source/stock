@@ -1,0 +1,30 @@
+{
+  "name": "admin-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@fontsource/inter": "^5.2.8",
+    "axios": "^1.7.7",
+    "element-plus": "^2.8.4",
+    "material-symbols": "^0.45.6",
+    "pinia": "^2.2.4",
+    "vis-data": "^7.1.9",
+    "vis-network": "^9.1.9",
+    "vue": "^3.5.12",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.4",
+    "autoprefixer": "^10.5.2",
+    "postcss": "^8.5.16",
+    "tailwindcss": "^3.4.19",
+    "vite": "^5.4.9"
+  }
+}
