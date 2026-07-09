@@ -14,7 +14,6 @@
         <span class="type-count">{{ (stats.entity_by_type || {})[et.key] || 0 }}</span>
       </div>
 
-      <!-- 属性定义（选中类型时展示） -->
       <template v-if="filterType">
         <div class="panel-title mt-12">属性定义</div>
         <div class="prop-section">
@@ -25,7 +24,6 @@
         </div>
       </template>
 
-      <!-- 关系类型 -->
       <div class="panel-title mt-12">关系类型（{{ relationList.length }}）</div>
       <div v-for="rt in relationList" :key="rt.key" class="type-item rel">
         <span class="type-dot" :style="{ background: rt.cfg.color }" />
@@ -75,7 +73,8 @@
       />
     </div>
 
-    <el-dialog v-model="dialogVisible" :title="editId ? '编辑实体' : '新增实体'" width="520px">
+    <!-- 实体编辑 Dialog（含关系管理） -->
+    <el-dialog v-model="dialogVisible" :title="editId ? `编辑: ${form.entity_name}` : '新增实体'" width="680px" top="5vh">
       <el-form :model="form" label-width="90px">
         <el-form-item label="实体类型">
           <el-select v-model="form.entity_type" :disabled="!!editId" style="width: 100%">
@@ -86,12 +85,62 @@
           <el-input v-model="form.entity_name" :disabled="!!editId" />
         </el-form-item>
         <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="3" />
+          <el-input v-model="form.description" type="textarea" :rows="2" />
         </el-form-item>
         <el-form-item label="投资逻辑">
-          <el-input v-model="form.investment_logic" type="textarea" :rows="3" />
+          <el-input v-model="form.investment_logic" type="textarea" :rows="2" />
         </el-form-item>
       </el-form>
+
+      <!-- 关系管理区域（仅编辑模式） -->
+      <template v-if="editId">
+        <el-divider content-position="left">关系（{{ relations.length }}）</el-divider>
+        <div class="rel-section">
+          <el-table :data="relations" size="small" max-height="200" border>
+            <el-table-column label="方向" width="60">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row._dir === 'out' ? 'warning' : 'success'">
+                  {{ row._dir === 'out' ? '→' : '←' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="关系类型" width="120">
+              <template #default="{ row }">{{ relLabel(row.relation_type) }}</template>
+            </el-table-column>
+            <el-table-column label="关联实体" min-width="160">
+              <template #default="{ row }">
+                <span class="dot" :style="{ background: colorOf(row._other_type) }" />
+                {{ row._other_name }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70">
+              <template #default="{ row }">
+                <el-button link type="danger" size="small" @click="removeRelation(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <div class="add-rel-bar">
+            <el-select v-model="newRel.relation_type" placeholder="关系类型" style="width: 140px" size="small">
+              <el-option v-for="rt in relationList" :key="rt.key" :label="rt.cfg.label" :value="rt.key" />
+            </el-select>
+            <el-select
+              v-model="newRel.target_id"
+              placeholder="搜索目标实体"
+              filterable
+              remote
+              :remote-method="searchTarget"
+              :loading="targetLoading"
+              style="flex: 1"
+              size="small"
+            >
+              <el-option v-for="t in targetOptions" :key="t.id" :label="`${t.entity_name} (${typeLabel(t.entity_type)})`" :value="t.id" />
+            </el-select>
+            <el-button type="primary" size="small" :disabled="!newRel.relation_type || !newRel.target_id" @click="addRelation">添加</el-button>
+          </div>
+        </div>
+      </template>
+
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="save">保存</el-button>
@@ -122,6 +171,7 @@ const specificProps = computed(() =>
 
 function colorOf(t) { return props.meta.entity_colors?.[t]?.bg || '#64748b' }
 function typeLabel(t) { return props.meta.entity_colors?.[t]?.label || t }
+function relLabel(t) { return props.meta.relation_labels?.[t]?.label || t }
 
 // ---- 实体列表 ----
 const list = ref([])
@@ -166,6 +216,7 @@ const form = reactive({ entity_type: 'company', entity_name: '', description: ''
 
 function openAdd() {
   editId.value = null
+  relations.value = []
   Object.assign(form, { entity_type: filterType.value || 'company', entity_name: '', description: '', investment_logic: '' })
   dialogVisible.value = true
 }
@@ -178,6 +229,10 @@ async function openEdit(row) {
     description: d.entity.description || '',
     investment_logic: d.entity.investment_logic || '',
   })
+  // 组装关系列表
+  const out = (d.outgoing || []).map(r => ({ ...r, _dir: 'out', _other_name: r.target_name || r.target_entity_name || `#${r.target_entity_id}`, _other_type: r.target_type || '' }))
+  const inc = (d.incoming || []).map(r => ({ ...r, _dir: 'in', _other_name: r.source_name || r.source_entity_name || `#${r.source_entity_id}`, _other_type: r.source_type || '' }))
+  relations.value = [...out, ...inc]
   dialogVisible.value = true
 }
 async function save() {
@@ -205,6 +260,51 @@ async function doDelete(row) {
   await kgApi.deleteEntity(row.id)
   ElMessage.success('已删除')
   load()
+}
+
+// ---- 关系管理 ----
+const relations = ref([])
+const newRel = reactive({ relation_type: '', target_id: null })
+const targetOptions = ref([])
+const targetLoading = ref(false)
+
+async function searchTarget(q) {
+  if (!q || q.length < 1) { targetOptions.value = []; return }
+  targetLoading.value = true
+  try {
+    const results = await kgApi.searchEntities(q, '')
+    targetOptions.value = (results || []).filter(e => e.id !== editId.value)
+  } finally {
+    targetLoading.value = false
+  }
+}
+
+async function addRelation() {
+  if (!newRel.relation_type || !newRel.target_id) return
+  try {
+    await kgApi.addRelationship({
+      source_entity_id: editId.value,
+      target_entity_id: newRel.target_id,
+      relation_type: newRel.relation_type,
+    })
+    ElMessage.success('关系已添加')
+    // 刷新关系列表
+    const d = await kgApi.getEntityDetail(editId.value)
+    const out = (d.outgoing || []).map(r => ({ ...r, _dir: 'out', _other_name: r.target_name || r.target_entity_name || `#${r.target_entity_id}`, _other_type: r.target_type || '' }))
+    const inc = (d.incoming || []).map(r => ({ ...r, _dir: 'in', _other_name: r.source_name || r.source_entity_name || `#${r.source_entity_id}`, _other_type: r.source_type || '' }))
+    relations.value = [...out, ...inc]
+    newRel.relation_type = ''
+    newRel.target_id = null
+  } catch (e) {
+    ElMessage.error('添加关系失败')
+  }
+}
+
+async function removeRelation(row) {
+  await ElMessageBox.confirm(`确定删除与「${row._other_name}」的关系？`, '确认', { type: 'warning' })
+  await kgApi.deleteRelationship(row.id)
+  relations.value = relations.value.filter(r => r.id !== row.id)
+  ElMessage.success('关系已删除')
 }
 
 onMounted(load)
@@ -259,4 +359,11 @@ onMounted(load)
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; }
 .ename { font-weight: 600; }
 .pager { margin-top: 14px; justify-content: flex-end; }
+.rel-section { margin-top: 8px; }
+.add-rel-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+}
 </style>
