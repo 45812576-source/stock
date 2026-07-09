@@ -302,6 +302,65 @@ def _get_recent_items(limit=30):
 # 简单的内存任务状态（单进程足够）
 _bg_tasks = {}
 
+# ── 自动监控正在运行的外部脚本 ────
+_log_watchers = []
+
+def _auto_detect_external_scripts():
+    """后端启动时自动检测正在运行的已知脚本，注册 LogWatcher"""
+    import subprocess, os
+    known_scripts = [
+        {
+            "match": "zsxq_全量补全",
+            "name": "zsxq全量补全",
+            "log": "scripts/zsxq_全量补全_20260101至今.log",
+            "pattern": r"\[(\d+)/(\d+)\]",
+        },
+        {
+            "match": "zsxq_文档清洗回灌",
+            "name": "zsxq文档清洗回灌",
+            "log": "scripts/zsxq_文档清洗回灌_20260101至今.log",
+            "pattern": r"\[(\d+)/(\d+)\]",
+        },
+    ]
+    try:
+        result = subprocess.run(
+            ["ps", "aux"], capture_output=True, text=True, timeout=5
+        )
+        lines = result.stdout.split("\n")
+    except Exception:
+        return
+
+    project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    for script in known_scripts:
+        for line in lines:
+            if script["match"] in line and "python" in line:
+                # 提取 PID
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        pid = int(parts[1])
+                    except ValueError:
+                        continue
+                    log_path = os.path.join(project_dir, script["log"])
+                    if os.path.exists(log_path):
+                        from utils.task_tracker import LogWatcher
+                        watcher = LogWatcher(
+                            name=script["name"],
+                            log_path=log_path,
+                            progress_pattern=script["pattern"],
+                            pid=pid,
+                            poll_interval=30,
+                        )
+                        watcher.start()
+                        _log_watchers.append(watcher)
+                        logger.info(f"[AutoDetect] 已注册外部脚本监控: {script['name']} PID={pid}")
+                break
+
+import threading
+threading.Thread(target=_auto_detect_external_scripts, daemon=True, name="auto_detect_scripts").start()
+
+
 # ── 轻量 TTL 缓存（用于 source_documents 云端查询，避免每次翻页都打云端）────
 _sd_cache: dict = {}
 _SD_CACHE_TTL = 60  # seconds
@@ -1509,6 +1568,7 @@ def api_active_tasks():
         elif tid.startswith("manual_chunk_"):  label = "chunk索引"
         elif tid.startswith("manual_diagnose_"): label = "诊断重试"
         elif tid.startswith("manual_sweep_"):  label = "pending sweep"
+        elif tid.startswith("ext_"):           label = f"[脚本] {t.get('ext_name', '外部任务')}"
         tasks.append({
             "task_id": tid,
             "label": label,
@@ -3528,3 +3588,94 @@ def _manual_pending_sweep(limit: int):
 
     threading.Thread(target=_run, daemon=True).start()
     return {"task_id": task_id, "label": "pending sweep"}
+
+
+# ==================== 外部脚本任务注册（CLI 独立进程接入任务中心） ====================
+
+@router.post("/api/external-task/register", response_class=JSONResponse)
+async def api_external_task_register(request: Request):
+    """外部脚本注册任务，返回 task_id
+    
+    请求体: { "name": "全量补全", "total": 279, "pid": 77010 }
+    """
+    body = await request.json()
+    name = body.get("name", "外部脚本")
+    total = body.get("total", 0)
+    pid = body.get("pid")
+    
+    task_id = f"ext_{name}_{int(datetime.now().timestamp())}"
+    _bg_tasks[task_id] = {
+        "status": "running", "progress": 0, "total": total,
+        "current": f"已注册: {name}", "results": [],
+        "started_at": datetime.now().isoformat(),
+        "ext_pid": pid,
+        "ext_name": name,
+    }
+    return {"task_id": task_id, "ok": True}
+
+
+@router.post("/api/external-task/update", response_class=JSONResponse)
+async def api_external_task_update(request: Request):
+    """外部脚本更新任务进度
+    
+    请求体: { "task_id": "ext_xxx", "progress": 50, "total": 279, "current": "处理中..." }
+    """
+    body = await request.json()
+    task_id = body.get("task_id", "")
+    task = _bg_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    
+    if "progress" in body:
+        task["progress"] = body["progress"]
+    if "total" in body:
+        task["total"] = body["total"]
+    if "current" in body:
+        task["current"] = body["current"]
+    return {"ok": True}
+
+
+@router.post("/api/external-task/finish", response_class=JSONResponse)
+async def api_external_task_finish(request: Request):
+    """外部脚本标记任务完成
+    
+    请求体: { "task_id": "ext_xxx", "summary": "成功171 失败40" }
+    """
+    body = await request.json()
+    task_id = body.get("task_id", "")
+    task = _bg_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在"}, status_code=404)
+    
+    task["status"] = "done"
+    task["progress"] = task.get("total", 0)
+    summary = body.get("summary", "完成")
+    task["current"] = summary
+    task["results"].append({"source": task.get("ext_name", "外部脚本"), "ok": True, "count": summary})
+    return {"ok": True}
+
+
+@router.get("/api/external-task/list", response_class=JSONResponse)
+def api_external_task_list():
+    """列出所有外部脚本任务（含已完成的最近10条）"""
+    running = []
+    done = []
+    for tid, t in list(_bg_tasks.items()):
+        if not tid.startswith("ext_"):
+            continue
+        item = {
+            "task_id": tid,
+            "name": t.get("ext_name", ""),
+            "status": t.get("status"),
+            "progress": t.get("progress", 0),
+            "total": t.get("total", 0),
+            "current": t.get("current", ""),
+            "started_at": t.get("started_at", ""),
+            "pid": t.get("ext_pid"),
+        }
+        if t.get("status") == "running":
+            running.append(item)
+        else:
+            done.append(item)
+    done.sort(key=lambda x: x["started_at"], reverse=True)
+    return {"running": running, "done": done[:10]}
