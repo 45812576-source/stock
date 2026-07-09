@@ -667,7 +667,7 @@ def start_scheduler():
                    WHERE summary_status='pending'
                      AND CHAR_LENGTH(TRIM(COALESCE(full_text,''))) >= 20
                    ORDER BY id DESC
-                   LIMIT 200""",
+                   LIMIT 1000""",
                 None,
             ) or []
 
@@ -715,7 +715,7 @@ def start_scheduler():
                 """SELECT cs.id FROM content_summaries cs
                    WHERE cs.family = 2
                    ORDER BY cs.id DESC
-                   LIMIT 300""",
+                   LIMIT 2000""",
                 None,
             ) or []
 
@@ -740,7 +740,7 @@ def start_scheduler():
                 return
 
             ok = skip = fail = 0
-            for r in pending[:100]:  # 每批最多100条
+            for r in pending[:1000]:  # 每批最多1000条（本地模型无速率限制）
                 try:
                     result = index_summary_chunk(r["id"])
                     if result:
