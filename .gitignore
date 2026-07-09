@@ -41,3 +41,4 @@ env/
 *.key
 node_modules/
 .npm-cache/
+static/uploads

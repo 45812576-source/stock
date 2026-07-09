@@ -1538,6 +1538,55 @@ def api_run_pipeline(
     return {"task_id": task_id}
 
 
+
+@router.get("/api/infra-status", response_class=JSONResponse)
+def api_infra_status():
+    """基础设施健康检查（Milvus、本地MySQL、云端MySQL、Embedding模型）"""
+    status = {}
+
+    # Milvus
+    try:
+        from pymilvus import connections, utility
+        connections.connect(alias="health_check", host="127.0.0.1", port="19530", timeout=5)
+        cols = utility.list_collections(using="health_check")
+        col_stats = {}
+        for c in cols:
+            from pymilvus import Collection
+            col = Collection(c, using="health_check")
+            col_stats[c] = col.num_entities
+        connections.disconnect("health_check")
+        status["milvus"] = {"ok": True, "collections": col_stats}
+    except Exception as e:
+        status["milvus"] = {"ok": False, "error": str(e)}
+
+    # 本地 MySQL
+    try:
+        from utils.db_utils import execute_query
+        rows = execute_query("SELECT 1 as ping")
+        status["local_mysql"] = {"ok": True}
+    except Exception as e:
+        status["local_mysql"] = {"ok": False, "error": str(e)}
+
+    # 云端 MySQL
+    try:
+        from utils.db_utils import execute_cloud_query
+        rows = execute_cloud_query("SELECT 1 as ping")
+        status["cloud_mysql"] = {"ok": True}
+    except Exception as e:
+        status["cloud_mysql"] = {"ok": False, "error": str(e)}
+
+    # Embedding 模型（BGE-M3 本地 or API）
+    try:
+        from retrieval.embedding import embed_texts
+        vec = embed_texts(["健康检查"])
+        dim = len(vec[0]) if vec else 0
+        status["embedding"] = {"ok": True, "dim": dim}
+    except Exception as e:
+        status["embedding"] = {"ok": False, "error": str(e)}
+
+    return status
+
+
 @router.get("/api/active-tasks", response_class=JSONResponse)
 def api_active_tasks():
     """返回所有活跃（running）的后台任务，供侧边栏全局进度组件轮询"""
