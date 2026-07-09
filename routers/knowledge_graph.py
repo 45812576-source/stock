@@ -635,8 +635,8 @@ def run_kg_inspect(background_tasks: BackgroundTasks,
 
             # Phase 1.5: 实体名规范化清洗
             task["phase"] = "name_cleanup"
-            task["phase_label"] = "正在清洗实体名..."
-            name_result = name_cleanup(dry_run=dry_run)
+            task["phase_label"] = "正在清洗实体名（31000+ 实体）..."
+            name_result = name_cleanup(dry_run=dry_run, progress_callback=lambda cur, tot: task.update({"phase_label": f"实体名清洗 {cur}/{tot}"}))
             task["name_cleanup"] = name_result
 
             # Phase 2: 冲突清理

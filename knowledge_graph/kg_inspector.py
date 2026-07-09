@@ -397,7 +397,7 @@ def cross_complete(days: int = 7, limit: int = 20, progress_callback=None) -> di
             "processed": total}
 
 
-def name_cleanup(dry_run: bool = False) -> dict:
+def name_cleanup(dry_run: bool = False, progress_callback=None) -> dict:
     """存量实体名规范化清洗
 
     遍历所有 kg_entities，对每个实体调用 normalize_entity_name()：
@@ -415,7 +415,10 @@ def name_cleanup(dry_run: bool = False) -> dict:
         "SELECT id, entity_type, entity_name FROM kg_entities ORDER BY id"
     ) or []
 
-    for ent in entities:
+    total = len(entities)
+    for idx, ent in enumerate(entities):
+        if progress_callback and idx % 1000 == 0:
+            progress_callback(idx, total)
         eid = ent["id"]
         etype = ent["entity_type"]
         ename = ent["entity_name"]
@@ -454,15 +457,16 @@ def name_cleanup(dry_run: bool = False) -> dict:
                         "UPDATE kg_relationships SET target_entity_id=%s WHERE target_entity_id=%s",
                         [target_id, eid]
                     )
-                    # 删除重复关系（合并后可能产生）
+                    # 删除重复关系（仅限涉及 target_id 的，避免全表扫描）
                     execute_insert(
                         """DELETE r1 FROM kg_relationships r1
                            INNER JOIN kg_relationships r2
                            ON r1.source_entity_id = r2.source_entity_id
                               AND r1.target_entity_id = r2.target_entity_id
                               AND r1.relation_type = r2.relation_type
-                              AND r1.id > r2.id""",
-                        []
+                              AND r1.id > r2.id
+                           WHERE r1.source_entity_id = %s OR r1.target_entity_id = %s""",
+                        [target_id, target_id]
                     )
                     execute_insert("DELETE FROM kg_entities WHERE id=%s", [eid])
                 result["merged"] += 1
