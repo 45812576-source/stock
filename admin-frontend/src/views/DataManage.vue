@@ -28,8 +28,7 @@
 
         <el-card shadow="never" class="block-card">
           <div class="filter-bar">
-            <el-input v-model="docFilter.search" placeholder="标题/关键词" clearable style="width: 200px" @keyup.enter="loadDocs(1)
-  loadTaskHistory()" />
+            <el-input v-model="docFilter.search" placeholder="标题/关键词" clearable style="width: 200px" @keyup.enter="loadDocs(1)" />
             <el-select v-model="docFilter.doc_type" placeholder="文档类型" clearable style="width: 150px">
               <el-option v-for="dt in docTypes" :key="dt.key" :label="dt.label" :value="dt.key" />
             </el-select>
@@ -561,6 +560,7 @@ onMounted(() => {
   loadOverview()
   loadDocStatusStats()
   loadDocs(1)
+  loadTaskHistory()
 })
 onBeforeUnmount(() => clearInterval(pollTimer))
 </script>
