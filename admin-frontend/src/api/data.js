@@ -85,3 +85,7 @@ export const deleteSource = (payload) => request.post('/data/api/source/delete',
 // 代理文件预览 URL
 export const proxyFileUrl = (url) =>
   `/data/api/proxy-file?url=${encodeURIComponent(url)}`
+
+// ---- 任务历史与诊断 ----
+export const getTaskHistory = (limit = 30) => request.get('/data/api/task-history', { params: { limit } })
+export const diagnoseTask = (taskId) => request.get(`/data/api/diagnose-task/${taskId}`)

@@ -28,7 +28,8 @@
 
         <el-card shadow="never" class="block-card">
           <div class="filter-bar">
-            <el-input v-model="docFilter.search" placeholder="标题/关键词" clearable style="width: 200px" @keyup.enter="loadDocs(1)" />
+            <el-input v-model="docFilter.search" placeholder="标题/关键词" clearable style="width: 200px" @keyup.enter="loadDocs(1)
+  loadTaskHistory()" />
             <el-select v-model="docFilter.doc_type" placeholder="文档类型" clearable style="width: 150px">
               <el-option v-for="dt in docTypes" :key="dt.key" :label="dt.label" :value="dt.key" />
             </el-select>
@@ -142,10 +143,63 @@
 
         <el-card shadow="never" class="block-card">
           <template #header>
-            清洗日志 <el-button link type="primary" @click="loadLogs">刷新</el-button>
+            任务运行记录 <el-button link type="primary" @click="loadTaskHistory">刷新</el-button>
           </template>
-          <pre class="log-box">{{ cleaningLogs || '（暂无日志）' }}</pre>
+          <el-table :data="taskHistory" size="small" stripe max-height="400" v-if="taskHistory.length">
+            <el-table-column label="任务" prop="label" width="120" />
+            <el-table-column label="开始时间" width="160">
+              <template #default="{ row }">{{ row.started_at ? row.started_at.slice(0,19).replace('T',' ') : '' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="80">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.status === 'done' ? 'success' : 'danger'">{{ row.status === 'done' ? '完成' : '取消' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="结果" min-width="200">
+              <template #default="{ row }">
+                <span :style="{ color: row.has_failures ? '#f56c6c' : '#67c23a' }">{{ row.result_summary || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="80">
+              <template #default="{ row }">
+                <el-button v-if="row.has_failures" link type="warning" size="small" @click="doDiagnose(row.task_id)">诊断</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div v-else style="color:#909399; padding:12px 0">（暂无任务记录）</div>
         </el-card>
+
+        <!-- 诊断结果弹窗 -->
+        <el-dialog v-model="diagVisible" title="失败诊断" width="600" destroy-on-close>
+          <div v-if="diagData">
+            <p><b>任务：</b>{{ diagData.label }} | <b>状态：</b>{{ diagData.status }}</p>
+            <p><b>结果摘要：</b>{{ diagData.result_summary }}</p>
+            <el-divider />
+            <div v-if="diagData.errors && diagData.errors.length">
+              <h4 style="margin:0 0 8px">错误信息</h4>
+              <div v-for="(e, i) in diagData.errors" :key="i" class="diag-error-item">
+                <el-tag size="small" type="danger">{{ e.source }}</el-tag> {{ e.error }}
+              </div>
+            </div>
+            <div v-if="diagData.milvus_status" style="margin-top:12px">
+              <b>Milvus 状态：</b><el-tag size="small" :type="diagData.milvus_status === '正常' ? 'success' : 'danger'">{{ diagData.milvus_status }}</el-tag>
+            </div>
+            <div v-if="diagData.failed_ids && diagData.failed_ids.length" style="margin-top:12px">
+              <h4 style="margin:0 0 8px">失败 ID 列表（前20条）</h4>
+              <el-tag v-for="id in diagData.failed_ids.slice(0, 20)" :key="id" size="small" style="margin:2px 4px">{{ id }}</el-tag>
+            </div>
+            <div v-if="diagData.failed_details && diagData.failed_details.length" style="margin-top:12px">
+              <h4 style="margin:0 0 8px">失败文档详情</h4>
+              <el-table :data="diagData.failed_details" size="small" max-height="200">
+                <el-table-column prop="id" label="ID" width="80" />
+                <el-table-column prop="source" label="来源" width="120" />
+                <el-table-column prop="source_format" label="格式" width="80" />
+                <el-table-column prop="summary_status" label="摘要状态" width="100" />
+              </el-table>
+            </div>
+          </div>
+          <div v-else style="color:#909399">加载中...</div>
+        </el-dialog>
       </el-tab-pane>
 
       <!-- ============ 结构化数据 ============ -->
@@ -474,13 +528,25 @@ async function doResumeTask() {
   ElMessage.success('已恢复')
 }
 
-// ---------- 日志 ----------
-const cleaningLogs = ref('')
-async function loadLogs() {
+// ---------- 任务历史 & 诊断 ----------
+const taskHistory = ref([])
+const diagVisible = ref(false)
+const diagData = ref(null)
+
+async function loadTaskHistory() {
   try {
-    const res = await dataApi.getCleaningLogs()
-    cleaningLogs.value = Array.isArray(res.logs) ? res.logs.join('\n') : (res.logs || '')
+    taskHistory.value = await dataApi.getTaskHistory(30)
   } catch (e) { /* ignore */ }
+}
+
+async function doDiagnose(taskId) {
+  diagVisible.value = true
+  diagData.value = null
+  try {
+    diagData.value = await dataApi.diagnoseTask(taskId)
+  } catch (e) {
+    diagData.value = { label: '错误', status: 'error', result_summary: '无法获取诊断信息', errors: [{ source: 'API', error: String(e) }] }
+  }
 }
 
 // ---------- 工具 ----------
@@ -525,4 +591,9 @@ onBeforeUnmount(() => clearInterval(pollTimer))
 .review-sub { font-weight: 600; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
 .preview-frame { flex: 1; width: 100%; border: 1px solid var(--admin-border); border-radius: 6px; background: #fff; }
 .preview-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--admin-text-dim); border: 1px dashed var(--admin-border); border-radius: 6px; }
+.diag-error-item {
+  padding: 4px 0;
+  font-size: 13px;
+  color: #606266;
+}
 </style>

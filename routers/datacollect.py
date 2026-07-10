@@ -1651,6 +1651,126 @@ def api_cleaning_logs():
         return {"logs": recent, "source": "memory"}
 
 
+@router.get("/api/task-history", response_class=JSONResponse)
+def api_task_history(limit: int = 30):
+    """返回最近已完成的任务列表（含结果摘要）"""
+    history = []
+    for tid, t in sorted(_bg_tasks.items(), key=lambda x: x[1].get("started_at", ""), reverse=True):
+        if t.get("status") not in ("done", "cancelled"):
+            continue
+        if len(history) >= limit:
+            break
+        # 自动生成 result_summary（如果还没有）
+        if "result_summary" not in t:
+            t["result_summary"] = _build_result_summary(t)
+        has_fail = t.get("has_failures", False)
+        if not has_fail:
+            has_fail = any(not r.get("ok", True) for r in t.get("results", []))
+            if not has_fail and t.get("result_summary", ""):
+                has_fail = "失败" in t["result_summary"] and "失败0" not in t["result_summary"]
+            t["has_failures"] = has_fail
+        history.append({
+            "task_id": tid,
+            "label": _task_label(tid, t),
+            "started_at": t.get("started_at", ""),
+            "status": t.get("status"),
+            "result_summary": t.get("result_summary", ""),
+            "has_failures": has_fail,
+        })
+    return history
+
+
+@router.get("/api/diagnose-task/{task_id}", response_class=JSONResponse)
+def api_diagnose_task(task_id: str):
+    """诊断某个任务的失败原因"""
+    task = _bg_tasks.get(task_id)
+    if not task:
+        return JSONResponse({"error": "任务不存在或已过期"}, status_code=404)
+
+    diagnosis = {
+        "task_id": task_id,
+        "label": _task_label(task_id, task),
+        "status": task.get("status"),
+        "result_summary": task.get("result_summary", _build_result_summary(task)),
+        "failed_ids": task.get("failed_ids", []),
+        "errors": [],
+    }
+
+    # 从 results 中提取错误信息
+    for r in task.get("results", []):
+        if not r.get("ok", True):
+            diagnosis["errors"].append({"source": r.get("source"), "error": r.get("error", "未知")})
+
+    # 如果有 failed_ids，尝试查询具体失败原因
+    failed_ids = task.get("failed_ids", [])
+    if failed_ids:
+        try:
+            from utils.db_utils import execute_cloud_query
+            sample_ids = failed_ids[:20]
+            placeholders = ",".join(["%s"] * len(sample_ids))
+            rows = execute_cloud_query(
+                f"SELECT id, source, source_format, summary_status FROM extracted_texts WHERE id IN ({placeholders})",
+                sample_ids,
+            ) or []
+            diagnosis["failed_details"] = [dict(r) for r in rows]
+        except Exception as e:
+            diagnosis["failed_details"] = [{"error": str(e)}]
+    else:
+        diagnosis["failed_details"] = []
+
+    # 补充 Milvus 连接检查（chunk索引任务常见失败原因）
+    if "chunk" in task_id or "backfill" in task_id:
+        try:
+            from pymilvus import connections
+            connections.connect(alias="diag_check", host="127.0.0.1", port="19530", timeout=3)
+            connections.disconnect("diag_check")
+            diagnosis["milvus_status"] = "正常"
+        except Exception as e:
+            diagnosis["milvus_status"] = f"离线: {e}"
+            diagnosis["errors"].append({"source": "Milvus", "error": f"向量数据库不可达: {e}"})
+
+    return diagnosis
+
+
+def _build_result_summary(task: dict) -> str:
+    """从 results 列表中生成一行摘要"""
+    results = task.get("results", [])
+    if not results:
+        current = task.get("current", "")
+        return current if task.get("status") == "done" else ""
+    parts = []
+    for r in results:
+        if r.get("ok"):
+            parts.append(r.get("count", r.get("source", "")))
+        else:
+            parts.append(f"{r.get('source','')}: {r.get('error','失败')[:40]}")
+    return "; ".join(parts)
+
+
+def _task_label(tid: str, task: dict) -> str:
+    """从 task_id 前缀推断标签"""
+    if tid.startswith("batch_extract_"):    return "批量提取入管线"
+    elif tid.startswith("extract_"):       return "文本提取"
+    elif tid.startswith("pipeline_"):      return "清洗管线"
+    elif tid.startswith("push_pipeline_"): return "推入管线"
+    elif tid.startswith("clean_"):         return "批量清洗"
+    elif tid.startswith("sync_"):          return "数据同步"
+    elif tid.startswith("import_"):        return "导入SQL"
+    elif tid.startswith("backfill_chunks_"): return "向量回填"
+    elif tid.startswith("backfill_summary_"): return "摘要回填"
+    elif tid.startswith("sched_sweep_"):   return "[定时] pending sweep"
+    elif tid.startswith("sched_summarize_"): return "[定时] 摘要生成"
+    elif tid.startswith("sched_chunk_"):   return "[定时] chunk索引"
+    elif tid.startswith("sched_diagnose_"): return "[定时] 诊断重试"
+    elif tid.startswith("manual_push_"):   return "批量入库"
+    elif tid.startswith("manual_summarize_"): return "摘要生成"
+    elif tid.startswith("manual_chunk_"):  return "chunk索引"
+    elif tid.startswith("manual_diagnose_"): return "诊断重试"
+    elif tid.startswith("manual_sweep_"):  return "pending sweep"
+    elif tid.startswith("ext_"):           return f"[脚本] {task.get('ext_name', '外部任务')}"
+    return "任务"
+
+
 @router.post("/api/backfill-chunks", response_class=JSONResponse)
 def api_backfill_chunks(limit: int = Form(500)):
     """触发存量 text_chunks 向量回填（backfill_chunks.py 逻辑）"""
@@ -3421,6 +3541,7 @@ def _manual_summarize(limit: int):
                 return
 
             ok = fail = 0
+            failed_ids = []
             for i, r in enumerate(rows):
                 if task.get("cancelled"):
                     break
@@ -3432,10 +3553,13 @@ def _manual_summarize(limit: int):
                         ok += 1
                     else:
                         fail += 1
+                        failed_ids.append(r["id"])
                 except Exception:
                     fail += 1
+                    failed_ids.append(r["id"])
                 task["progress"] = i + 1
                 task["current"] = f"摘要 {i+1}/{total} (成功{ok} 失败{fail})"
+            task["failed_ids"] = failed_ids
 
             task["results"].append({
                 "source": "摘要生成", "ok": True,
@@ -3504,6 +3628,7 @@ def _manual_chunk_index(limit: int):
             task["current"] = f"待索引 {total} 条"
 
             ok = skip = fail = 0
+            failed_ids = []
             for i, r in enumerate(pending):
                 if task.get("cancelled"):
                     break
@@ -3517,8 +3642,10 @@ def _manual_chunk_index(limit: int):
                         skip += 1
                 except Exception:
                     fail += 1
+                    failed_ids.append(r["id"])
                 task["progress"] = i + 1
                 task["current"] = f"索引 {i+1}/{total} (成功{ok} 失败{fail})"
+            task["failed_ids"] = failed_ids
 
             task["results"].append({
                 "source": "chunk索引", "ok": True,
