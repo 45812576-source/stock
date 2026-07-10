@@ -66,17 +66,23 @@ def _log_run_finish(log_id: int, status: str, result_summary: str = None, error_
 
 
 def _wrap_job(job_id: str, job_name: str, func):
-    """包装定时任务函数，自动记录运行日志"""
+    """包装定时任务函数，自动记录运行日志（区分真正成功 vs 空跑）"""
     def wrapped(*args, **kwargs):
         log_id = _log_run_start(job_id, job_name)
         try:
             result = func(*args, **kwargs)
             summary = json.dumps(result, ensure_ascii=False, default=str) if result else None
-            _log_run_finish(log_id, 'success', result_summary=summary)
+            # 判断是否为"空跑"：result 为空或全零值
+            status = 'success'
+            if result and isinstance(result, dict):
+                errors = result.get("errors", [])
+                if errors:
+                    status = 'partial'  # 有错误但没完全失败
+            _log_run_finish(log_id, status, result_summary=summary)
             return result
         except Exception as e:
             _log_run_finish(log_id, 'failed', error_msg=f"{e}\n{traceback.format_exc()[-500:]}")
-            raise
+            logger.error(f"[Scheduler] {job_name} 执行失败: {e}")
     wrapped.__name__ = func.__name__
     wrapped.__doc__ = func.__doc__
     return wrapped
@@ -487,7 +493,7 @@ def run_kg_update():
         return result
     except Exception as e:
         logger.exception(f"[Scheduler] KG自动构建失败: {e}")
-        return {"error": str(e)}
+        raise
 
 
 def run_inference_after_build():
@@ -749,7 +755,7 @@ def run_wencai_indicators():
         return result
     except Exception as e:
         logger.exception(f"[Scheduler] 问财行业指标采集失败: {e}")
-        return {"error": str(e)}
+        raise
 
 
 # ── Robust Kline 日扫描 ──────────────────────────────────────
@@ -788,7 +794,7 @@ def _run_robust_kline_daily():
         return result
     except Exception as e:
         logger.exception(f"[Scheduler] Robust Kline 失败: {e}")
-        return {"error": str(e)}
+        raise
 
 
 # ── 调度器启停 ──────────────────────────────────────────────
@@ -924,21 +930,36 @@ def start_scheduler():
     def _run_zsxq_and_scanner(scan_date: str = None):
         from datetime import date as _date
         day = scan_date or str(_date.today())
+        summary = {"zsxq_fetched": 0, "extracted": 0, "pushed": 0, "intel_events": 0, "errors": []}
+
+        # zsxq 采集
         try:
             from ingestion.zsxq_source import fetch_zsxq_data
             result = fetch_zsxq_data(start_date=day, end_date=day)
+            summary["zsxq_fetched"] = result.get("saved", 0) if isinstance(result, dict) else (result or 0)
             logger.info(f"[Scheduler] zsxq 采集完成 {day}: {result}")
         except Exception as e:
+            summary["errors"].append(f"zsxq采集: {e}")
             logger.warning(f"[Scheduler] zsxq 采集失败 {day}: {e}")
+
         # 采集后自动提取清洗入管线（全类型）
         _auto_extract_and_pipe(day)
+
+        # daily intel scanner
         try:
             from datetime import date as _date2
             from daily_intel.scanner import run_daily_intel_pipeline
             result = run_daily_intel_pipeline(_date2.fromisoformat(day))
+            summary["intel_events"] = result.get("events", 0) if isinstance(result, dict) else (result or 0)
             logger.info(f"[Scheduler] daily intel scanner 完成 {day}: {result}")
         except Exception as e:
+            summary["errors"].append(f"scanner: {e}")
             logger.warning(f"[Scheduler] daily intel scanner 失败 {day}: {e}")
+
+        # 如果全部失败，抛出异常让 _wrap_job 标记 failed
+        if summary["errors"] and summary["zsxq_fetched"] == 0 and summary["intel_events"] == 0:
+            raise RuntimeError(f"zsxq+scanner 全部失败: {'; '.join(summary['errors'])}")
+        return summary
 
     scheduler.add_job(
         _wrap_job("zsxq_scanner_morning", "zsxq采集+daily intel scanner 早间", _run_zsxq_and_scanner),
@@ -968,9 +989,11 @@ def start_scheduler():
             summary = f"完成: {result}" if result else "完成"
             logger.info(f"[Scheduler] 自动诊断failed完成: {result}")
             _task_finish(tid, str(summary)[:100])
+            return result or {"msg": "无failed记录"}
         except Exception as e:
             logger.warning(f"[Scheduler] 自动诊断failed失败: {e}")
             _task_finish(tid, f"失败: {e}")
+            raise
 
     scheduler.add_job(
         _wrap_job("diagnose_failed_morning", "自动诊断failed+重试 早间", _run_diagnose_failed),
@@ -1025,18 +1048,26 @@ def start_scheduler():
 
     # 每天 23:00 — chain_sync + theme_merger 夜间兜底
     def _run_daily_sync_nightly():
+        summary = {"chain_sync": None, "theme_merger": None, "errors": []}
         try:
             from config.chain_sync import run_chain_sync
             result = run_chain_sync()
+            summary["chain_sync"] = result
             logger.info(f"[Scheduler] chain_sync 夜间完成: {result}")
         except Exception as e:
+            summary["errors"].append(f"chain_sync: {e}")
             logger.warning(f"[Scheduler] chain_sync 夜间失败: {e}")
         try:
             from daily_intel.theme_merger import run_theme_merge
             result = run_theme_merge()
+            summary["theme_merger"] = result
             logger.info(f"[Scheduler] theme_merger 夜间完成: {result}")
         except Exception as e:
+            summary["errors"].append(f"theme_merger: {e}")
             logger.warning(f"[Scheduler] theme_merger 夜间失败: {e}")
+        if len(summary["errors"]) == 2:
+            raise RuntimeError(f"chain_sync+theme_merger 全部失败: {summary['errors']}")
+        return summary
 
     scheduler.add_job(
         _wrap_job("daily_sync_nightly", "chain_sync + theme_merger 夜间兜底", _run_daily_sync_nightly),
@@ -1075,7 +1106,7 @@ def start_scheduler():
             if not rows:
                 logger.info("[Scheduler] pending sweep: 无遗漏文档")
                 _task_finish(tid, "无遗漏文档")
-                return
+                return {"processed": 0, "extracted": 0, "pushed": 0, "msg": "无遗漏文档"}
 
             task["total"] = len(rows) + 1  # +1 for push step
             task["current"] = f"待处理 {len(rows)} 条"
@@ -1104,9 +1135,11 @@ def start_scheduler():
             summary = f"完成: 处理{len(rows)} 提取{extracted} 推入{pushed}"
             logger.info(f"[Scheduler] pending sweep {summary}")
             _task_finish(tid, summary)
+            return {"processed": len(rows), "extracted": extracted, "pushed": pushed}
         except Exception as e:
             logger.warning(f"[Scheduler] pending sweep 失败: {e}")
             _task_finish(tid, f"失败: {e}")
+            raise
 
     scheduler.add_job(
         _wrap_job("pending_sweep_nightly", "pending sweep 夜间兜底", _run_pending_sweep),
@@ -1137,7 +1170,7 @@ def start_scheduler():
             if not rows:
                 logger.info("[Scheduler] auto_summarize: 无待摘要文档")
                 _task_finish(tid, "无待摘要文档")
-                return
+                return {"ok": 0, "fail": 0, "total": 0, "msg": "无待摘要文档"}
 
             task["total"] = len(rows)
             task["current"] = f"待摘要 {len(rows)} 条"
@@ -1158,9 +1191,11 @@ def start_scheduler():
             summary = f"完成: 成功{ok} 失败{fail} (共{len(rows)})"
             logger.info(f"[Scheduler] auto_summarize {summary}")
             _task_finish(tid, summary)
+            return {"ok": ok, "fail": fail, "total": len(rows)}
         except Exception as e:
             logger.warning(f"[Scheduler] auto_summarize 整体失败: {e}")
             _task_finish(tid, f"失败: {e}")
+            raise  # 让 _wrap_job 标记 failed
 
     scheduler.add_job(
         _wrap_job("auto_summarize_morning", "自动摘要生成(上午)", _run_auto_summarize),
@@ -1197,7 +1232,7 @@ def start_scheduler():
             if not cs_rows:
                 logger.info("[Scheduler] auto_chunk_index: 无待索引摘要")
                 _task_finish(tid, "无待索引摘要")
-                return
+                return {"ok": 0, "skip": 0, "fail": 0, "msg": "无待索引摘要"}
 
             # 过滤已索引的
             existing = set()
@@ -1214,7 +1249,7 @@ def start_scheduler():
             if not pending:
                 logger.info("[Scheduler] auto_chunk_index: 全部已索引")
                 _task_finish(tid, "全部已索引")
-                return
+                return {"ok": 0, "skip": 0, "fail": 0, "msg": "全部已索引"}
 
             task["total"] = min(len(pending), 1000)
             task["current"] = f"待索引 {len(pending)} 条"
@@ -1235,8 +1270,10 @@ def start_scheduler():
             summary = f"完成: 索引{ok} 跳过{skip} 失败{fail}"
             logger.info(f"[Scheduler] auto_chunk_index {summary}")
             _task_finish(tid, summary)
+            return {"ok": ok, "skip": skip, "fail": fail}
         except Exception as e:
             logger.warning(f"[Scheduler] auto_chunk_index 整体失败: {e}")
+            raise  # 让 _wrap_job 标记 failed
             _task_finish(tid, f"失败: {e}")
 
     scheduler.add_job(
@@ -1251,6 +1288,18 @@ def start_scheduler():
         id="auto_chunk_index_evening", replace_existing=True,
         name="自动摘要chunk索引(晚间)",
     )
+
+    # 启动前清理上次遗留的 running 状态（服务重启导致的孤儿任务）
+    try:
+        from utils.db_utils import execute_insert
+        cleaned = execute_insert(
+            "UPDATE scheduler_run_log SET status='orphaned', error_msg='服务重启导致任务中断', finished_at=NOW() "
+            "WHERE status='running'",
+        )
+        if cleaned:
+            logger.info(f"[Scheduler] 清理了 {cleaned} 条遗留 running 状态记录")
+    except Exception as e:
+        logger.warning(f"[Scheduler] 清理 orphaned 记录失败: {e}")
 
     scheduler.start()
     # 加载用户自定义任务
