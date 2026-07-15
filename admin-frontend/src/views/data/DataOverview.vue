@@ -126,7 +126,12 @@
         </div>
       </template>
       <el-table :data="runs" v-loading="loadingRuns" size="small" border>
-        <el-table-column prop="batch" label="批次" width="60" />
+        <el-table-column label="运行编号" width="90">
+          <template #default="{ row }">
+            <span class="run-no">{{ row.run_no || row.batch }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="task_batch" label="任务批次" width="80" />
         <el-table-column label="任务" min-width="180">
           <template #default="{ row }">
             <span>{{ row.job_name }}</span>
@@ -457,6 +462,7 @@ onMounted(() => {
 .run-error { font-size: 12px; color: var(--el-color-danger); line-height: 1.5; word-break: break-all; }
 .run-running { color: var(--el-color-warning); font-size: 12px; }
 .run-empty { color: var(--admin-text-dim); }
+.run-no { font-family: monospace; font-weight: 600; color: #409eff; }
 .run-warning { color: var(--el-color-warning) !important; }
 .run-expect { font-size: 11px; color: #999; }
 .load-more { text-align: center; padding: 12px 0; }

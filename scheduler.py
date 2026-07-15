@@ -329,7 +329,12 @@ def get_scheduler_run_history(limit: int = 50, job_id: str = None) -> list:
     for r in (rows or []):
         row = dict(r)
         meta = _JOB_META.get(row.get("job_id", ""), {})
-        row["batch"] = meta.get("batch", "—")
+        # run_no: 本次执行的全局唯一编号（用于用户定位问题）
+        row["run_no"] = f"#{row.get('id', 0):05d}"
+        # task_batch: 任务分类编号（1-1/4-5等，用于分组）
+        row["task_batch"] = meta.get("batch", "—")
+        # 保留 batch 字段做前端兼容
+        row["batch"] = row["run_no"]
         row["desc"] = meta.get("desc", "")
         row["expect"] = meta.get("expect", "")
         result.append(row)
