@@ -12,6 +12,7 @@ from datetime import datetime
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.date import DateTrigger
 
 from utils.db_utils import execute_query, execute_insert
 
@@ -121,105 +122,105 @@ def _task_finish(task_id: str, summary: str = None):
 _JOB_META = {
     # ─── 批次1: 数据采集 ───
     "zsxq_scanner_morning": {
-        "batch": "1-1", "group": "collect",
+        "batch": "1-1", "group": "collect", "retriable": True,
         "desc": "从知识星球API采集当日新帖(文本/PDF/音频) → 自动提取清洗 → 推入管线 → 运行daily intel scanner提取事件",
         "expect": "zsxq_fetched>0 或 当日确无新帖; intel_events≥0",
     },
     "zsxq_scanner_afternoon": {
-        "batch": "1-2", "group": "collect",
+        "batch": "1-2", "group": "collect", "retriable": True,
         "desc": "午后再次采集知识星球(捕获白天新帖) → 提取清洗 → daily intel scanner",
         "expect": "zsxq_fetched>0 或 当日确无新帖; intel_events≥0",
     },
     "akshare_daily": {
-        "batch": "1-3", "group": "collect",
+        "batch": "1-3", "group": "collect", "retriable": True,
         "desc": "通过AKShare接口采集全市场日K线/涨跌停/北向资金等行情数据 → 写入云端 → 增量同步到本地MySQL",
         "expect": "fetch.inserted>0(交易日) 或 非交易日无数据; sync完成",
     },
     "macro_daily": {
-        "batch": "1-4", "group": "collect",
+        "batch": "1-4", "group": "collect", "retriable": True,
         "desc": "采集Shibor/融资余额/全A估值PE/陆股通/海外ETF等日度宏观指标 → 同步到本地",
         "expect": "fetch中各指标有新数据(交易日); sync完成",
     },
     "macro_monthly": {
-        "batch": "1-5", "group": "collect",
+        "batch": "1-5", "group": "collect", "retriable": False,
         "desc": "每月1日采集M2/社融/PMI等月度宏观数据 → 同步到本地",
         "expect": "新月度数据入库",
     },
     "market_data_monthly": {
-        "batch": "1-6", "group": "collect",
+        "batch": "1-6", "group": "collect", "retriable": False,
         "desc": "每月1日同步市场增量数据(行业分类/概念板块/股票列表更新)",
         "expect": "同步条目数>0",
     },
     "wencai_indicators_daily": {
-        "batch": "1-7", "group": "collect",
+        "batch": "1-7", "group": "collect", "retriable": True,
         "desc": "从同花顺问财采集热门行业指标(涨跌幅/成交量/主力资金) → LLM提取结构化指标 → 写入industry_indicators",
         "expect": "indicators_saved>0(交易日)",
     },
     # ─── 批次2: 知识图谱 ───
     "kg_auto_morning": {
-        "batch": "2-1", "group": "kg",
+        "batch": "2-1", "group": "kg", "retriable": True,
         "desc": "增量构建知识图谱：读取上次构建后新增的cleaned_items → LLM提取实体+关系 → 写入Neo4j → 自动推理补全",
         "expect": "processed>0(有新内容时); entities≥0; relationships≥0",
     },
     "kg_auto_evening": {
-        "batch": "2-2", "group": "kg",
+        "batch": "2-2", "group": "kg", "retriable": True,
         "desc": "晚间增量构建KG(与早间相同逻辑，捕获当天新增内容)",
         "expect": "processed>0(有新内容时); entities≥0; relationships≥0",
     },
     # ─── 批次3: 分析扫描 ───
     "robust_kline_morning": {
-        "batch": "3-1", "group": "analysis",
+        "batch": "3-1", "group": "analysis", "retriable": True,
         "desc": "扫描最新研报中提及的股票 → 拉取月K线 → 过滤符合条件标的 → 填充亮点摘要",
         "expect": "reports>0(有新研报时); stocks_extracted≥0; inserted≥0",
     },
     "robust_kline_afternoon": {
-        "batch": "3-2", "group": "analysis",
+        "batch": "3-2", "group": "analysis", "retriable": True,
         "desc": "午后再次扫描研报(捕获当日新发研报) → 月K线过滤 → 亮点填充",
         "expect": "reports>0(有新研报时); stocks_extracted≥0; inserted≥0",
     },
     "prediction_monitor_daily": {
-        "batch": "3-3", "group": "analysis",
+        "batch": "3-3", "group": "analysis", "retriable": False,
         "desc": "检查已记录的K线形态预测是否兑现(对比实际走势) → 更新命中率统计",
         "expect": "checked>0; hit/miss计数",
     },
     # ─── 批次4: 数据维护 ───
     "diagnose_failed_morning": {
-        "batch": "4-1", "group": "maintain",
+        "batch": "4-1", "group": "maintain", "retriable": True,
         "desc": "扫描source_documents中extract_status=failed的记录 → 诊断失败原因 → 对可恢复类型(网络超时等)自动重试",
         "expect": "total=待诊断数; retried>0(有可恢复时); recovered≥0",
     },
     "diagnose_failed_evening": {
-        "batch": "4-2", "group": "maintain",
+        "batch": "4-2", "group": "maintain", "retriable": True,
         "desc": "晚间再次诊断failed记录+自动重试(与早间相同)",
         "expect": "total=待诊断数; retried>0(有可恢复时); recovered≥0",
     },
     "auto_summarize_morning": {
-        "batch": "4-3", "group": "maintain",
+        "batch": "4-3", "group": "maintain", "retriable": True,
         "desc": "批量对extracted_texts中summary_status=pending的文档生成AI分族摘要(调用LLM)",
         "expect": "ok>0(有待摘要时); fail尽量=0; total=处理总数",
     },
     "auto_summarize_evening": {
-        "batch": "4-4", "group": "maintain",
+        "batch": "4-4", "group": "maintain", "retriable": True,
         "desc": "晚间批量摘要生成(与上午相同，处理白天新入管线的文档)",
         "expect": "ok>0(有待摘要时); fail尽量=0; total=处理总数",
     },
     "auto_chunk_index_morning": {
-        "batch": "4-5", "group": "maintain",
+        "batch": "4-5", "group": "maintain", "retriable": True,
         "desc": "对family=2的新摘要做向量切片 → 写入本地text_chunks + Milvus向量索引(依赖Milvus运行)",
         "expect": "ok>0(有新摘要时); fail=0(Milvus正常时)",
     },
     "auto_chunk_index_evening": {
-        "batch": "4-6", "group": "maintain",
+        "batch": "4-6", "group": "maintain", "retriable": True,
         "desc": "晚间chunk向量索引(与上午相同，处理新生成的摘要)",
         "expect": "ok>0(有新摘要时); fail=0(Milvus正常时)",
     },
     "daily_sync_nightly": {
-        "batch": "4-7", "group": "maintain",
+        "batch": "4-7", "group": "maintain", "retriable": True,
         "desc": "夜间兜底：chain_sync同步产业链配置到本地 + theme_merger合并当日主题情报",
         "expect": "chain_sync/theme_merger各自返回处理结果",
     },
     "pending_sweep_nightly": {
-        "batch": "4-8", "group": "maintain",
+        "batch": "4-8", "group": "maintain", "retriable": True,
         "desc": "扫描近7天source_documents中遗漏的pending/failed(txt/mixed/image)记录 → 统一提取+推入管线(兜底防遗漏)",
         "expect": "processed=遗漏数; extracted>0; pushed>0(有遗漏时)",
     },
@@ -1429,6 +1430,75 @@ def start_scheduler():
     # 加载用户自定义任务
     load_custom_jobs()
     logger.info("[Scheduler] 定时任务已启动: 07:00+17:00 zsxq采集, 08:30+18:30 诊断failed, 09:30+20:30 摘要生成, 10:00+21:30 chunk索引, 22:00 pending sweep, 06:00+20:00 KG, 06:00+16:00 Kline, 18:30 宏观日度, 19:30 预测监控, 21:00 问财, 23:00 chain_sync+theme_merger")
+
+    # 启动后自动重跑被中断的任务（近24小时内 orphaned 且 retriable 的任务）
+    try:
+        _retry_orphaned_jobs()
+    except Exception as e:
+        logger.warning(f"[Scheduler] 自动重跑 orphaned 任务失败: {e}")
+
+
+def _retry_orphaned_jobs():
+    """服务启动后自动重跑近24小时内被中断的可重跑任务。
+    去重策略：每个 job_id 只重跑最近一次 orphaned 记录；
+    避免循环：若该 job_id 在近1小时内已有 running/success/partial 记录，则跳过；
+    错峰：重跑安排在启动后 30s 起，每个任务间隔 15s，避免启动风暴。
+    """
+    from utils.db_utils import execute_query
+    from datetime import datetime, timedelta
+
+    rows = execute_query(
+        "SELECT job_id, job_name, MAX(started_at) AS last_started "
+        "FROM scheduler_run_log "
+        "WHERE status='orphaned' AND started_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR) "
+        "GROUP BY job_id, job_name"
+    ) or []
+    if not rows:
+        logger.info("[Scheduler] 无需重跑的 orphaned 任务")
+        return
+
+    retried = 0
+    skipped = 0
+    for r in rows:
+        job_id = r.get("job_id")
+        job_name = r.get("job_name") or job_id
+        meta = _JOB_META.get(job_id, {})
+        if not meta.get("retriable", False):
+            logger.info(f"[Scheduler] 跳过重跑(非幂等): {job_id}")
+            skipped += 1
+            continue
+
+        # 近1小时内该 job 若已成功执行过，则不再重跑（防循环）
+        recent = execute_query(
+            "SELECT COUNT(*) AS cnt FROM scheduler_run_log "
+            "WHERE job_id=%s AND status IN ('running','success','partial') "
+            "AND started_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+            (job_id,)
+        ) or []
+        if recent and recent[0].get("cnt", 0) > 0:
+            logger.info(f"[Scheduler] 跳过重跑(近1小时内已执行): {job_id}")
+            skipped += 1
+            continue
+
+        job = scheduler.get_job(job_id)
+        if not job:
+            logger.warning(f"[Scheduler] 未找到 job: {job_id}，无法重跑")
+            skipped += 1
+            continue
+
+        # 延后 30s 起、每任务错峰 15s，避免启动风暴
+        run_time = datetime.now() + timedelta(seconds=30 + retried * 15)
+        scheduler.add_job(
+            job.func,
+            trigger=DateTrigger(run_date=run_time),
+            id=f"{job_id}_retry_{int(run_time.timestamp())}",
+            name=f"[重跑] {job_name}",
+            replace_existing=False,
+        )
+        logger.info(f"[Scheduler] 已安排重跑 {job_id} @ {run_time.strftime('%H:%M:%S')}")
+        retried += 1
+
+    logger.info(f"[Scheduler] orphaned 任务重跑安排完成: retried={retried}, skipped={skipped}")
 
 
 def stop_scheduler():
