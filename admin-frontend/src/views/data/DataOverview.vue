@@ -32,8 +32,15 @@
             <span class="job-group-count">{{ g.jobs.length }}</span>
           </div>
           <el-table :data="g.jobs" size="small" border class="job-group-table">
-            <el-table-column prop="name" label="任务名称" min-width="200" />
-            <el-table-column prop="description" label="说明" min-width="260" show-overflow-tooltip />
+            <el-table-column prop="batch" label="批次" width="60" />
+            <el-table-column label="任务名称" min-width="220">
+              <template #default="{ row }">
+                <span>{{ row.name }}</span>
+                <el-tooltip :content="row.description" placement="top" :show-after="300">
+                  <el-icon style="margin-left:4px;cursor:help;color:#909399;vertical-align:middle"><InfoFilled /></el-icon>
+                </el-tooltip>
+              </template>
+            </el-table-column>
             <el-table-column label="调度" width="160">
               <template #default="{ row }">
                 <span class="schedule-text">{{ formatSchedule(row.schedule) }}</span>
@@ -119,10 +126,17 @@
         </div>
       </template>
       <el-table :data="runs" v-loading="loadingRuns" size="small" border>
-        <el-table-column prop="job_name" label="任务" min-width="180" />
+        <el-table-column prop="batch" label="批次" width="60" />
+        <el-table-column label="任务" min-width="180">
+          <template #default="{ row }">
+            <span>{{ row.job_name }}</span>
+            <el-tooltip v-if="row.desc" :content="row.desc" placement="top" :show-after="300">
+              <el-icon style="margin-left:4px;cursor:help;color:#909399;vertical-align:middle"><InfoFilled /></el-icon>
+            </el-tooltip>
+          </template>
+        </el-table-column>
         <el-table-column prop="started_at" label="开始时间" width="170" />
-        <el-table-column prop="finished_at" label="结束时间" width="170" />
-        <el-table-column label="耗时" width="90">
+        <el-table-column label="耗时" width="80">
           <template #default="{ row }">{{ duration(row) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="90">
@@ -130,16 +144,22 @@
             <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="执行摘要" min-width="320">
+        <el-table-column label="执行摘要" min-width="280">
           <template #default="{ row }">
-            <div v-if="row.status === 'success' && row.result_summary" class="run-summary">
+            <div v-if="row.result_summary" class="run-summary" :class="{ 'run-warning': row.status === 'partial' }">
               {{ formatSummary(row.result_summary) }}
             </div>
             <div v-else-if="row.status === 'failed' && row.error_msg" class="run-error">
               {{ row.error_msg.slice(0, 200) }}
             </div>
+            <div v-else-if="row.status === 'orphaned'" class="run-error">⚠️ 服务重启中断</div>
             <span v-else-if="row.status === 'running'" class="run-running">执行中...</span>
             <span v-else class="run-empty">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="预期" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="run-expect">{{ row.expect || '—' }}</span>
           </template>
         </el-table-column>
       </el-table>
@@ -182,7 +202,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as dataApi from '@/api/data'
 
@@ -387,10 +407,12 @@ function statusType(s) {
   if (s === 'success') return 'success'
   if (s === 'failed') return 'danger'
   if (s === 'running') return 'warning'
+  if (s === 'partial') return 'warning'
+  if (s === 'orphaned') return 'info'
   return 'info'
 }
 function statusLabel(s) {
-  const map = { success: '成功', failed: '失败', running: '运行中' }
+  const map = { success: '成功', failed: '失败', running: '运行中', partial: '部分成功', orphaned: '中断' }
   return map[s] || s
 }
 function duration(row) {
@@ -435,6 +457,8 @@ onMounted(() => {
 .run-error { font-size: 12px; color: var(--el-color-danger); line-height: 1.5; word-break: break-all; }
 .run-running { color: var(--el-color-warning); font-size: 12px; }
 .run-empty { color: var(--admin-text-dim); }
+.run-warning { color: var(--el-color-warning) !important; }
+.run-expect { font-size: 11px; color: #999; }
 .load-more { text-align: center; padding: 12px 0; }
 .cron-hint { font-size: 12px; color: var(--admin-text-dim); margin-top: 4px; }
 

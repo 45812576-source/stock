@@ -117,6 +117,114 @@ def _task_finish(task_id: str, summary: str = None):
         pass
 
 
+# ── 任务元数据（批次 + 描述 + 预期结果指标）──────────────────────
+_JOB_META = {
+    # ─── 批次1: 数据采集 ───
+    "zsxq_scanner_morning": {
+        "batch": "1-1", "group": "collect",
+        "desc": "从知识星球API采集当日新帖(文本/PDF/音频) → 自动提取清洗 → 推入管线 → 运行daily intel scanner提取事件",
+        "expect": "zsxq_fetched>0 或 当日确无新帖; intel_events≥0",
+    },
+    "zsxq_scanner_afternoon": {
+        "batch": "1-2", "group": "collect",
+        "desc": "午后再次采集知识星球(捕获白天新帖) → 提取清洗 → daily intel scanner",
+        "expect": "zsxq_fetched>0 或 当日确无新帖; intel_events≥0",
+    },
+    "akshare_daily": {
+        "batch": "1-3", "group": "collect",
+        "desc": "通过AKShare接口采集全市场日K线/涨跌停/北向资金等行情数据 → 写入云端 → 增量同步到本地MySQL",
+        "expect": "fetch.inserted>0(交易日) 或 非交易日无数据; sync完成",
+    },
+    "macro_daily": {
+        "batch": "1-4", "group": "collect",
+        "desc": "采集Shibor/融资余额/全A估值PE/陆股通/海外ETF等日度宏观指标 → 同步到本地",
+        "expect": "fetch中各指标有新数据(交易日); sync完成",
+    },
+    "macro_monthly": {
+        "batch": "1-5", "group": "collect",
+        "desc": "每月1日采集M2/社融/PMI等月度宏观数据 → 同步到本地",
+        "expect": "新月度数据入库",
+    },
+    "market_data_monthly": {
+        "batch": "1-6", "group": "collect",
+        "desc": "每月1日同步市场增量数据(行业分类/概念板块/股票列表更新)",
+        "expect": "同步条目数>0",
+    },
+    "wencai_indicators_daily": {
+        "batch": "1-7", "group": "collect",
+        "desc": "从同花顺问财采集热门行业指标(涨跌幅/成交量/主力资金) → LLM提取结构化指标 → 写入industry_indicators",
+        "expect": "indicators_saved>0(交易日)",
+    },
+    # ─── 批次2: 知识图谱 ───
+    "kg_auto_morning": {
+        "batch": "2-1", "group": "kg",
+        "desc": "增量构建知识图谱：读取上次构建后新增的cleaned_items → LLM提取实体+关系 → 写入Neo4j → 自动推理补全",
+        "expect": "processed>0(有新内容时); entities≥0; relationships≥0",
+    },
+    "kg_auto_evening": {
+        "batch": "2-2", "group": "kg",
+        "desc": "晚间增量构建KG(与早间相同逻辑，捕获当天新增内容)",
+        "expect": "processed>0(有新内容时); entities≥0; relationships≥0",
+    },
+    # ─── 批次3: 分析扫描 ───
+    "robust_kline_morning": {
+        "batch": "3-1", "group": "analysis",
+        "desc": "扫描最新研报中提及的股票 → 拉取月K线 → 过滤符合条件标的 → 填充亮点摘要",
+        "expect": "reports>0(有新研报时); stocks_extracted≥0; inserted≥0",
+    },
+    "robust_kline_afternoon": {
+        "batch": "3-2", "group": "analysis",
+        "desc": "午后再次扫描研报(捕获当日新发研报) → 月K线过滤 → 亮点填充",
+        "expect": "reports>0(有新研报时); stocks_extracted≥0; inserted≥0",
+    },
+    "prediction_monitor_daily": {
+        "batch": "3-3", "group": "analysis",
+        "desc": "检查已记录的K线形态预测是否兑现(对比实际走势) → 更新命中率统计",
+        "expect": "checked>0; hit/miss计数",
+    },
+    # ─── 批次4: 数据维护 ───
+    "diagnose_failed_morning": {
+        "batch": "4-1", "group": "maintain",
+        "desc": "扫描source_documents中extract_status=failed的记录 → 诊断失败原因 → 对可恢复类型(网络超时等)自动重试",
+        "expect": "total=待诊断数; retried>0(有可恢复时); recovered≥0",
+    },
+    "diagnose_failed_evening": {
+        "batch": "4-2", "group": "maintain",
+        "desc": "晚间再次诊断failed记录+自动重试(与早间相同)",
+        "expect": "total=待诊断数; retried>0(有可恢复时); recovered≥0",
+    },
+    "auto_summarize_morning": {
+        "batch": "4-3", "group": "maintain",
+        "desc": "批量对extracted_texts中summary_status=pending的文档生成AI分族摘要(调用LLM)",
+        "expect": "ok>0(有待摘要时); fail尽量=0; total=处理总数",
+    },
+    "auto_summarize_evening": {
+        "batch": "4-4", "group": "maintain",
+        "desc": "晚间批量摘要生成(与上午相同，处理白天新入管线的文档)",
+        "expect": "ok>0(有待摘要时); fail尽量=0; total=处理总数",
+    },
+    "auto_chunk_index_morning": {
+        "batch": "4-5", "group": "maintain",
+        "desc": "对family=2的新摘要做向量切片 → 写入本地text_chunks + Milvus向量索引(依赖Milvus运行)",
+        "expect": "ok>0(有新摘要时); fail=0(Milvus正常时)",
+    },
+    "auto_chunk_index_evening": {
+        "batch": "4-6", "group": "maintain",
+        "desc": "晚间chunk向量索引(与上午相同，处理新生成的摘要)",
+        "expect": "ok>0(有新摘要时); fail=0(Milvus正常时)",
+    },
+    "daily_sync_nightly": {
+        "batch": "4-7", "group": "maintain",
+        "desc": "夜间兜底：chain_sync同步产业链配置到本地 + theme_merger合并当日主题情报",
+        "expect": "chain_sync/theme_merger各自返回处理结果",
+    },
+    "pending_sweep_nightly": {
+        "batch": "4-8", "group": "maintain",
+        "desc": "扫描近7天source_documents中遗漏的pending/failed(txt/mixed/image)记录 → 统一提取+推入管线(兜底防遗漏)",
+        "expect": "processed=遗漏数; extracted>0; pushed>0(有遗漏时)",
+    },
+}
+
 # 任务分组映射
 _JOB_GROUP_MAP = {
     # 数据采集
@@ -176,15 +284,18 @@ def get_scheduler_jobs() -> list:
         paused = job.next_run_time is None
         is_custom = job.id in custom_ids
         group = "custom" if is_custom else _JOB_GROUP_MAP.get(job.id, "maintain")
+        meta = _JOB_META.get(job.id, {})
         jobs.append({
             "job_id": job.id,
             "name": job.name or job.id,
+            "batch": meta.get("batch", "—"),
             "group": group,
             "schedule": schedule,
             "next_run": next_run,
             "paused": paused,
             "is_custom": is_custom,
-            "description": (job.func.__doc__ or "").strip().split("\n")[0] if job.func else "",
+            "description": meta.get("desc") or (job.func.__doc__ or "").strip().split("\n")[0] if job.func else "",
+            "expect": meta.get("expect", ""),
         })
 
     # 按分组 order + 下次执行时间排序
@@ -199,7 +310,7 @@ def get_job_groups() -> list:
 
 
 def get_scheduler_run_history(limit: int = 50, job_id: str = None) -> list:
-    """获取最近的任务运行历史"""
+    """获取最近的任务运行历史（含批次+描述+预期）"""
     global _run_log_table_ready
     if not _run_log_table_ready:
         _ensure_run_log_table()
@@ -214,7 +325,15 @@ def get_scheduler_run_history(limit: int = 50, job_id: str = None) -> list:
             "SELECT * FROM scheduler_run_log ORDER BY started_at DESC LIMIT %s",
             [limit],
         )
-    return rows or []
+    result = []
+    for r in (rows or []):
+        row = dict(r)
+        meta = _JOB_META.get(row.get("job_id", ""), {})
+        row["batch"] = meta.get("batch", "—")
+        row["desc"] = meta.get("desc", "")
+        row["expect"] = meta.get("expect", "")
+        result.append(row)
+    return result
 
 
 # ── 可调用的管线函数注册表 ───────────────────────────────
