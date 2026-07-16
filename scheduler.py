@@ -1053,19 +1053,26 @@ def start_scheduler():
         )
 
     def _run_zsxq_and_scanner(scan_date: str = None):
-        from datetime import date as _date
-        day = scan_date or str(_date.today())
+        from datetime import date as _date, timedelta as _td
+        today = _date.today()
+        day = scan_date or str(today)
+
+        # 采集窗口：从昨天开始到今天（覆盖前一天17:00后到现在的漏洞）
+        # 去重逻辑保证已存在的帖子会 skip，不会重复入库
+        start_day = scan_date or str(today - _td(days=1))
+        end_day = scan_date or str(today)
+
         summary = {"zsxq_fetched": 0, "extracted": 0, "pushed": 0, "intel_events": 0, "errors": []}
 
-        # zsxq 采集
+        # zsxq 采集（覆盖昨天+今天）
         try:
             from ingestion.zsxq_source import fetch_zsxq_data
-            result = fetch_zsxq_data(start_date=day, end_date=day)
+            result = fetch_zsxq_data(start_date=start_day, end_date=end_day)
             summary["zsxq_fetched"] = result.get("saved", 0) if isinstance(result, dict) else (result or 0)
-            logger.info(f"[Scheduler] zsxq 采集完成 {day}: {result}")
+            logger.info(f"[Scheduler] zsxq 采集完成 {start_day}~{end_day}: {result}")
         except Exception as e:
             summary["errors"].append(f"zsxq采集: {e}")
-            logger.warning(f"[Scheduler] zsxq 采集失败 {day}: {e}")
+            logger.warning(f"[Scheduler] zsxq 采集失败 {start_day}~{end_day}: {e}")
 
         # 采集后自动提取清洗入管线（全类型）
         _auto_extract_and_pipe(day)
